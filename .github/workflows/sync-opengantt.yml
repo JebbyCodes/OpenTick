@@ -1,0 +1,36 @@
+name: sync-opengantt
+# Keeps the OpenGantt app that OpenTick ships (vendor/opengantt) in step with github.com/JebbyCodes/OpenGantt.
+# Runs every day, on demand, and when the OpenGantt repo sends an `opengantt-updated` event (see the README).
+on:
+  schedule: [{ cron: '17 5 * * *' }]
+  workflow_dispatch:
+  repository_dispatch:
+    types: [opengantt-updated]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - id: sync
+        run: node scripts/sync-opengantt.mjs
+        env: { GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
+      - run: npm test
+      - run: node build-app.mjs
+      - uses: peter-evans/create-pull-request@v6
+        with:
+          branch: sync/opengantt
+          delete-branch: true
+          commit-message: 'Update vendored OpenGantt'
+          title: 'Update vendored OpenGantt'
+          body: |
+            Automatic update of `vendor/opengantt/` from https://github.com/JebbyCodes/OpenGantt.
+            See `vendor/opengantt/UPSTREAM.json` for the commit. If it lists `drift`, the OpenGantt README documents
+            chart keys, scales or columns the built-in Gantt view does not handle yet.
+          add-paths: vendor/opengantt

@@ -1,0 +1,24 @@
+{
+  "repo": "JebbyCodes/OpenGantt",
+  "source": "release",
+  "ref": "1.2.11",
+  "commit": "d6272bd436457079a217968c8acaa2aab7e36151",
+  "commitDate": "2026-10-08T22:46:52Z",
+  "message": "Prepare OpenGantt v1.2.10 release",
+  "release": {
+    "tag": "1.2.11",
+    "name": "OpenGantt 1.2.11",
+    "url": "https://github.com/JebbyCodes/OpenGantt/releases/tag/1.2.11",
+    "publishedAt": "2026-10-08T22:51:12Z"
+  },
+  "fetched": "2026-10-09T17:44:11.825Z",
+  "bytes": 192539,
+  "sha256": "f974bcc967aaa3120a5aeec8d5973e2e80398469784f9da16a70d57fad1f418d",
+  "spec": {
+    "rowKeys": [],
+    "scales": [],
+    "options": [],
+    "columns": []
+  },
+  "drift": []
+}

@@ -1,0 +1,19 @@
+{
+  "name": "opentick",
+  "version": "0.5.0",
+  "private": true,
+  "type": "module",
+  "description": "Open-source TickTick-style task manager: web, Windows, macOS, Linux, Android, iOS",
+  "scripts": {
+    "build:app": "node build-app.mjs",
+    "dev": "node dev-server.mjs",
+    "sync:gantt": "node scripts/sync-opengantt.mjs",
+    "check:gantt": "node scripts/sync-opengantt.mjs --check",
+    "icons": "tauri icon src/icon.svg",
+    "test": "node test/smoke.mjs && node test/markdown.mjs && node test/sync.mjs && node test/timetable.mjs && node test/opengantt.mjs && node test/layout.mjs && node test/upstream.mjs",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

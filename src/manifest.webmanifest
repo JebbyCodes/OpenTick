@@ -1,0 +1,10 @@
+{
+  "name": "OpenTick",
+  "short_name": "OpenTick",
+  "description": "Open-source to-do, calendar, habit and focus app",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4772fa",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
