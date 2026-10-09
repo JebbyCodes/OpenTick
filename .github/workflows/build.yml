@@ -2,7 +2,7 @@
 name: Build OpenTick
 
 on:
-  # Build downloadable artifacts when manually triggered from GitHub Actions.
+  # Manually build selected platforms from GitHub Actions.
   workflow_dispatch:
     inputs:
       build_desktop:
@@ -16,7 +16,7 @@ on:
         type: boolean
         default: true
 
-  # A pushed version tag builds everything and publishes a GitHub Release.
+  # Build all platforms and publish a release when a version tag is pushed.
   push:
     tags:
       - 'v*'
@@ -26,7 +26,6 @@ permissions:
 
 env:
   NODE_VERSION: '22'
-  RUST_TOOLCHAIN: stable
 
 jobs:
   desktop:
@@ -81,6 +80,14 @@ jobs:
         with:
           workspaces: src-tauri -> target
 
+      - name: Validate application icon
+        shell: bash
+        run: |
+          if [ ! -f src-tauri/icons/icon.png ]; then
+            echo "::error::Missing src-tauri/icons/icon.png. Add the application icon before building."
+            exit 1
+          fi
+
       - name: Build desktop packages
         run: npx tauri build
 
@@ -118,13 +125,24 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: ''
 
       - name: Accept Android SDK licenses
-        run: yes | sdkmanager --licenses
+        shell: bash
+        run: |
+          set -o pipefail
+          yes | sdkmanager --licenses
 
       - name: Install Android SDK components
+        shell: bash
         run: |
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;27.0.12077973"
+          set -euo pipefail
+          sdkmanager --install \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0" \
+            "ndk;27.0.12077973"
 
       - name: Set up Rust for Android
         uses: dtolnay/rust-toolchain@stable
@@ -141,6 +159,14 @@ jobs:
         run: |
           if [ ! -d src-tauri/gen/android ]; then
             npx tauri android init
+          fi
+
+      - name: Validate application icon
+        shell: bash
+        run: |
+          if [ ! -f src-tauri/icons/icon.png ]; then
+            echo "::error::Missing src-tauri/icons/icon.png. Add the application icon before building."
+            exit 1
           fi
 
       - name: Build Android APK
