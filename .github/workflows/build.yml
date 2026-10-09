@@ -125,24 +125,25 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          packages: ''
-
-      - name: Accept Android SDK licenses
-        shell: bash
-        run: |
-          set -o pipefail
-          yes | sdkmanager --licenses
 
       - name: Install Android SDK components
         shell: bash
         run: |
           set -euo pipefail
+
           sdkmanager --install \
             "platform-tools" \
             "platforms;android-35" \
             "build-tools;35.0.0" \
             "ndk;27.0.12077973"
+
+      - name: Accept Android SDK licenses
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          yes | sdkmanager --licenses
+        continue-on-error: false
 
       - name: Set up Rust for Android
         uses: dtolnay/rust-toolchain@stable
