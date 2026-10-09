@@ -70,7 +70,9 @@ jobs:
           sudo apt-get install -y \
             build-essential \
             curl \
+            wget \
             file \
+            libxdo-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
             patchelf \
@@ -97,7 +99,7 @@ jobs:
       - name: Build desktop packages
         run: npx tauri build
 
-      - name: Upload desktop packages
+      - name: Upload desktop build output
         uses: actions/upload-artifact@v7
         with:
           name: OpenTick-${{ matrix.platform }}
@@ -129,9 +131,8 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # This action installs the command-line tools, provides sdkmanager,
-      # accepts Android SDK licences, and installs platform-tools.
-      # Explicitly avoid the obsolete "tools" package.
+      # Installs modern command-line tools, accepts Android SDK licences,
+      # and installs platform-tools. Do not request the obsolete "tools" package.
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
@@ -233,7 +234,7 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs:
       - desktop
       - android
@@ -243,14 +244,64 @@ jobs:
 
     steps:
       - name: Download all build artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           path: release-assets
           merge-multiple: false
 
-      - name: Publish release and attach installers/APK
+      # Do not upload bundle internals such as copyright, shared libraries,
+      # desktop entry files, or data.tar.gz.
+      - name: Collect installer packages and APK only
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p release-files
+
+          mapfile -d '' packages < <(
+            find release-assets -type f \( \
+              -iname '*.apk' -o \
+              -iname '*.exe' -o \
+              -iname '*.msi' -o \
+              -iname '*.msix' -o \
+              -iname '*.appx' -o \
+              -iname '*.deb' -o \
+              -iname '*.rpm' -o \
+              -iname '*.appimage' -o \
+              -iname '*.dmg' -o \
+              -iname '*.pkg' \
+            \) -print0 | sort -z
+          )
+
+          if [ "${#packages[@]}" -eq 0 ]; then
+            echo "::error::No installer packages or APKs were found."
+            echo "Downloaded files:"
+            find release-assets -type f -print | sort
+            exit 1
+          fi
+
+          for file in "${packages[@]}"; do
+            filename="$(basename "$file")"
+
+            if [ -e "release-files/$filename" ]; then
+              echo "::error::Duplicate release asset filename: $filename"
+              exit 1
+            fi
+
+            cp -- "$file" "release-files/$filename"
+            echo "Prepared: $filename"
+          done
+
+          echo
+          echo "Final release files:"
+          find release-files -maxdepth 1 -type f -printf '%f\n' | sort
+          echo "Total files: ${#packages[@]}"
+
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
-          files: release-assets/**/*
+          files: release-files/*
           fail_on_unmatched_files: true
+          preserve_order: true
+          overwrite_files: true
