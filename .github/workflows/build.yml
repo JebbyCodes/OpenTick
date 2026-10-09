@@ -131,8 +131,8 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # Installs modern command-line tools, accepts Android SDK licences,
-      # and installs platform-tools. Do not request the obsolete "tools" package.
+      # Install modern command-line tools and platform-tools.
+      # Do not request the obsolete Android SDK "tools" package.
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
@@ -239,8 +239,12 @@ jobs:
       - desktop
       - android
     runs-on: ubuntu-latest
+
+    # Permissions required to publish the release and generate attestations.
     permissions:
       contents: write
+      id-token: write
+      attestations: write
 
     steps:
       - name: Download all build artifacts
@@ -249,8 +253,7 @@ jobs:
           path: release-assets
           merge-multiple: false
 
-      # Do not upload bundle internals such as copyright, shared libraries,
-      # desktop entry files, or data.tar.gz.
+      # Exclude bundle internals such as copyright files and shared libraries.
       - name: Collect installer packages and APK only
         shell: bash
         run: |
@@ -296,6 +299,12 @@ jobs:
           echo "Final release files:"
           find release-files -maxdepth 1 -type f -printf '%f\n' | sort
           echo "Total files: ${#packages[@]}"
+
+      # Generate signed SLSA build-provenance attestations for all installers.
+      - name: Generate release artifact attestations
+        uses: actions/attest@v4
+        with:
+          subject-path: 'release-files/*'
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v3
