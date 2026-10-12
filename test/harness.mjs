@@ -1,14 +1,15 @@
 // Loads the app's scripts into an isolated VM context with a fake DOM, so several "devices" can run side by side.
 import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
-const code = ['core', 'md', 'views', 'sync', 'og', 'gantt', 'ui', 'main'].map(n => readFileSync(new URL(`../src/js/${n}.js`, import.meta.url), 'utf8')).join('\n');
+import { JS_ORDER } from '../build-app.mjs';
+const code = JS_ORDER.map(n => readFileSync(new URL(`../src/js/${n}.js`, import.meta.url), 'utf8')).join('\n');
 
 export const clock = { t: Date.UTC(2026, 9, 8, 10, 0, 0) };
 class FDate extends Date { static now() { return clock.t; } constructor(...a) { if (a.length) super(...a); else super(clock.t); } }
 
 export function makeApp({ fetch = globalThis.fetch, store = {} } = {}) {
   const els = {};
-  const el = () => ({ innerHTML: '', value: '', dataset: {}, style: {}, textContent: '', classList: { add() {}, remove() {}, toggle() {}, contains: () => false }, focus() {}, select() {}, setAttribute() {}, click() {} });
+  const el = () => ({ innerHTML: '', value: '', dataset: {}, style: {}, textContent: '', classList: { add() {}, remove() {}, toggle() {}, contains: () => false }, focus() {}, select() {}, setAttribute() {}, click() {}, querySelector: () => el(), querySelectorAll: () => [], setSelectionRange() {}, value: '' });
   const ctx = vm.createContext({
     console, setTimeout: (f, ms) => { const t = setTimeout(f, ms); t.unref && t.unref(); return t; }, clearTimeout, setInterval: () => 0, URL, Date: FDate, Math, JSON, Intl, Promise, fetch, btoa, TextEncoder, Map, Set,
     localStorage: { getItem: k => store[k] ?? null, setItem: (k, v) => { store[k] = String(v); }, removeItem: k => { delete store[k]; } },
@@ -20,7 +21,8 @@ export function makeApp({ fetch = globalThis.fetch, store = {} } = {}) {
     stamp, flush, save, snapshot, fingerprint, mergeData, applyMerged, replaceAll, initSeen, getT, Sync, syncNow, syncBadge, syncStatusText, buildPayload, parsePayload, PROVIDERS, dav, hooks, undoMerge: undoMerge,
     nextDue, pSet, pToggle, checkReminders, reorder, sortTasks, scopeTasks, repeatKey, repeatLabel, noteBadge, titleHtml, notesHtml, ACT, mdEnter, mdFormat,
     tagChip, tagColor, setTagColor, renameTag, ttDays, ttItems, ttLayout, renderTimetable, ttDrop, toMin, fromMin, slotById, nextSlotDate, fmtDur, metaX, THEMES, applyTheme, migrate, ttRange, slotClashes, toggleDone, ACT,
-    ogYamlParse, ogMergeYaml, ogEmitRows, ogExtract, ogCompose, ogRowOfTask, ogFields, ogHash, ogImportText, ogSync, OG, OGIO, ogMerge, ogBuild, ogExportable, ganttRows, renderGantt, ogStr, ogTaskHash, ogFmtOf, ogDated, ganttDates, gtApply, gtStatus, gtPct, GT_COLS, gtCols, gtSetCols, gtDrop, uiToggle, uiFocus, uiNavDrop, pagesShown, uiMovePage, UIC, uiSetWidth, listOf })`, ctx);
+    ogYamlParse, ogMergeYaml, ogEmitRows, ogExtract, ogCompose, ogRowOfTask, ogFields, ogHash, ogImportText, ogSync, OG, OGIO, ogMerge, ogBuild, ogExportable, ganttRows, renderGantt, ogStr, ogTaskHash, ogFmtOf, ogDated, ganttDates, gtApply, gtStatus, gtPct, GT_COLS, gtCols, gtSetCols, gtDrop, uiToggle, uiFocus, uiNavDrop, pagesShown, uiMovePage, UIC, uiSetWidth, listOf,
+    sfx, SOUNDS, noteById, noteTitle, newNote, noteList, noteInput, renderNotes, NOTE_ACT, gtDetailHtml, gtSummary, openNoteExpand, APP_VERSION, ttView, ttStrip, mdHighlight, sortDir, tagFiltered, groupTasks, repeatDates, calItems, mxMove, mxOf, MQ, parseDur, pCustom, pAdd, pActive, pTick, fdHandler, fdStatus, habitGoal, habitProgress, streak, clockParts, HIST_ACT, histDetail, histFiltered, histNote, FIRE_MIN, fmtClock })`, ctx);
   api.store = store; api.els = els;
   return api;
 }

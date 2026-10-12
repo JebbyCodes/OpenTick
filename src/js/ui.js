@@ -26,7 +26,23 @@ function uiInit() {
     d.setAttribute('role', 'separator'); d.setAttribute('aria-orientation', 'vertical'); d.setAttribute('aria-label', 'Resize ' + label);
     app.appendChild(d);
   }
-  uiApply();
+  const ck = document.createElement('div'); ck.id = 'clock'; ck.setAttribute('aria-hidden', 'true'); document.body.appendChild(ck);
+  uiApply(); clockPaint();
+}
+
+/* ---------- date & time readout ----------
+   A small, click-through readout. With the sidebar docked it sits at the foot of the sidebar (where nothing else lives);
+   with the sidebar hidden, or on a phone, it becomes a faint pill in the bottom-left corner. Settings -> Clock. */
+function clockParts(d = new Date()) {
+  const c = S.settings.clock, h = d.getHours();
+  const time = (c.h24 ? pad(h) : String(h % 12 || 12)) + ':' + pad(d.getMinutes()) + (c.sec ? ':' + pad(d.getSeconds()) : '');
+  return { time, ap: c.h24 ? '' : h < 12 ? 'AM' : 'PM', date: `${FULLDAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}` };
+}
+function clockPaint() {
+  const el = document.getElementById ? document.getElementById('clock') : null; if (!el) return;
+  const on = S.settings.clock.on !== false; document.body.classList.toggle('clock-on', on); el.hidden = !on; if (!on) return;
+  const p = clockParts(), html = `<b>${p.time}${p.ap ? `<span>${p.ap}</span>` : ''}</b><small>${p.date}</small>`;
+  if (el._h !== html) { el._h = html; el.innerHTML = html; }
 }
 
 /* ---------- hide / show ---------- */
@@ -38,8 +54,8 @@ function uiToggle(k) {
   } else if (k === 'detail') {
     if (narrow(1100)) { if (U.sel) closeDetail(); return; }
     u.detail = !u.detail;
-  } else if (k === 'tray') { U.ttTray = !(U.ttTray == null ? window.innerWidth >= 1700 : U.ttTray); renderMain(); return; }
-  else if (k === 'gtray') { S.settings.gantt.tray = !S.settings.gantt.tray; save(); renderMain(); return; }
+  } else if (k === 'tray') { U.ttTray = !ttTrayOn(); renderMain(); return; }
+  else if (k === 'gtray') { if (narrow(820)) U.gTrayM = !U.gTrayM; else { S.settings.gantt.tray = !S.settings.gantt.tray; save(); } renderMain(); return; }
   save(); uiApply();
   if (!u.detail && U.sel) closeDetail(); // hiding the panel must not pop it back up as an overlay
 }
@@ -155,13 +171,14 @@ function paletteItems(q) {
   const go = (label, hint, run) => ({ label, hint, run });
   const out = [
     ...PAGES.map(([k, n]) => go('Go to ' + n, 'View', () => { U.page = k; U.sel = null; render(); })),
+    go('Go to History', 'View', () => { U.page = 'history'; U.sel = null; render(); }),
     ...SMART.map(([k, n]) => go('Open ' + n, 'List', () => setNav(k))),
     ...S.lists.filter(l => l.id !== 'inbox').map(l => go('Open list: ' + l.name, 'List', () => setNav('list:' + l.id))),
     go('Open Completed', 'List', () => setNav('done')), go('Open Trash', 'List', () => setNav('trash')),
     go('Toggle sidebar', '[', () => uiToggle('side')), go('Toggle task details', ']', () => uiToggle('detail')),
     go('Focus mode: hide both panels', '\\', uiFocus),
     go('Toggle compact density', 'Layout', () => { uiCompact(); render(); }),
-    go('New list…', 'Action', () => ACT.addlist()), go('Settings…', 'Action', openSettings),
+    go('New list…', 'Action', () => ACT.addlist()), go('New note', 'Action', () => { U.page = 'notes'; U.sel = null; render(); ACT.noteadd(); }), go('Settings…', 'Action', openSettings),
     go('Keyboard shortcuts', '?', openShortcuts),
     go('Gantt: zoom in', 'Gantt', () => { U.page = 'gantt'; render(); gtZoom(1); }), go('Gantt: zoom out', 'Gantt', () => { U.page = 'gantt'; render(); gtZoom(-1); }),
     go('Gantt: choose table columns…', 'Gantt', () => { U.page = 'gantt'; render(); openGtCols(); }),
@@ -170,8 +187,9 @@ function paletteItems(q) {
   ];
   q = q.toLowerCase().trim();
   const hit = out.filter(i => !q || i.label.toLowerCase().includes(q));
+  const notes = q.length > 1 ? S.notes.filter(n => (noteTitle(n) + ' ' + n.body).toLowerCase().includes(q)).slice(0, 5).map(n => go(noteTitle(n), 'Note', () => openNoteById(n.id))) : [];
   const tasks = q.length > 1 ? S.tasks.filter(t => !t.deleted && !t.log && (t.title || '').toLowerCase().includes(q)).slice(0, 8).map(t => go(t.title, 'Task', () => { setNav(t.listId === 'inbox' ? 'inbox' : 'list:' + t.listId); U.sel = t.id; renderMain(); renderDetail(); })) : [];
-  return [...hit, ...tasks].slice(0, 14);
+  return [...hit, ...notes, ...tasks].slice(0, 14);
 }
 function openPalette() {
   let sel = 0, items = paletteItems('');
@@ -190,7 +208,7 @@ function openPalette() {
   }, 'pal');
 }
 function openShortcuts() {
-  const rows = [['Ctrl/Cmd + Shift + P', 'Command palette'], ['Ctrl/Cmd + K  or  /', 'Search'], ['N', 'New task'], ['[', 'Show / hide sidebar'], [']', 'Show / hide task details'], ['\\', 'Focus mode (hide both panels)'], ['Esc', 'Close dialog / details'], ['?', 'This help'], ['Ctrl/Cmd + B / I / K', 'Bold / italic / link in notes'], ['Ctrl + scroll (Gantt)', 'Zoom the timeline'], ['Drag a handle', 'Resize a panel · double-click to reset']];
+  const rows = [['Ctrl/Cmd + Shift + P', 'Command palette'], ['Ctrl/Cmd + K  or  /', 'Search'], ['N', 'New task'], ['[', 'Show / hide sidebar'], [']', 'Show / hide task details'], ['\\', 'Focus mode (hide both panels)'], ['Esc', 'Close dialog / details'], ['?', 'This help'], ['Ctrl/Cmd + B / I / K', 'Bold / italic / link in notes'], ['Tab / Shift+Tab', 'Indent / outdent list items in notes'], ['Ctrl + scroll (Gantt)', 'Zoom the timeline'], ['Drag a handle', 'Resize a panel · double-click to reset']];
   openModal(`<h3>Keyboard shortcuts</h3><div class="vlist">${rows.map(([k, d]) => `<div class="vrow"><span><kbd>${esc(k)}</kbd></span><span>${esc(d)}</span></div>`).join('')}</div><div class="mact"><button class="pri" data-m="ok">Done</button></div>`, m => { m.onclick = e => { if (e.target.closest('[data-m=ok]') || e.target.classList.contains('mback')) closeModal(); }; });
 }
 document.addEventListener('keydown', e => {

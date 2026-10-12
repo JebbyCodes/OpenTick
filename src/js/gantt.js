@@ -43,6 +43,7 @@ const GT_COLS = {
   plan: ['Plan', 122, d => (d.ps ? (d.single || d.ps === d.pe ? gtMD(d.pe) : `${gtMD(d.ps)} – ${gtMD(d.pe)}`) : '')],
   planStart: ['Start planned', 96, d => (d.ps ? gtMD(d.ps) : '')],
   planEnd: ['End planned', 96, d => (d.pe ? gtMD(d.pe) : '')],
+  actual: ['Actual', 122, d => (d.as ? (d.ae ? (d.as === d.ae ? gtMD(d.ae) : `${gtMD(d.as)} – ${gtMD(d.ae)}`) : `${gtMD(d.as)} – …`) : '')],
   actualStart: ['Start actual', 96, d => (d.as ? gtMD(d.as) : '')],
   actualEnd: ['End actual', 96, d => (d.ae ? gtMD(d.ae) : d.as ? 'ongoing' : '')],
   planDays: ['Planned days', 86, d => (d.ps ? dayDiff(d.pe, d.ps) + 1 : '')],
@@ -62,7 +63,8 @@ function openGtCols() {
     return `<h3>Table columns</h3><p class="hint">Tick the columns to show; the order here is the order in the table. You can also drag a column heading sideways.</p>
 <div class="vlist">${[...on, ...rest].map((k, i) => `<div class="vrow"><label><input type="checkbox" data-gc="${k}"${on.includes(k) ? ' checked' : ''}> ${esc(GT_COLS[k][0])}</label><span>${on.includes(k) ? `<button class="ib sm" data-gm="${k}" data-d="-1"${i ? '' : ' disabled'} title="Move left">${ic('up', 14)}</button><button class="ib sm" data-gm="${k}" data-d="1"${i < on.length - 1 ? '' : ' disabled'} title="Move right">${ic('down', 14)}</button>` : ''}</span></div>`).join('')}</div>
 <div class="mrow"><label class="chkl"><input type="checkbox" data-gx="hatch"${g.hatch !== false ? ' checked' : ''}> Striped actual bars</label><label class="chkl"><input type="checkbox" data-gx="progress"${g.progress !== false ? ' checked' : ''}> Open tasks as progress bar</label></div>
-<div class="mrow"><button data-gq="all">Show all</button><button data-gq="reset">Reset</button><button data-gq="none">Hide all</button></div><div class="mact"><button class="pri" data-gq="ok">Done</button></div>`;
+<div class="mrow"><label class="chkl"><input type="checkbox" data-gx="lanes"${g.lanes !== false ? ' checked' : ''}> Plan and actual on separate lanes</label></div>
+<div class="mrow"><button data-gq="pva">Plan vs actual</button><button data-gq="all">Show all</button><button data-gq="reset">Reset</button><button data-gq="none">Hide all</button></div><div class="mact"><button class="pri" data-gq="ok">Done</button></div>`;
   };
   openModal(draw(), m => {
     const redraw = () => { m.querySelector('.mbox').innerHTML = draw(); };
@@ -74,13 +76,15 @@ function openGtCols() {
     m.onclick = e => {
       const mv = e.target.closest('[data-gm]'), q = e.target.closest('[data-gq]');
       if (mv) { const on = gtCols(), i = on.indexOf(mv.dataset.gm), j = i + +mv.dataset.d; if (j >= 0 && j < on.length) { [on[i], on[j]] = [on[j], on[i]]; gtSetCols(on); redraw(); } return; }
-      if (q) { const a = q.dataset.gq; if (a === 'ok') { closeModal(); renderMain(); } else { gtSetCols(a === 'all' ? [...GT_COL_IDS] : a === 'none' ? [] : ['plan']); redraw(); } return; }
+      if (q) { const a = q.dataset.gq; if (a === 'ok') { closeModal(); renderMain(); } else { gtSetCols(a === 'all' ? [...GT_COL_IDS] : a === 'none' ? [] : a === 'pva' ? ['planStart', 'planEnd', 'actualStart', 'actualEnd', 'variance', 'status'] : ['plan', 'actual']); redraw(); } return; }
       if (e.target.classList.contains('mback')) { closeModal(); renderMain(); }
     };
   });
 }
 
 /* ---------- zoom ---------- */
+const gtNameW = () => { const g = S.settings.gantt; return g.table === false ? 30 : narrow(700) ? 132 : Math.max(170, g.nameW || 290, 190 + gtColsW()); };
+const gtTrayOn = () => (narrow(820) ? !!U.gTrayM : !!S.settings.gantt.tray);
 function gtZoom(dir) {
   const g = S.settings.gantt, i = GT_ZOOM.reduce((b, z, k) => (Math.abs(z - g.zoom) < Math.abs(GT_ZOOM[b] - g.zoom) ? k : b), 0);
   const n = Math.max(0, Math.min(GT_ZOOM.length - 1, i + dir)); if (n === i) return;
@@ -88,13 +92,13 @@ function gtZoom(dir) {
 }
 function gtFit() {
   const w = $('.gt-wrap'), m = U.gMeta; if (!w || !m) return;
-  const g = S.settings.gantt, avail = w.clientWidth - (g.nameW || 290) - 40;
+  const g = S.settings.gantt, avail = w.clientWidth - gtNameW() - 40;
   gtKeepCenter(); g.zoom = Math.max(0.1, Math.min(4, avail / (m.span * (GT_PPD[g.scale] || 14)))); save(); renderMain();
   U.gAnchor = null; const nw = $('.gt-wrap'); if (nw) nw.scrollLeft = 0;
 }
 function gtKeepCenter() {
   const w = $('.gt-wrap'), m = U.gMeta; if (!w || !m) return;
-  const nameW = S.settings.gantt.nameW || 290, cx = (w.scrollLeft + nameW + w.clientWidth) / 2 - nameW;
+  const nameW = gtNameW(), cx = (w.scrollLeft + nameW + w.clientWidth) / 2 - nameW;
   U.gAnchor = ymd(addDays(pYmd(m.min), Math.round(cx / m.ppd)));
 }
 
@@ -102,7 +106,7 @@ function gtKeepCenter() {
 function renderGantt() {
   if (U.gpane === 'og' && window.OG_UPSTREAM) { renderGanttUpstream(); return; }
   U.gpane = 'tasks';
-  const g = S.settings.gantt, ppd = (GT_PPD[g.scale] || 14) * (g.zoom || 1), td = todayStr(), cols = gtCols(), nameW = Math.max(170, g.nameW || 290), tbl = g.table !== false;
+  const g = S.settings.gantt, ppd = (GT_PPD[g.scale] || 14) * (g.zoom || 1), td = todayStr(), phone = narrow(700), cols = phone ? [] : gtCols(), nameW = gtNameW(), tbl = g.table !== false, lanes = g.mode === 'both' && g.lanes !== false;
   if (U.gList !== 'all' && !S.lists.some(l => l.id === U.gList)) U.gList = 'all';
   const rows = ganttRows(U.gList), D = rows.map(r => (r.k === 'task' ? ganttDates(r.t, true) : r.k === 'sub' ? ganttDates(r.s, false) : null));
   U.gRows = rows; U.gD = D;
@@ -112,10 +116,10 @@ function renderGantt() {
   const tools = `${seg}<select data-gs="list" title="List">${opts([['all', 'All lists'], ...S.lists.map(l => [l.id, l.name])], U.gList)}</select><select data-gs="scale" title="Scale">${opts([['day', 'Day'], ['week', 'Week'], ['month', 'Month'], ['year', 'Year']], g.scale)}</select><select data-gs="mode" title="Show">${opts([['both', 'Plan + actual'], ['plan', 'Plan'], ['actual', 'Actual']], g.mode)}</select>`
     + `<div class="seg gt-zoom"><button data-act="gzoom" data-d="-1" title="Zoom out (Ctrl + scroll)">${ic('zoom-out', 16)}</button><button data-act="gfit" title="Fit everything in view">${ic('fit', 16)}</button><button data-act="gzoom" data-d="1" title="Zoom in (Ctrl + scroll)">${ic('zoom-in', 16)}</button></div>`
     + `<button class="ib" data-act="gtoday" title="Scroll to today">${ic('calendar')}</button><button class="ib${tbl ? ' on' : ''}" data-act="gtable" title="Show / hide the table">${ic('table')}</button><button class="ib" data-act="gcols" title="Table columns">${ic('columns')}</button><button class="ib" data-act="gexp" data-v="0" title="Expand all">${ic('expand')}</button><button class="ib" data-act="gexp" data-v="1" title="Collapse all">${ic('collapse')}</button>`
-    + `<button class="ib${g.tray ? ' on' : ''}" data-act="uitoggle" data-k="gtray" title="Unscheduled tasks panel">${ic('list')}</button>`
+    + `<button class="ib${gtTrayOn() ? ' on' : ''}" data-act="uitoggle" data-k="gtray" title="Unscheduled tasks panel">${ic('list')}</button>`
     + `${U.gList !== 'all' ? `<button class="btn${OG.links[U.gList] ? ' on' : ''}" data-act="ogopen" data-list="${esc(U.gList)}" title="Link, import or export an OpenGantt chart">${ic('link', 16)} OpenGantt</button>` : ''}`;
   const old = $('.gt-wrap'), keep = old && !U.gScrollReset ? [old.scrollLeft, old.scrollTop] : null; U.gScrollReset = false;
-  const trayHtml = g.tray ? `<aside class="gt-tray"><div class="rs rs-l" data-rs="gtray" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize · double-click to reset"></div><div class="trh"><b>Unscheduled</b><small>${undatedL.length}</small><button class="ib sm" data-act="uitoggle" data-k="gtray" title="Hide this panel">${ic('x', 14)}</button></div><div class="trl">${undatedL.slice(0, 120).map(t => `<div class="tri p${t.priority}${U.sel === t.id ? ' sel' : ''}" draggable="true" data-act="open" data-id="${t.id}"><div class="ttl">${titleHtml(t)}</div>${U.gList === 'all' ? `<div class="meta"><span class="ln"><i style="background:${listOf(t.listId).color}"></i>${esc(listOf(t.listId).name)}</span></div>` : ''}</div>`).join('') || '<p class="hint">Every open task has a date.</p>'}</div><p class="hint">Drag a task onto the timeline to schedule it.</p></aside>` : '';
+  const trayHtml = gtTrayOn() ? `<aside class="gt-tray"><div class="rs rs-l" data-rs="gtray" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize · double-click to reset"></div><div class="trh"><b>Unscheduled</b><small>${undatedL.length}</small><button class="ib sm" data-act="uitoggle" data-k="gtray" title="Hide this panel">${ic('x', 14)}</button></div><div class="trl">${undatedL.slice(0, 120).map(t => `<div class="tri p${t.priority}${U.sel === t.id ? ' sel' : ''}" draggable="true" data-act="open" data-id="${t.id}"><div class="ttl">${titleHtml(t)}</div>${U.gList === 'all' ? `<div class="meta"><span class="ln"><i style="background:${listOf(t.listId).color}"></i>${esc(listOf(t.listId).name)}</span></div>` : ''}</div>`).join('') || '<p class="hint">Every open task has a date.</p>'}</div><p class="hint">Drag a task onto the timeline to schedule it.</p></aside>` : '';
   if (!rows.some(r => r.k !== 'list')) {
     $('#main').innerHTML = topHtml('Gantt', tools) + `<div class="gt-body"><div class="empty">${ic('table', 44)}<p>No tasks with dates yet.<br>Give a task a start or due date (task details → “Gantt dates”), drag one from the panel, or import an OpenGantt chart.</p>${U.gList === 'all' ? '' : `<button class="btn" data-act="ogopen" data-list="${esc(U.gList)}">Import / link a chart</button>`}</div>${trayHtml}</div>`;
     return;
@@ -141,21 +145,30 @@ function renderGantt() {
   const body = rows.map((r, i) => {
     if (r.k === 'list') return `<div class="gt-r gt-l"><div class="gt-n"><i style="background:${r.l.color}"></i><b>${esc(r.l.name)}</b></div><div class="gt-t" style="width:${W}px"></div></div>`;
     const isT = r.k === 'task', x = isT ? r.t : r.s, d = D[i], id = isT ? r.t.id : r.pid, key = isT ? r.t.id : r.s.id, pct = d.open ? gtPct(d) : null;
-    const tip = esc(`${x.title}\nPlan: ${d.ps ? (d.single ? d.pe : d.ps + ' → ' + d.pe) : '—'}\nActual: ${d.as ? d.as + (d.ae ? ' → ' + d.ae : ' → ongoing') : '—'}${gtStatus(d)[0] ? '\n' + gtStatus(d)[0] : ''}`);
+    const tip = esc(`${x.title}\nPlan: ${d.ps ? (d.single ? d.pe : d.ps + ' → ' + d.pe) : '—'}\nActual: ${d.as ? d.as + (d.ae ? ' → ' + d.ae : ' → ongoing') : '—'}${gtStatus(d)[0] ? '\n' + gtStatus(d)[0] : ''}${GT_COLS.variance[2](d) ? '\nVariance: ' + GT_COLS.variance[2](d) : ''}`);
     const hl = '<b class="gh l" data-h="l"></b>', hr = '<b class="gh r" data-h="r"></b>';
-    let bars = '';
-    if (g.mode !== 'actual' && d.ps) bars += d.single ? `<i class="gt-ms" data-r="${i}" data-p="plan" style="left:${Math.round(X(d.pe) + ppd / 2 - 7)}px;--c:${r.c}"></i>` : `<i class="gt-bp" data-r="${i}" data-p="plan" style="left:${Math.round(X(d.ps))}px;width:${Math.round((dayDiff(d.pe, d.ps) + 1) * ppd)}px;--c:${r.c}">${hl}${hr}</i>`;
+    let bars = '', xr = 0;
+    if (g.mode !== 'actual' && d.ps) {
+      bars += d.single ? `<i class="gt-ms" data-r="${i}" data-p="plan" style="left:${Math.round(X(d.pe) + ppd / 2 - 7)}px;--c:${r.c}"></i>` : `<i class="gt-bp" data-r="${i}" data-p="plan" style="left:${Math.round(X(d.ps))}px;width:${Math.round((dayDiff(d.pe, d.ps) + 1) * ppd)}px;--c:${r.c}">${hl}${hr}</i>`;
+      xr = Math.max(xr, X(d.pe) + ppd);
+    }
     if (g.mode !== 'plan' && d.as) {
       const end = d.ae || td, w = Math.round(Math.max(1, dayDiff(end, d.as) + 1) * ppd), live = d.open && g.progress !== false;
-      bars += live ? `<i class="gt-bo" data-r="${i}" data-p="act" style="left:${Math.round(X(d.as))}px;width:${w}px;--c:${r.c}">${hl}${pct != null && w > 30 ? pct + '%' : ''}</i>` : `<i class="gt-ba${g.hatch === false ? ' solid' : ''}" data-r="${i}" data-p="act" style="left:${Math.round(X(d.as))}px;width:${w}px;--c:${r.c}">${hl}</i>`;
+      const ptxt = live && pct != null ? pct + '%' : '', inside = ptxt && w >= ptxt.length * 6 + 18; // short bars show the figure beside them instead of clipping it
+      bars += live ? `<i class="gt-bo" data-r="${i}" data-p="act" style="left:${Math.round(X(d.as))}px;width:${w}px;--c:${r.c}">${hl}${inside ? `<span class="gt-pc">${ptxt}</span>` : ''}</i>${ptxt && !inside ? `<span class="gt-pco" style="left:${Math.round(X(d.as)) + w + 5}px">${ptxt}</span>` : ''}` : `<i class="gt-ba${g.hatch === false ? ' solid' : ''}" data-r="${i}" data-p="act" style="left:${Math.round(X(d.as))}px;width:${w}px;--c:${r.c}">${hl}${d.ae ? hr : ''}</i>`;
+      xr = Math.max(xr, X(end) + ppd + (ptxt && !inside ? 34 : 0));
     }
+    // overrun: the stretch after the planned end, for a task that finished late or is still open past its date
+    const lateTo = d.ae || (!d.done && d.pe && d.today > d.pe ? d.today : null);
+    if (g.mode !== 'plan' && d.pe && lateTo && lateTo > d.pe) { bars += `<i class="gt-ov" title="${dayDiff(lateTo, d.pe)} d over plan" style="left:${Math.round(X(d.pe) + ppd)}px;width:${Math.round(dayDiff(lateTo, d.pe) * ppd)}px"></i>`; xr = Math.max(xr, X(lateTo) + ppd); }
+    if (g.table === false && xr) bars += `<span class="gt-lbl" style="left:${Math.round(xr) + 6}px">${isT ? titleHtml(r.t) : esc(r.s.title)}</span>`;
     const st = gtStatus(d);
     return `<div class="gt-r${r.k === 'sub' ? ' gt-s' : ''}${isT && U.sel === r.t.id ? ' sel' : ''}${d.done ? ' fin' : ''}" data-act="open" data-id="${id}" title="${tip}"><div class="gt-n" style="padding-left:${10 + (r.lv || 0) * 16}px">${r.kids ? `<button class="ib sm" data-act="gtog" data-key="${key}">${ic(U.gcol.has(key) ? 'right' : 'down', 14)}</button>` : '<span class="gt-sp"></span>'}<span class="gt-tt">${isT ? titleHtml(r.t) : esc(r.s.title)}</span>${colHtml(k => (k === 'status' ? `<em class="st ${st[1]}">${esc(st[0])}</em>` : esc(String(GT_COLS[k][2](d)))))}</div><div class="gt-t" style="width:${W}px;${bg}">${bars}<u style="left:${tX}px"></u></div></div>`;
   }).join('');
   const heads = cols.map(k => `<span class="gt-c gt-ch" draggable="true" data-gcol="${k}" style="width:${GT_COLS[k][1]}px" title="Drag to reorder">${esc(GT_COLS[k][0])}</span>`).join('');
-  $('#main').innerHTML = topHtml('Gantt', tools)
-    + `<div class="gt-body"><div class="gt-wrap${tbl ? '' : ' tbl-off'}" style="--gn:${tbl ? nameW : 30}px"><div class="gt-in" data-w="${W}" style="width:calc(var(--gn) + ${W}px)"><div class="gt-h"><div class="gt-n gt-hn"><span class="gt-tt">Task</span>${heads}<i class="rs rs-r" data-rs="gname" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize the table · double-click to reset"></i></div><div class="gt-t gt-ht" style="width:${W}px"><div class="gt-h1">${top}</div><div class="gt-h2">${sub}</div><u style="left:${tX}px"></u></div></div>${body}</div></div>${trayHtml}</div>`
-    + `<div class="gt-foot hint">${U.gList !== 'all' && OG.links[U.gList] ? `<span id="ogstate">${ogStateHtml(U.gList)}</span>` : 'Drag a bar to move it, pull its edges to change the dates, or pull the left edge of an actual bar. Bars follow OpenGantt: plan, actual (striped), and open tasks as a progress bar up to today.'}</div>`;
+  $('#main').innerHTML = topHtml('Gantt', tools) + gtLegend(g, rows)
+    + `<div class="gt-body"><div class="gt-wrap${tbl ? '' : ' tbl-off'}${lanes ? ' lanes' : ''}" style="--gn:${tbl ? nameW : 30}px;--gr:${lanes ? 44 : 30}px"><div class="gt-in" data-w="${W}" style="width:calc(var(--gn) + ${W}px)"><div class="gt-h"><div class="gt-n gt-hn"><span class="gt-tt">Task</span>${heads}<i class="rs rs-r" data-rs="gname" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize the table · double-click to reset"></i></div><div class="gt-t gt-ht" style="width:${W}px"><div class="gt-h1">${top}</div><div class="gt-h2">${sub}</div><u style="left:${tX}px"></u><em class="gt-tl" style="left:${tX}px">Today</em></div></div>${body}</div></div>${trayHtml}</div>`
+    + `<div class="gt-foot hint">${gtSummary(D)}${U.gList !== 'all' && OG.links[U.gList] ? `<span id="ogstate">${ogStateHtml(U.gList)}</span>` : `<span class="gt-help">Drag a bar to move it, pull its edges to change the dates. Open a task to edit plan and actual dates.</span>`}</div>`;
   const wrap = $('.gt-wrap');
   if (wrap) {
     if (U.gAnchor) { const a = U.gAnchor; U.gAnchor = null; wrap.scrollLeft = Math.max(0, 2 * X(a) + nameW - wrap.clientWidth); if (keep) wrap.scrollTop = keep[1]; }
@@ -163,11 +176,48 @@ function renderGantt() {
   }
 }
 
-/* ---------- drag bars: move / resize the plan, pull the actual's start ---------- */
+// the key: what each kind of bar means (only what the current Plan / Actual setting can show)
+function gtLegend(g, rows) {
+  const item = (cls, label, tip) => `<span class="gl-i" title="${esc(tip || label)}"><i class="lg2 ${cls}"></i>${label}</span>`;
+  const plan = g.mode !== 'actual', act = g.mode !== 'plan', lists = U.gList === 'all' ? S.lists.filter(l => rows.some(r => r.k === 'list' && r.l.id === l.id)) : [];
+  return `<div class="gt-legend" role="group" aria-label="Chart key">`
+    + (plan ? item('plan', 'Planned', 'Planned start to due date: drag to move, pull the edges to resize') + item('ms', 'One-day / milestone', 'A task with a single date') : '')
+    + (act ? item('act', 'Actual (finished)', 'Striped: the days the work really took') + item('prog', 'In progress <em>%</em>', 'Dashed: started, not finished. The figure is how much of the plan has elapsed') + item('ov', 'Over plan', 'Red: time after the planned end') : '')
+    + item('today', 'Today')
+    + (lists.length ? `<span class="gl-i muted">Colour = list:</span>` + lists.map(l => `<span class="gl-i"><i class="gl-dot" style="background:${l.color}"></i>${esc(l.name)}</span>`).join('') : '')
+    + `</div>`;
+}
+// one line of counts above the legend: how the visible tasks are doing
+function gtSummary(D) {
+  const c = { n: 0, prog: 0, over: 0, done: 0 };
+  for (const d of D) { if (!d) continue; c.n++; const k = gtStatus(d)[1]; if (k === 'prog') c.prog++; else if (k === 'over') c.over++; else if (k === 'done' || k === 'late') c.done++; }
+  return `<span class="gt-sum"><b>${c.n}</b> rows · <span class="st prog">${c.prog} in progress</span> <span class="st over">${c.over} overdue</span> <span class="st done">${c.done} done</span></span>`;
+}
+// the task details panel: planned and actual dates side by side, quick buttons, a mini chart and the numbers
+function gtDetailHtml(t) {
+  const d = ganttDates(t, true), st = gtStatus(d), done = t.status === 'done';
+  const days = (a, b) => (a && b ? dayDiff(b, a) + 1 : null), pd = days(d.ps, d.pe), ad = d.as ? days(d.as, d.ae || d.today) : null;
+  const vr = GT_COLS.variance[2](d), pct = gtPct(d);
+  const lo = [d.ps, d.as].filter(Boolean).sort()[0], hi = [d.pe, d.ae || (d.as ? d.today : null)].filter(Boolean).sort().pop(), span = lo && hi ? dayDiff(hi, lo) + 1 : 0;
+  const bar = (a, b, cls) => (a && b && span ? `<i class="gx-b ${cls}" style="left:${(dayDiff(a, lo) / span * 100).toFixed(2)}%;width:${Math.max(1.5, (dayDiff(b, a) + 1) / span * 100).toFixed(2)}%"></i>` : '');
+  const late = d.pe && (d.ae || (!done && d.today > d.pe ? d.today : null)); const over = late && late > d.pe ? bar(gtShift(d.pe, 1), late, 'ov') : '';
+  return `<details class="gtd gtx"${t.start || t.astart || done ? ' open' : ''}><summary>Plan &amp; actual (Gantt)</summary>
+<div class="gx-grid"><div class="gx-col"><h5>Plan</h5><label class="gl">Start<input type="date" data-f="start" value="${t.start || ''}"></label><label class="gl">End <small>(due date)</small><input type="date" data-f="due" value="${t.due || ''}"></label></div>
+<div class="gx-col"><h5>Actual</h5><label class="gl">Start<input type="date" data-f="astart" value="${t.astart || ''}"></label><label class="gl">End <small>(completed)</small><input type="date" data-f="aend" value="${done && d.ae ? d.ae : ''}"></label></div></div>
+<div class="chips gx-btns"><button class="btn sm" data-act="gxstart"${t.astart === todayStr() ? ' disabled' : ''}>Started today</button><button class="btn sm" data-act="gxend"${done ? ' disabled' : ''}>Finished today</button><button class="btn sm" data-act="gxclear"${t.astart || done ? '' : ' disabled'}>Clear actual</button></div>
+${span ? `<div class="gx-mini"><div class="gx-row"><span>Plan</span><div>${bar(d.ps, d.pe, 'plan')}</div></div><div class="gx-row"><span>Actual</span><div>${d.as ? bar(d.as, d.ae || d.today, d.open ? 'live' : 'act') : ''}${over}</div></div><div class="gx-ax"><small>${esc(gtMD(lo))}</small><small>${esc(gtMD(hi))}</small></div></div>` : ''}
+<div class="gx-stats"><span class="st ${st[1]}">${esc(st[0])}</span>${pd ? `<span>${pd} d planned</span>` : ''}${ad ? `<span>${ad} d actual</span>` : ''}${vr ? `<span class="${vr[0] === '+' ? 'late' : ''}">${vr} vs plan</span>` : ''}${pct != null && !done ? `<span>${pct}% of plan elapsed</span>` : ''}</div>
+<p class="hint">Setting an actual end completes the task; clearing it reopens it. The same dates appear in the Gantt view and in OpenGantt.</p></details>`;
+}
+
+/* ---------- drag bars: move / resize the plan, pull the actual's start or end ---------- */
 const gtShift = (d, n) => ymd(addDays(pYmd(d), n));
 function gtApply(row, p, mode, dd, d) {
   const x = row.k === 'task' ? row.t : row.s;
-  if (p === 'act') { const na = gtShift(d.as, dd); x.astart = d.ae && na > d.ae ? d.ae : na; return; }
+  if (p === 'act') {
+    if (mode === 'r') { const ne = gtShift(d.ae, dd), end = ne < d.as ? d.as : ne; if (row.k === 'task') x.doneAt = ogNoon(end); else x.aend = end; return; } // pull the finish date
+    const na = gtShift(d.as, dd); x.astart = d.ae && na > d.ae ? d.ae : na; return;
+  }
   if (d.single) { const f = x.start && !x.due ? 'start' : 'due'; x[f] = gtShift(f === 'start' ? d.ps : d.pe, dd); return; }
   if (mode === 'move') { x.start = gtShift(d.ps, dd); x.due = gtShift(d.pe, dd); }
   else if (mode === 'l') { const n = gtShift(d.ps, dd); x.start = n > d.pe ? d.pe : n; }
@@ -176,15 +226,15 @@ function gtApply(row, p, mode, dd, d) {
 document.addEventListener('pointerdown', e => {
   const bar = e.target.closest && e.target.closest('.gt-bp,.gt-ms,.gt-ba,.gt-bo'); if (!bar || e.button > 0) return;
   const row = U.gRows[+bar.dataset.r], d = U.gD && U.gD[+bar.dataset.r], m = U.gMeta; if (!row || !d || !m) return;
-  const p = bar.dataset.p, hd = e.target.dataset && e.target.dataset.h, mode = p === 'act' ? (hd === 'l' ? 'l' : null) : (d.single ? 'move' : hd || 'move');
-  if (!mode) return; // an actual bar is only dragged by its left edge; a click still opens the task
+  const p = bar.dataset.p, hd = e.target.dataset && e.target.dataset.h, mode = p === 'act' ? (hd === 'l' ? 'l' : hd === 'r' && d.ae ? 'r' : null) : (d.single ? 'move' : hd || 'move');
+  if (!mode) return; // an actual bar is only dragged by its edges; a click still opens the task
   e.stopPropagation();
   const x0 = e.clientX, left0 = parseFloat(bar.style.left), w0 = parseFloat(bar.style.width) || 14, ppd = m.ppd;
   let dd = 0, on = false, tip = null;
   if (bar.setPointerCapture) { try { bar.setPointerCapture(e.pointerId); } catch (_) { /* synthetic event */ } }
   const label = () => {
     let s = d.ps, en = d.pe;
-    if (p === 'act') { s = gtShift(d.as, dd); en = d.ae || d.today; } else if (d.single) { s = en = gtShift(d.pe, dd); }
+    if (p === 'act') { s = mode === 'r' ? d.as : gtShift(d.as, dd); en = mode === 'r' ? gtShift(d.ae, dd) : d.ae || d.today; if (en < s) en = s; } else if (d.single) { s = en = gtShift(d.pe, dd); }
     else { if (mode !== 'r') s = gtShift(d.ps, dd); if (mode !== 'l') en = gtShift(d.pe, dd); if (mode === 'l' && s > d.pe) s = d.pe; if (mode === 'r' && en < d.ps) en = d.ps; }
     return s === en ? gtMD(s) : `${gtMD(s)} → ${gtMD(en)} · ${dayDiff(en, s) + 1} d`;
   };
@@ -192,9 +242,10 @@ document.addEventListener('pointerdown', e => {
     if (!on && Math.abs(ev.clientX - x0) < 4) return;
     if (!on) { on = true; document.body.classList.add('gtdrag'); bar.classList.add('dragging'); tip = document.createElement('div'); tip.className = 'gt-tip'; document.body.appendChild(tip); }
     dd = Math.round((ev.clientX - x0) / ppd);
-    const lim = d.single || p === 'act' ? Infinity : Math.round(w0 / ppd) - 1;
+    const lim = d.single || (p === 'act' && mode === 'l') ? Infinity : Math.round(w0 / ppd) - 1;
     if (!d.single && mode === 'l') dd = Math.min(dd, lim); if (!d.single && mode === 'r') dd = Math.max(dd, -lim);
     if (d.single) bar.style.left = (left0 + dd * ppd) + 'px';
+    else if (p === 'act' && mode === 'r') bar.style.width = Math.max(ppd, w0 + dd * ppd) + 'px';
     else if (p === 'act') { bar.style.left = (left0 + dd * ppd) + 'px'; bar.style.width = Math.max(ppd, w0 - dd * ppd) + 'px'; }
     else if (mode === 'move') bar.style.left = (left0 + dd * ppd) + 'px';
     else if (mode === 'l') { bar.style.left = (left0 + dd * ppd) + 'px'; bar.style.width = (w0 - dd * ppd) + 'px'; }

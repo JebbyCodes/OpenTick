@@ -1,14 +1,36 @@
 /* OpenTick markdown: small, dependency-free, safe by construction.
    All input is HTML-escaped FIRST; the only tags that ever reach the DOM are the ones generated here,
    and links are limited to http(s), mailto and tel. Raw HTML in notes is shown as text, never executed.
-   Supported: headings, **bold**, *italic*, ~~strike~~, `code`, fenced code, links + bare URLs, > quotes,
-   bullet / numbered / nested lists, - [ ] task lists (clickable), tables, horizontal rules. */
+   Supported: headings (# and underlined), **bold**, *italic*, ~~strike~~, ==highlight==, H~2~O, x^2^, `code`, fenced and
+   indented code (with colours for common languages), links, reference links, <autolinks> and bare URLs, images (http/https
+   and inline png/jpg/gif/webp only), footnotes, > quotes, bullet / numbered / nested lists, - [ ] task lists (clickable),
+   tables, horizontal rules, :emoji: shortcodes and [[wiki links]] to other notes. */
 const MD_URL = /^(?:https?:\/\/|mailto:|tel:)[^\s"'<>]*$/i;
+const MD_IMG = /^(?:https?:\/\/[^\s"'<>]*|data:image\/(?:png|jpe?g|gif|webp);base64,[A-Za-z0-9+/=]+)$/i;
+const MD_EMOJI = { smile: '😄', grin: '😁', joy: '😂', wink: '😉', heart: '❤️', thumbsup: '👍', '+1': '👍', '-1': '👎', tada: '🎉', fire: '🔥', star: '⭐', check: '✅', white_check_mark: '✅', x: '❌', warning: '⚠️', bulb: '💡', memo: '📝', book: '📖', calendar: '📅', clock: '🕒', rocket: '🚀', eyes: '👀', thinking: '🤔', pray: '🙏', clap: '👏', muscle: '💪', coffee: '☕', zap: '⚡', bug: '🐛', lock: '🔒', pushpin: '📌', question: '❓', sparkles: '✨' };
+let MD_REFS = {}, MD_FN = null, MD_WIKI = null; // per-render state: link definitions, footnotes; MD_WIKI(title) -> { id, title } | null is set by the notes page
 const MD_ITEM = /^(\s*)([-*+]|\d{1,9}[.)])\s+(.*)$/;
 const MD_CHK = /^\[([ xX])\](?:\s+(.*))?$/;
 const MD_HR = /^ {0,3}([-*_])(?:\s*\1){2,}\s*$/;
 const MD_SEP = /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/;
 const MD_LINK = (href, inner) => `<a href="${href}" target="_blank" rel="noopener noreferrer">${inner}</a>`;
+
+const MD_KW = new Set('function return const let var if else for while do class import from export default new try catch finally throw async await yield def elif lambda pass with as in is not and or None True False self fn pub use impl struct enum trait match mod mut loop true false null undefined typeof instanceof switch case break continue static public private protected void int float double string bool char long package interface extends implements this super SELECT FROM WHERE INSERT INTO UPDATE DELETE JOIN LEFT ON GROUP BY ORDER LIMIT CREATE TABLE VALUES SET AND OR NOT NULL select from where insert into update delete join left on group by order limit create table values set echo then fi done'.split(' '));
+// tiny colouriser for fenced code that names a language; every piece of source is escaped, only our own <span>s are added
+function mdHighlight(code, lang) {
+  lang = String(lang || '').toLowerCase();
+  if (!lang || /^(text|txt|plain|plaintext|md|markdown|none)$/.test(lang)) return esc(code);
+  const hash = /^(py|python|sh|bash|zsh|shell|yaml|yml|toml|ruby|rb|r|ini|conf|dockerfile|make|makefile)$/.test(lang), sql = lang === 'sql', css = /^(css|scss|less)$/.test(lang);
+  const com = hash ? '#[^\\n]*' : sql ? '--[^\\n]*' : css ? '\\/\\*[\\s\\S]*?\\*\\/' : '\\/\\/[^\\n]*|\\/\\*[\\s\\S]*?\\*\\/';
+  const re = new RegExp(`(${com})|("(?:\\\\.|[^"\\\\\\n])*"|'(?:\\\\.|[^'\\\\\\n])*'|` + '`(?:\\\\.|[^`\\\\])*`' + `)|(\\b\\d+(?:\\.\\d+)?\\b)|([A-Za-z_][\\w-]*)`, 'g');
+  let out = '', last = 0, m;
+  while ((m = re.exec(code))) {
+    out += esc(code.slice(last, m.index)); last = re.lastIndex;
+    const cls = m[1] ? 'c' : m[2] ? 's' : m[3] ? 'n' : MD_KW.has(m[4]) ? 'k' : '';
+    out += cls ? `<span class="hl-${cls}">${esc(m[0])}</span>` : esc(m[0]);
+  }
+  return out + esc(code.slice(last));
+}
 
 function mdInline(src, noLinks) {
   const keep = [], hold = h => '\u0001' + (keep.push(h) - 1) + '\u0002';
@@ -18,21 +40,48 @@ function mdInline(src, noLinks) {
     .replace(/(^|[^\w])__(?=\S)([\s\S]*?\S)__(?!\w)/g, '$1<strong>$2</strong>')
     .replace(/\*(?=\S)([^*]*?\S)\*/g, '<em>$1</em>')
     .replace(/(^|[^\w])_(?=\S)([^_]*?\S)_(?!\w)/g, '$1<em>$2</em>')
-    .replace(/~~(?=\S)([\s\S]*?\S)~~/g, '<del>$1</del>');
+    .replace(/~~(?=\S)([\s\S]*?\S)~~/g, '<del>$1</del>')
+    .replace(/==(?=\S)([^=\n]*?\S)==/g, '<mark>$1</mark>')
+    .replace(/(^|[^~])~(?=[^\s~])([^~\s]+?)~(?!~)/g, '$1<sub>$2</sub>')
+    .replace(/\^(?=[^\s^])([^^\s]+?)\^/g, '<sup>$1</sup>');
   let t = esc(src);
   t = t.replace(/\\([\\`*_[\]()#+\-.!~|])/g, (m, c) => hold(c));
   t = t.replace(/`([^`\n]+)`/g, (m, c) => hold(`<code>${c}</code>`));
-  t = t.replace(/!?\[([^\]\n]*)\]\(\s*([^)\s]+)(?:\s+&quot;[^)]*?&quot;)?\s*\)/g, (m, txt, url) => {
+  // images: ![alt](https://… "title"); in a title or chip they collapse to their alt text
+  t = t.replace(/!\[([^\]\n]*)\]\(\s*([^)\s]+)(?:\s+&quot;[^)]*?&quot;)?\s*\)/g, (m, alt, url) => {
+    if (!MD_IMG.test(url.replace(/&amp;/g, '&'))) return m;
+    return noLinks ? hold(alt) : hold(`<img src="${url}" alt="${alt}" loading="lazy" decoding="async" referrerpolicy="no-referrer">`);
+  });
+  // [[Note title]] and [[Note title|shown text]]: links between notes
+  t = t.replace(/\[\[([^\]\n|]+)(?:\|([^\]\n]*))?\]\]/g, (m, name, shown) => {
+    const label = (shown || name).trim(), n = !noLinks && MD_WIKI ? MD_WIKI(name.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")) : null;
+    return hold(n ? `<a class="wl" data-note="${esc(n.id)}">${label}</a>` : `<span class="wl miss">${label}</span>`);
+  });
+  // footnote references: [^id] (the text comes from a "[^id]: …" line)
+  if (MD_FN) t = t.replace(/\[\^([^\]\s]+)\]/g, (m, id) => {
+    id = id.toLowerCase(); if (!(id in MD_FN.defs)) return m;
+    let n = MD_FN.order.indexOf(id) + 1; if (!n) n = MD_FN.order.push(id);
+    return hold(`<sup class="fnr">${n}</sup>`);
+  });
+  t = t.replace(/\[([^\]\n]*)\]\(\s*([^)\s]+)(?:\s+&quot;[^)]*?&quot;)?\s*\)/g, (m, txt, url) => {
     if (!MD_URL.test(url.replace(/&amp;/g, '&'))) return m;
     return noLinks ? hold(fmt(txt || url)) : hold(MD_LINK(url, fmt(txt || url)));
   });
+  // reference links: [text][ref], [ref][] and [ref]
+  t = t.replace(/\[([^\]\n]+)\](?:\[([^\]\n]*)\])?/g, (m, txt, ref, off, all) => {
+    if (all[off - 1] === '\u0001' || /^\u0001\d+\u0002$/.test(txt)) return m;
+    const d = MD_REFS[(ref || txt).toLowerCase()]; if (!d) return m;
+    return noLinks ? hold(fmt(txt)) : hold(MD_LINK(d.url, fmt(txt)).replace('<a ', d.title ? `<a title="${d.title}" ` : '<a '));
+  });
   if (!noLinks) {
+    t = t.replace(/&lt;((?:https?:\/\/|mailto:)[^\s<>]*?)&gt;/g, (m, u) => (MD_URL.test(u.replace(/&amp;/g, '&')) ? hold(MD_LINK(u, u)) : m));
     t = t.replace(/\bhttps?:\/\/[^\s<>\u0001]+/g, u => {
       const m = u.match(/(?:[.,;:!?)\]]|&quot;|&#39;|&gt;)+$/), tail = m ? m[0] : '';
       if (tail) u = u.slice(0, -tail.length);
       return u.length > 8 ? hold(MD_LINK(u, u)) + tail : u + tail;
     });
   }
+  t = t.replace(/(^|[^\w:]):([a-z][a-z0-9_+-]{1,20}):(?![\w:])/g, (m, pre, k) => (MD_EMOJI[k] ? pre + MD_EMOJI[k] : m));
   t = fmt(t);
   while (/\u0001\d+\u0002/.test(t)) t = t.replace(/\u0001(\d+)\u0002/g, (m, i) => keep[+i]);
   return t;
@@ -54,10 +103,15 @@ function mdBlocks(L, chk) {
   while (i < L.length) {
     const s = L[i];
     if (!s.trim()) { i++; continue; }
-    if ((m = s.match(/^\s*(`{3,}|~{3,})/))) {
-      const f = m[1][0], code = []; i++;
+    if ((m = s.match(/^\s*(`{3,}|~{3,})\s*([\w+#.-]*)/))) {
+      const f = m[1][0], lang = m[2], code = []; i++;
       while (i < L.length && !new RegExp('^\\s*' + f + '{3,}\\s*$').test(L[i])) code.push(L[i++]);
-      i++; out.push(`<pre><code>${esc(code.join('\n'))}</code></pre>`); continue;
+      i++; out.push(`<pre${lang ? ` data-lang="${esc(lang)}"` : ''}><code>${mdHighlight(code.join('\n'), lang)}</code></pre>`); continue;
+    }
+    if (/^(?: {4}|\t)\S/.test(s)) { // indented code block
+      const code = [];
+      while (i < L.length && (/^(?: {4}|\t)/.test(L[i]) || (!L[i].trim() && i + 1 < L.length && /^(?: {4}|\t)\S/.test(L[i + 1])))) code.push(L[i++].replace(/^(?: {4}|\t)/, ''));
+      out.push(`<pre><code>${esc(code.join('\n'))}</code></pre>`); continue;
     }
     if ((m = s.match(/^ {0,3}(#{1,6})\s+(.*?)(?:\s+#+)?\s*$/))) { out.push(`<h${m[1].length}>${mdInline(m[2])}</h${m[1].length}>`); i++; continue; }
     if (MD_HR.test(s)) { out.push('<hr>'); i++; continue; }
@@ -89,6 +143,7 @@ function mdBlocks(L, chk) {
       while (i < L.length && L[i].trim() && L[i].includes('|')) { const r = mdCells(L[i++]); h += `<tr>${head.map((_, k) => cell('td', r[k], k)).join('')}</tr>`; }
       out.push(h + '</tbody></table></div>'); continue;
     }
+    if (i + 1 < L.length && (m = L[i + 1].match(/^ {0,3}(=+|-+)\s*$/)) && !MD_ITEM.test(s)) { out.push(`<h${m[1][0] === '=' ? 1 : 2}>${mdInline(s.trim())}</h${m[1][0] === '=' ? 1 : 2}>`); i += 2; continue; }
     const p = [];
     while (i < L.length && L[i].trim() && !(p.length && mdBlockStart(L, i))) p.push(L[i++]);
     out.push(`<p>${mdInline(p.join('\n')).replace(/\n/g, '<br>')}</p>`);
@@ -114,7 +169,22 @@ function mdList(items) {
   return h;
 }
 
-const md = src => mdBlocks(String(src ?? '').replace(/\r\n?/g, '\n').split('\n'), true);
+function md(src) {
+  const L = String(src ?? '').replace(/\r\n?/g, '\n').split('\n');
+  MD_REFS = {}; MD_FN = { defs: {}, order: [] };
+  let fence = false, m;
+  for (let i = 0; i < L.length; i++) { // collect "[ref]: url" and "[^id]: text" lines; blanking them keeps checkbox line numbers true
+    if (/^\s*(`{3,}|~{3,})/.test(L[i])) { fence = !fence; continue; }
+    if (fence) continue;
+    if ((m = L[i].match(/^ {0,3}\[\^([^\]\s]+)\]:\s*(.*)$/))) { MD_FN.defs[m[1].toLowerCase()] = m[2]; L[i] = ''; continue; }
+    if ((m = L[i].match(/^ {0,3}\[([^\]^][^\]]*)\]:\s*(\S+)(?:\s+(?:"([^"]*)"|'([^']*)'))?\s*$/)) && MD_URL.test(m[2])) { MD_REFS[esc(m[1]).toLowerCase()] = { url: esc(m[2]), title: esc(m[3] || m[4] || '') }; L[i] = ''; }
+  }
+  let html = mdBlocks(L, true);
+  const fn = MD_FN; // footnote texts may themselves cite others, so render from a snapshot of the order
+  if (fn.order.length) html += `<section class="mdfn"><hr><ol>${fn.order.slice().map(id => `<li>${mdInline(fn.defs[id])}</li>`).join('')}</ol></section>`;
+  MD_REFS = {}; MD_FN = null;
+  return html;
+}
 
 // flip the checkbox on source line `n` (the number the renderer put in data-mdl)
 function mdToggleLine(src, n) {

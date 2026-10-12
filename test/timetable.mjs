@@ -61,7 +61,7 @@ const eq = (a, b, m) => assert.equal(JSON.stringify(a), JSON.stringify(b), m);
   const A = makeApp(), S = A.S, td = new Date(clock.t), tk = (d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)(td), dow = td.getDay();
   const mk = (title, days, start, end, o = {}) => { const s = { id: 'sl' + S.slots.length, title, days, start, end, color: '#4772fa', loc: '', notes: '', remind: null, ...o }; S.slots.push(s); return s; };
   A.U.page = 'timetable'; A.render(); // empty state
-  assert.ok(A.els['#main'].innerHTML.includes('Click anywhere on the grid'));
+  assert.ok(A.els['#main'].innerHTML.includes('drag across'));
 
   const maths = mk('Maths', [dow], '09:00', '10:00', { loc: 'Room 4' }), phys = mk('Physics', [dow], '09:30', '10:30'), gym = mk('Gym', [dow, (dow + 1) % 7], '18:00', '19:00');
   const it = A.ttItems(td); A.ttLayout(it.items);

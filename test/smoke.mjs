@@ -1,9 +1,10 @@
 // Node smoke test: parser, repeat rules, and every page render against a fake DOM.
 import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
+import { JS_ORDER } from '../build-app.mjs';
 import assert from 'node:assert/strict';
 const eq = (a, b) => assert.equal(JSON.stringify(a), JSON.stringify(b));
-const code = ['core', 'md', 'views', 'sync', 'og', 'gantt', 'ui', 'main'].map(n => readFileSync(new URL(`../src/js/${n}.js`, import.meta.url), 'utf8')).join('\n');
+const code = JS_ORDER.map(n => readFileSync(new URL(`../src/js/${n}.js`, import.meta.url), 'utf8')).join('\n');
 const els = {};
 const el = () => ({ innerHTML: '', value: '', dataset: {}, style: {}, textContent: '', classList: { add() {}, remove() {}, toggle() {}, contains: () => false }, focus() {}, select() {}, setAttribute() {}, click() {} });
 const store = {};

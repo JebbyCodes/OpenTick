@@ -6,7 +6,7 @@
      read  → { status: 'ok'|'nochange'|'missing', text?, rev? }
      write → { rev } or { conflict: true }
    Device-local and never synced: settings, view preferences, reminder history, and the credentials below. */
-const SYNC_KEY = 'opentick.sync.v1', SYNC_FILE = 'opentick.json', SYNC_V = 2; // 2: adds tag colours + timetable slots (older apps refuse the file instead of silently dropping them)
+const SYNC_KEY = 'opentick.sync.v1', SYNC_FILE = 'opentick.json', SYNC_V = 3; // 2: adds tag colours + timetable slots; 3: adds notes (older apps refuse the file instead of silently dropping them)
 const syncErr = msg => Object.assign(new Error(msg), { sync: true });
 
 /* ---------- config (kept out of S so credentials never end up in backups or on the server) ---------- */
@@ -119,7 +119,7 @@ function parsePayload(text) {
   let d; try { d = JSON.parse(text); } catch (e) { throw syncErr('The remote file is not valid JSON — leaving it alone'); }
   if (!d || d.app !== 'opentick' || !Array.isArray(d.tasks) || !Array.isArray(d.lists)) throw syncErr('The remote file is not an OpenTick sync file — refusing to overwrite it');
   if ((d.schema || 1) > SYNC_V) throw syncErr('The remote data was written by a newer OpenTick — please update this app');
-  d.habits = d.habits || []; d.tags = d.tags || []; d.slots = d.slots || []; d.pomo = d.pomo || []; d.tomb = d.tomb || {};
+  d.habits = d.habits || []; d.tags = d.tags || []; d.slots = d.slots || []; d.notes = d.notes || []; d.pomo = d.pomo || []; d.tomb = d.tomb || {};
   return d;
 }
 function setSync(state, msg = '') { Sync.state = state; Sync.msg = msg; paintSync(); }
@@ -239,7 +239,7 @@ async function undoMerge() {
   let raw = null; try { raw = localStorage.getItem(KEY + '.premerge'); } catch (e) { /* ignore */ }
   if (!raw) { toast('Nothing to undo'); return; }
   if (!await askConfirm('Put your data back the way it was before the last sync brought in changes? Newer changes made since then are lost on this device and the other devices are updated to match.', 'Undo')) return;
-  replaceAll(JSON.parse(raw)); U.sel = null; render(); toast('Restored'); syncNow();
+  replaceAll(JSON.parse(raw)); histNote('import', 'Restored the data from before the last sync'); save(); U.sel = null; render(); toast('Restored'); syncNow();
 }
 
 /* ---------- dialog ---------- */

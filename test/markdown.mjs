@@ -35,7 +35,8 @@ no(md('#hashtag'), '<h1>');
 has(md('a\nb'), 'a<br>b');
 has(md('---'), '<hr>');
 has(md('> quote **b**'), '<blockquote><p>quote <strong>b</strong></p></blockquote>');
-has(md('```js\nconst a = "<b>";\n**not bold**\n```'), '<pre><code>const a = &quot;&lt;b&gt;&quot;;\n**not bold**</code></pre>');
+{ const h = md('```js\nconst a = "<b>";\n**not bold**\n```'); has(h, 'data-lang="js"'); has(h, '&lt;b&gt;'); no(h, '<b>'); no(h, '<strong>'); has(h, 'class="hl-k">const'); }
+has(md('```text\nconst a\n```'), '<pre data-lang="text"><code>const a</code></pre>');
 has(md('```\nunterminated'), '<pre><code>unterminated</code></pre>');
 has(md('- a\n- b'), '<ul><li><span class="mdtx">a</span></li><li><span class="mdtx">b</span></li></ul>');
 has(md('3. x\n4. y'), '<ol start="3">');

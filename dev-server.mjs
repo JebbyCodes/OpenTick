@@ -5,7 +5,7 @@ import { join, extname, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from './build-app.mjs';
 const root = dirname(fileURLToPath(import.meta.url));
-const types = { '.html': 'text/html', '.svg': 'image/svg+xml', '.js': 'text/javascript', '.webmanifest': 'application/manifest+json' };
+const types = { '.html': 'text/html', '.svg': 'image/svg+xml', '.png': 'image/png', '.js': 'text/javascript', '.webmanifest': 'application/manifest+json' };
 build();
 let t; watch(join(root, 'src'), { recursive: true }, () => { clearTimeout(t); t = setTimeout(() => { try { build(); } catch (e) { console.error(e); } }, 100); });
 createServer((req, res) => {

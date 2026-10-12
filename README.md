@@ -34,6 +34,16 @@ Plan, schedule and track your day on the web, your desktop and your phone — wi
   </p>
 -->
 
+## What's new in 0.6
+
+- **One logo, one version.** Put your logo at `src/logo.png`; the sidebar, favicon, PWA manifest, notifications and (via `npm run icons`) every desktop/mobile icon use it. The version lives in `package.json`; `npm run bump -- X.Y.Z` updates `package-lock.json`, `tauri.conf.json` and `Cargo.toml` too, and it is shown in the sidebar and Settings.
+- **Sound effects** (Settings → Sound): task complete, reopen, tick, add, schedule, delete, timer. Synthesized in the browser, with volume, an on/off switch and haptics on phones.
+- **Notes page** with full Markdown (headings, tables, task lists, footnotes, reference links, images, highlighted code, `[[links]]` between notes), split live preview, pinning, tags, import/export `.md`; syncs like everything else.
+- **Wide note editor** for a task's notes: the expand button in the task panel opens a full-size editor with live preview.
+- **Gantt**: plan and actual on separate lanes, red overrun bars, editable actual start/end (also by dragging the actual bar's edges), a Plan & actual panel in the task details with a mini chart, summary counts.
+- **Timetable**: click or drag on the grid to add; Day / 3 days / Week; week strip, swipe and a + button on phones; a clock button to schedule a task without dragging.
+- **Phones**: bottom tab bar, bottom-sheet dialogs, larger touch targets.
+
 ## Table of contents
 
 - [Why OpenTick](#why-opentick)
@@ -198,7 +208,7 @@ Deploy `dist/` anywhere that serves HTTPS — GitHub Pages, Netlify, a Raspberry
 ### Desktop (Windows, macOS, Linux)
 
 ```bash
-npm run icons          # generates src-tauri/icons from src/icon.svg (once)
+npm run icons          # generates src-tauri/icons from src/logo.png (once)
 npm run tauri dev      # development window with the live-rebuilding dev server
 npm run tauri build    # installers land in src-tauri/target/release/bundle
 ```
@@ -229,7 +239,7 @@ Device builds need a signing team configured in Xcode.
 npm run icons
 ```
 
-Regenerates every platform icon from `src/icon.svg` using the Tauri CLI. Run it once after cloning if `src-tauri/icons/` is missing pieces.
+Regenerates every platform icon from `src/logo.png` (falling back to `src/icon.svg` if it is missing) using the Tauri CLI. Run it once after cloning if `src-tauri/icons/` is missing pieces.
 
 ### Vendoring OpenGantt
 
@@ -448,3 +458,19 @@ OpenTick/
 │       ├── core.js           Dates, repeat rules, quick-add parser, store, change tracking, merge
 │       ├── md.js             Markdown renderer
 │       ├── views.js          All rendering (sidebar, list
+
+## Unreleased
+
+- **Sidebar**: fixed the *Hide sidebar* button (hiding the sidebar or details panel no longer collapses the main pane).
+- **Branding**: the app icon from `src-tauri/icons` is now `src/logo.png`, so the sidebar, About box, favicon, PWA manifest and notifications all match the desktop icon.
+- **Clock**: a small date and time readout (Settings → Clock: on/off, 12/24-hour, seconds). Foot of the sidebar, or a faint corner label when the sidebar is hidden / on phones.
+- **Tags**: filter by several tags at once (match **All** or **Any**), group by tag, sort by tags. Ctrl/Shift-click a tag in the sidebar to add it to the filter.
+- **Sorting**: an arrow beside *Sort* flips ascending / descending (undated and untagged tasks always stay last).
+- **Focus**: set any time (`45`, `1h30`, `90s`, `25:00`), add or remove minutes while it runs, and **Face-down mode** (phones): time only counts while the phone lies face down.
+- **History** (sidebar → More): what you added, edited, completed, reopened, deleted, restored or purged, filterable by action / type / text and sortable by time, action or name. Kept per device, not synced.
+- **Matrix**: drag a task into another box; its priority / due date change to fit.
+- **Timetable**: blocks resize from the top edge as well as the bottom.
+- **Calendar**: Month / Week / Day / Agenda views; repeating tasks appear on every future date (dashed).
+- **Habits**: choose an icon, colour and goal (daily by default, or N× a week / month); a flame plays when a check-in extends a streak.
+- **Gantt**: chart key above the timeline; progress labels no longer clipped.
+- Short animations for ticking, adding, deleting, opening and dropping (off with reduced-motion).

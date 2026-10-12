@@ -22,6 +22,10 @@ const THEMES = [
   ['dracula', 'Dracula', '#282a36', '#f8f8f2', '#bd93f9'], ['auto', 'Match system', 'linear-gradient(135deg,#fbf1c7 50%,#282828 50%)', '#3c3836', '#b57614'],
 ];
 const DEFAULT_THEME = 'gruvbox-dark';
+// build metadata injected by build-app.mjs (window.OT); a raw, unbuilt src/index.html still works
+const OTMETA = (typeof window !== 'undefined' && window.OT) || {};
+const APP_VERSION = OTMETA.version || 'dev';
+const APP_LOGO = OTMETA.logo || 'icon.svg';
 
 /* ---------- dates & repeat ---------- */
 function fmtDate(s) {
@@ -148,17 +152,23 @@ function migrate(r) {
   r.lists.forEach(l => { l.sections = l.sections || []; });
   r.tasks.forEach(t => { t.tags = t.tags || []; t.subtasks = t.subtasks || []; t.notes = t.notes || ''; t.status = t.status || 'open'; });
   r.habits = r.habits || []; r.pomo = r.pomo || []; r.fired = r.fired || {}; r.tomb = r.tomb || {};
-  r.tags = r.tags || []; r.slots = r.slots || [];
+  r.tags = r.tags || []; r.slots = r.slots || []; r.notes = Array.isArray(r.notes) ? r.notes : [];
+  r.notes.forEach(n => { n.title = n.title || ''; n.body = n.body || ''; n.tags = n.tags || []; n.created = n.created || Date.now(); n.updated = n.updated || n.created; });
   r.slots.forEach(x => { x.days = x.days || []; });
   r.settings = { theme: DEFAULT_THEME, sort: 'manual', group: 'none', weekStart: localWeekStart(), ...(r.settings || {}) };
   // 'auto' used to be the default; the default is now Gruvbox Dark (an explicit light/dark choice is kept)
   if (r.settings.themeV !== 2) { if (r.settings.theme === 'auto') r.settings.theme = DEFAULT_THEME; r.settings.themeV = 2; }
   if (!THEMES.some(t => t[0] === r.settings.theme)) r.settings.theme = DEFAULT_THEME;
-  r.settings.gantt = { scale: 'week', mode: 'both', zoom: 1, nameW: 290, cols: ['plan'], hatch: true, progress: true, tray: true, trayW: 220, ...(r.settings.gantt || {}) };
+  r.settings.gantt = { scale: 'week', mode: 'both', zoom: 1, nameW: 290, cols: ['plan', 'actual'], hatch: true, progress: true, tray: true, trayW: 220, lanes: true, ...(r.settings.gantt || {}) };
   // layout is per device: panel widths, which panels are hidden, folded sidebar sections, sidebar views
   r.settings.ui = { sideW: 300, detailW: 380, side: true, detail: true, trayW: 236, tray: true, fold: {}, hidePages: [], pageOrder: [], ...(r.settings.ui || {}) };
   r.settings.tt = { from: 7, to: 21, view: 'week', weekends: true, ...(r.settings.tt || {}) };
-  r.settings.pomo = { focus: 25, short: 5, long: 15, ...(r.settings.pomo || {}) };
+  r.history = Array.isArray(r.history) ? r.history : []; // this device's log of changes (never synced)
+  r.settings.cal = { view: 'month', ...(r.settings.cal || {}) };
+  r.settings.clock = { on: true, h24: false, sec: false, ...(r.settings.clock || {}) };
+  r.settings.sound = { on: true, vol: 0.7, haptic: true, ...(r.settings.sound || {}) };
+  r.settings.notes = { view: 'auto', ...(r.settings.notes || {}) };
+  r.settings.pomo = { focus: 25, short: 5, long: 15, faceDown: false, ...(r.settings.pomo || {}) };
   return r;
 }
 function seed() {
@@ -178,6 +188,14 @@ function seed() {
     v: 1, tasks,
     lists: [{ id: 'inbox', name: 'Inbox', color: '#4772fa', sections: [] }, { id: pid, name: 'Personal', color: '#f4a62a', sections: [] }, { id: wid, name: 'Work', color: '#34b36b', sections: ['To Do', 'Doing', 'Done'], view: 'kanban' }],
     habits: [{ id: 'seed-water', name: 'Drink water', icon: '💧', color: '#12a9c7', log: {} }],
+    notes: [{ id: 'seed-note-md', title: 'Notes: a Markdown cheat sheet', pinned: true, tags: ['welcome'], created: Date.now(), updated: Date.now(), body: [
+      '# Welcome to Notes', '', 'Everything here is **Markdown**. Use the toolbar, or just type. Switch between *Write*, *Split* and *Preview* above.', '',
+      '## Text', '', '**bold**, *italic*, ~~strike~~, ==highlight==, `inline code`, H~2~O and x^2^ — and a [link](https://example.com).', '',
+      '## Lists', '', '- [x] Checklists can be ticked in the preview', '- [ ] Like this one', '  - nested items work too', '', '1. Numbered', '2. Lists', '',
+      '## Quote, code and table', '', '> A quote for the road.', '', '```js', 'const answer = 42; // fenced code, with colours', '```', '',
+      '| Feature | Works |', '|---|:-:|', '| Tables | yes |', '| Footnotes | yes[^1] |', '',
+      '## Linking', '', 'Link notes together with double brackets: [[Notes: a Markdown cheat sheet]]. Images use `![alt](https://…)`.', '',
+      '[^1]: Footnotes appear at the bottom of the note.'].join('\n') }],
   });
 }
 function load() {
@@ -188,23 +206,89 @@ function load() {
    Every record (task, list, habit) carries `u`, the time it last changed. Instead of touching every mutation site,
    save() compares each record with a snapshot (SEEN) and stamps the ones that differ. Records that disappeared get a
    tombstone in S.tomb so a deletion can be told apart from "this device has never seen it". */
-const COLL = ['tasks', 'lists', 'habits', 'tags', 'slots'];
-const SEEN = { tasks: new Map(), lists: new Map(), habits: new Map(), tags: new Map(), slots: new Map() };
+const COLL = ['tasks', 'lists', 'habits', 'tags', 'slots', 'notes'];
+const SEEN = { tasks: new Map(), lists: new Map(), habits: new Map(), tags: new Map(), slots: new Map(), notes: new Map() };
 const hashOf = o => JSON.stringify(o, (k, v) => (k === 'u' ? undefined : v));
 function initSeen() { for (const c of COLL) { SEEN[c].clear(); for (const o of S[c]) SEEN[c].set(o.id, hashOf(o)); } }
 function stamp() {
-  const now = Date.now(); let changed = false;
+  const now = Date.now(); let changed = false; const seen = [];
   for (const c of COLL) {
     const live = new Set();
     for (const o of S[c]) {
       live.add(o.id);
-      const h = hashOf(o);
-      if (SEEN[c].get(o.id) !== h) { o.u = Math.max(now, (o.u || 0) + 1); SEEN[c].set(o.id, h); changed = true; }
+      const h = hashOf(o), prev = SEEN[c].get(o.id);
+      if (prev !== h) { o.u = Math.max(now, (o.u || 0) + 1); SEEN[c].set(o.id, h); changed = true; seen.push([c, prev, o]); }
     }
-    for (const id of [...SEEN[c].keys()]) if (!live.has(id)) { SEEN[c].delete(id); S.tomb[id] = Math.max(now, (S.tomb[id] || 0) + 1); changed = true; }
+    for (const id of [...SEEN[c].keys()]) if (!live.has(id)) { seen.push([c, SEEN[c].get(id), null]); SEEN[c].delete(id); S.tomb[id] = Math.max(now, (S.tomb[id] || 0) + 1); changed = true; }
   }
+  if (seen.length) { try { histRecord(seen, now); } catch (e) { /* the log is a convenience: never let it break saving */ } }
   return changed;
 }
+
+/* ---------- history ----------
+   A per-device log of what you changed: stamp() already compares every record with its previous state, so the log is
+   built from those differences (nothing has to be remembered at each call site). Changes that arrive through sync are
+   not logged. Quick successive edits of one record (typing a title) are folded into one entry. */
+const HIST_MAX = 2000, HIST_MERGE = 90000;
+const HIST_KIND = { tasks: 'task', lists: 'list', habits: 'habit', notes: 'note', slots: 'slot' };
+const HIST_ACT = { add: 'Added', edit: 'Edited', done: 'Completed', reopen: 'Reopened', wontdo: "Won't do", delete: 'Deleted', restore: 'Restored', purge: 'Deleted forever', import: 'Imported' };
+const HIST_IGN = new Set(['u', 'id', 'order', 'updated', 'created', 'doneAt', 'logU', 'deleted', 'log', 'pinned']);
+const HIST_FLAG = new Set(['notes', 'body', 'subtasks', 'log']); // changes shown as "edited", without values
+const histName = (k, o) => String((k === 'task' ? o.title : k === 'list' || k === 'habit' ? o.name : k === 'note' ? noteTitle(o) : o.title) || '').trim().slice(0, 90) || 'Untitled';
+function histChange(k, o, n) {
+  if (k === 'task') {
+    if (!o.deleted && n.deleted) return { a: 'delete' };
+    if (o.deleted && !n.deleted) return { a: 'restore' };
+    if (o.status !== n.status) return { a: n.status === 'done' ? 'done' : n.status === 'wontdo' ? 'wontdo' : 'reopen' };
+  }
+  if (k === 'note' && !o.pinned !== !n.pinned) return { a: 'edit', f: { pinned: [!!o.pinned, !!n.pinned] } };
+  if (k === 'habit') { // check-ins: which days were ticked or unticked
+    const on = [], off = [];
+    for (const d of Object.keys(n.log || {})) if (n.log[d] && !(o.log || {})[d]) on.push(d);
+    for (const d of Object.keys(o.log || {})) if (o.log[d] && !(n.log || {})[d]) off.push(d);
+    if (on.length || off.length) { const e = { a: on.length ? 'done' : 'reopen', d: (on.length ? 'Checked in ' : 'Unchecked ') + (on.length ? on : off).sort().join(', ') }; return e; }
+  }
+  const f = {};
+  for (const key of new Set([...Object.keys(o), ...Object.keys(n)])) {
+    if (HIST_IGN.has(key)) continue;
+    const a = o[key], b = n[key];
+    if (JSON.stringify(a) !== JSON.stringify(b)) f[key] = HIST_FLAG.has(key) ? [null, null] : [typeof a === 'string' ? a.slice(0, 120) : a ?? null, typeof b === 'string' ? b.slice(0, 120) : b ?? null];
+  }
+  return Object.keys(f).length ? { a: 'edit', f } : null;
+}
+function histRecord(seen, now) {
+  const out = [], clones = new Set();
+  for (const [c, prev, cur] of seen) if (c === 'tasks' && !prev && cur && cur.log && cur.status === 'done') clones.add(cur.title);
+  for (const [c, prevJson, cur] of seen) {
+    const k = HIST_KIND[c]; if (!k) continue;
+    const o = prevJson ? JSON.parse(prevJson) : null;
+    if (!o && cur) { out.push(cur.log && cur.status === 'done' ? { k, a: 'done', id: cur.id, n: histName(k, cur), d: 'Repeating task: this occurrence' } : { k, a: 'add', id: cur.id, n: histName(k, cur) }); continue; }
+    if (o && !cur) { out.push({ k, a: k === 'task' ? 'purge' : 'delete', id: o.id, n: histName(k, o) }); continue; }
+    if (!o || !cur) continue;
+    const ch = histChange(k, o, JSON.parse(hashOf(cur)));
+    if (!ch) continue;
+    // the next-date change of a repeating task that was just ticked is already told by its "completed" entry
+    if (k === 'task' && ch.f && clones.has(cur.title) && cur.repeat && Object.keys(ch.f).every(x => x === 'due' || x === 'subtasks' || x === 'time')) continue;
+    out.push({ k, ...ch, id: cur.id, n: histName(k, cur) });
+  }
+  const H = S.history;
+  for (const e of out) {
+    e.t = now;
+    if (e.a === 'edit' && e.f) { // fold into a recent edit of the same record
+      const prev = H.slice(-25).reverse().find(x => x.id === e.id && x.a === 'edit' && x.f && now - x.t < HIST_MERGE);
+      if (prev) {
+        for (const [key, [from, to]] of Object.entries(e.f)) prev.f[key] = prev.f[key] ? [prev.f[key][0], to] : [from, to];
+        for (const key of Object.keys(prev.f)) if (!HIST_FLAG.has(key) && JSON.stringify(prev.f[key][0]) === JSON.stringify(prev.f[key][1])) delete prev.f[key];
+        prev.t = now; prev.n = e.n;
+        if (!Object.keys(prev.f).length) H.splice(H.indexOf(prev), 1);
+        continue;
+      }
+    }
+    H.push(e);
+  }
+  if (H.length > HIST_MAX) H.splice(0, H.length - HIST_MAX);
+}
+function histNote(a, text) { S.history.push({ t: Date.now(), k: 'app', a, id: '', n: text }); }
 
 let S = load();
 initSeen();
@@ -222,7 +306,7 @@ function save() { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 120); }
 const TOMB_TTL = 180 * 864e5;
 const canon = o => JSON.stringify(Object.keys(o || {}).sort().map(k => [k, o[k]]));
 const cyrb53 = s => { let a = 0xdeadbeef, b = 0x41c6ce57; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 2654435761); b = Math.imul(b ^ c, 1597334677); } a = Math.imul(a ^ (a >>> 16), 2246822507) ^ Math.imul(b ^ (b >>> 13), 3266489909); b = Math.imul(b ^ (b >>> 16), 2246822507) ^ Math.imul(a ^ (a >>> 13), 3266489909); return (4294967296 * (2097151 & b) + (a >>> 0)).toString(36); };
-const snapshot = () => ({ tasks: S.tasks, lists: S.lists, habits: S.habits, tags: S.tags, slots: S.slots, pomo: S.pomo, tomb: S.tomb });
+const snapshot = () => ({ tasks: S.tasks, lists: S.lists, habits: S.habits, tags: S.tags, slots: S.slots, notes: S.notes, pomo: S.pomo, tomb: S.tomb });
 function fingerprint(d) {
   const p = [];
   for (const c of COLL) for (const o of (d[c] || [])) p.push(c[0] + o.id + ':' + (o.u || 0));
@@ -271,15 +355,15 @@ function mergeData(L, R) {
   return out;
 }
 function applyMerged(m) {
-  S.tasks = m.tasks; S.lists = m.lists; S.habits = m.habits; S.tags = m.tags; S.slots = m.slots; S.pomo = m.pomo; S.tomb = m.tomb;
+  S.tasks = m.tasks; S.lists = m.lists; S.habits = m.habits; S.tags = m.tags; S.slots = m.slots; S.notes = m.notes; S.pomo = m.pomo; S.tomb = m.tomb;
   migrate(S); initSeen();
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* keep going: memory copy is still right */ }
 }
 // Replace everything (import / undo) in a way that sync treats as a deliberate edit: gone records become tombstones, kept ones are re-stamped
 function replaceAll(d) {
   const old = {}; for (const c of COLL) old[c] = S[c].map(o => o.id);
-  const tomb = { ...S.tomb }, now = Date.now();
-  S = migrate({ ...d, tomb: {} });
+  const tomb = { ...S.tomb }, now = Date.now(), hist = S.history;
+  S = migrate({ ...d, tomb: {} }); S.history = hist;
   for (const c of COLL) {
     const ids = new Set(S[c].map(o => o.id));
     for (const id of old[c]) if (!ids.has(id)) tomb[id] = now;
@@ -317,8 +401,15 @@ function toggleDone(t) {
     if (t.repeat && t.due) {
       S.tasks.push({ ...t, id: uid(), status: 'done', doneAt: Date.now(), log: 1, repeat: null, reminder: null, subtasks: t.subtasks.map(s => ({ ...s })), tags: [...t.tags] });
       t.due = nextDue(t); t.subtasks.forEach(s => { s.done = false; });
-      toast('Done — next: ' + dueLabel(t));
-    } else { t.status = 'done'; t.doneAt = Date.now(); }
-  } else { t.status = 'open'; delete t.doneAt; }
+      toast('Done — next: ' + dueLabel(t)); sfx('done');
+    } else { t.status = 'done'; t.doneAt = Date.now(); sfx('done'); }
+  } else { t.status = 'open'; delete t.doneAt; sfx('undo'); }
   save();
 }
+
+/* ---------- standalone notes ---------- */
+const noteById = id => S.notes.find(n => n.id === id);
+const noteTitle = n => (n.title && n.title.trim()) || (String(n.body || '').split('\n').map(l => l.replace(/^[#>\-*\s]+/, '').trim()).find(Boolean) || 'Untitled note').slice(0, 80);
+function newNote(o = {}) { const now = Date.now(); return { id: uid(), title: '', body: '', tags: [], pinned: false, created: now, updated: now, ...o }; }
+const noteByTitle = name => { const k = String(name || '').trim().toLowerCase(); return k ? S.notes.find(n => noteTitle(n).toLowerCase() === k) || null : null; };
+const wordCount = txt => (String(txt || '').match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu) || []).length;

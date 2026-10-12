@@ -18,10 +18,10 @@ app.S.settings.ui.detail = true;
 const c = UIC.side; assert.equal(app.uiSetWidth(c, 50), 220); assert.equal(app.uiSetWidth(c, 5000) <= 520, true);
 
 /* sidebar views: order + hide, but the page you are on never disappears */
-eq(pagesShown().map(p => p[0]), ['tasks', 'calendar', 'timetable', 'gantt', 'matrix', 'habits', 'focus']);
-uiMovePage('gantt', -1); eq(pagesShown().map(p => p[0]).slice(0, 4), ['tasks', 'calendar', 'gantt', 'timetable']);
+eq(pagesShown().map(p => p[0]), ['tasks', 'notes', 'calendar', 'timetable', 'gantt', 'matrix', 'habits', 'focus']);
+uiMovePage('gantt', -1); eq(pagesShown().map(p => p[0]).slice(0, 5), ['tasks', 'notes', 'calendar', 'gantt', 'timetable']);
 app.S.settings.ui.hidePages = ['habits', 'gantt']; U.page = 'gantt';
-eq(pagesShown().map(p => p[0]), ['tasks', 'calendar', 'gantt', 'timetable', 'matrix', 'focus'], 'current page stays; habits hidden');
+eq(pagesShown().map(p => p[0]), ['tasks', 'notes', 'calendar', 'gantt', 'timetable', 'matrix', 'focus'], 'current page stays; habits hidden');
 U.page = 'tasks'; assert.equal(pagesShown().some(p => p[0] === 'gantt'), false);
 
 /* dropping a task on the sidebar */
@@ -34,7 +34,7 @@ assert.equal(uiNavDrop({ dataset: { nav: 'list:nope' } }), false);
 U.drag = null;
 
 /* Gantt table columns */
-eq(gtCols(), ['plan']);
+eq(gtCols(), ['plan', 'actual']);
 gtSetCols(['plan', 'status', 'bogus']); eq(gtCols(), ['plan', 'status'], 'unknown column names are ignored');
 assert.ok(app.S.settings.gantt.nameW >= 190 + 122 + 116, 'the table grows to fit its columns');
 const mk = o => ganttDates({ status: 'open', ...o }, true);
