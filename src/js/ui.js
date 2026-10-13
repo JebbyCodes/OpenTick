@@ -26,8 +26,48 @@ function uiInit() {
     d.setAttribute('role', 'separator'); d.setAttribute('aria-orientation', 'vertical'); d.setAttribute('aria-label', 'Resize ' + label);
     app.appendChild(d);
   }
-  const ck = document.createElement('div'); ck.id = 'clock'; ck.setAttribute('aria-hidden', 'true'); document.body.appendChild(ck);
-  uiApply(); clockPaint();
+  const dk = document.createElement('div'); dk.id = 'dock'; dk.innerHTML = '<div id="clock" aria-hidden="true"></div><div id="dsync"></div>'; document.body.appendChild(dk);
+  uiApply(); clockPaint(); paintDock();
+}
+
+/* ---------- status dock: sync cloud + "Saved" note + clock ----------
+   One small strip in the least intrusive spot: the foot of the sidebar, or a faint corner pill when the sidebar is hidden
+   or on a phone. The cloud shows whether sync is off / idle / working / has a problem, and a quick "Saved" appears
+   whenever a change has been written. Click the cloud to sync now (or to set sync up when it is off). */
+const DOCK = { saved: 0, timer: 0, pending: false };
+// the small "Saving… / Saved" note: in the dock, and beside the title of the task or note being edited ([data-sv])
+function svPaint(txt, ok) { $$('[data-sv]').forEach(el => { el.textContent = txt; el.classList.toggle('ok', !!ok); el.classList.toggle('pend', txt === 'Saving…'); }); }
+function savePending() { DOCK.pending = true; paintDock(); svPaint('Saving…'); }
+function dockSaved(quiet) {
+  DOCK.pending = false; if (!quiet) DOCK.saved = Date.now(); paintDock(); svPaint(quiet ? '' : '✓ Saved', true);
+  clearTimeout(DOCK.timer); DOCK.timer = setTimeout(() => { paintDock(); svPaint(''); editedLabels(); }, 1800);
+}
+// recently edited records get an "Edited" marker for a couple of minutes (rows, cards, blocks, chips, notes); labels say how long ago
+function editedPaint() {
+  const now = Date.now();
+  for (const [id, ts] of EDITED) {
+    if (now - ts >= EDIT_SHOW) { EDITED.delete(id); continue; }
+    $$(`${['.task', '.card', '.blk', '.chip', '.tri', '.nti'].map(c => `${c}[data-id="${id}"]`).join(',')},.blk[data-sid="${id}"]`).forEach(el => { if (!el.classList.contains('edited')) { el.classList.add('edited'); } });
+  }
+  editedLabels();
+}
+function editedSweep() { for (const [id, ts] of EDITED) if (Date.now() - ts >= EDIT_SHOW) { EDITED.delete(id); $$(`[data-id="${id}"].edited,[data-sid="${id}"].edited`).forEach(el => el.classList.remove('edited')); } editedLabels(); }
+function editedLabels() {
+  const t = getT(U.sel), el = $('#d-ed'); if (el && t) el.innerHTML = editedText(t);
+  const n = noteById(U.noteSel), ne = $('#n-ed'); if (ne && n) ne.innerHTML = editedText(n, true);
+}
+const editedText = (o, note) => { const mine = EDITED.has(o.id) && Date.now() - EDITED.get(o.id) < EDIT_SHOW, at = note ? o.updated : o.u; return at ? `<span class="edtag${mine ? ' now' : ''}">${mine ? ic('check', 11) + ' ' : ''}Edited ${esc(ago(at))}</span>` : ''; };
+function paintDock() {
+  const el = document.getElementById ? document.getElementById('dsync') : null; if (!el) return;
+  const s = Sync.state, saved = Date.now() - DOCK.saved < 1750; let icon, cls, tip, txt = '';
+  if (!Sync.on) { icon = 'cloud'; cls = 'off'; tip = 'Sync is off — everything is saved on this device. Click to set up sync.'; }
+  else if (s === 'busy') { icon = 'refresh'; cls = 'busy'; tip = 'Syncing…'; txt = 'Syncing…'; }
+  else if (s === 'error' || s === 'offline') { icon = 'cloud-off'; cls = 'err'; tip = Sync.msg || 'Offline'; txt = s === 'offline' ? 'Offline' : 'Sync problem'; }
+  else { icon = 'cloud-check'; cls = 'ok'; tip = Sync.cfg.last ? 'Synced ' + ago(Sync.cfg.last) + ' — click to sync now' : 'Sync is on — click to sync now'; }
+  if (DOCK.pending && !txt) txt = 'Saving…';
+  else if (saved && !txt) txt = 'Saved';
+  const html = `<span class="dtxt${txt ? ' show' : ''}${txt === 'Saved' ? ' saved' : ''}${txt === 'Saving…' ? ' saving' : ''}" aria-live="polite">${txt === 'Saved' ? ic('check', 12) : ''}${esc(txt)}</span><button class="ib dsb ${cls}" data-act="syncdock" title="${esc(tip)}" aria-label="${esc(tip)}">${ic(icon, 18)}</button>`;
+  if (el._h !== html) { el._h = html; el.innerHTML = html; }
 }
 
 /* ---------- date & time readout ----------
@@ -40,7 +80,7 @@ function clockParts(d = new Date()) {
 }
 function clockPaint() {
   const el = document.getElementById ? document.getElementById('clock') : null; if (!el) return;
-  const on = S.settings.clock.on !== false; document.body.classList.toggle('clock-on', on); el.hidden = !on; if (!on) return;
+  const on = S.settings.clock.on !== false; el.hidden = !on; if (!on) return;
   const p = clockParts(), html = `<b>${p.time}${p.ap ? `<span>${p.ap}</span>` : ''}</b><small>${p.date}</small>`;
   if (el._h !== html) { el._h = html; el.innerHTML = html; }
 }
@@ -123,22 +163,33 @@ function uiMovePage(k, d) {
 
 /* ---------- reorder: lists in the sidebar, view tabs, and dropping a task on a sidebar entry ---------- */
 document.addEventListener('dragstart', e => {
-  const l = e.target.closest && e.target.closest('.nav[data-lid]');
+  const l = e.target.closest && e.target.closest('.navrow[data-lid]');
   if (l) { U.ldrag = l.dataset.lid; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'list:' + U.ldrag); l.classList.add('drag'); return; }
   const p = e.target.closest && e.target.closest('.pg[data-page]');
   if (p) { U.pdrag = p.dataset.page; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'page:' + U.pdrag); p.classList.add('drag'); }
 });
 document.addEventListener('dragover', e => {
-  const t = e.target.closest && e.target.closest('.nav[data-lid],.pg[data-page]');
-  if (t && ((U.ldrag && t.dataset.lid) || (U.pdrag && t.dataset.page))) { e.preventDefault(); $$('.over').forEach(x => x.classList.remove('over')); t.classList.add('over'); }
+  const t = e.target.closest && e.target.closest('.navrow[data-lid],.pg[data-page],.sech[data-k="lists"]');
+  if (U.ldrag && t && (t.dataset.lid || t.dataset.k)) { // a list over a list: top / bottom edge = reorder next to it, middle = move inside it
+    const bad = new Set([U.ldrag, ...listDescendants(U.ldrag)]); if (t.dataset.lid && bad.has(t.dataset.lid)) return;
+    e.preventDefault(); $$('.over,.dz-b,.dz-a,.dz-in').forEach(x => x.classList.remove('over', 'dz-b', 'dz-a', 'dz-in'));
+    if (t.dataset.lid) { const r = t.getBoundingClientRect(), y = (e.clientY - r.top) / r.height; t.classList.add(y < 0.28 ? 'dz-b' : y > 0.72 ? 'dz-a' : 'dz-in'); } else t.classList.add('over');
+  } else if (t && U.pdrag && t.dataset.page) { e.preventDefault(); $$('.over').forEach(x => x.classList.remove('over')); t.classList.add('over'); }
 });
 document.addEventListener('drop', e => {
   if (U.ldrag) {
-    const t = e.target.closest('.nav[data-lid]');
-    if (t && t.dataset.lid !== U.ldrag) {
+    const t = e.target.closest('.navrow[data-lid],.sech[data-k="lists"]'), src = S.lists.find(l => l.id === U.ldrag);
+    if (t && src) {
       e.preventDefault();
-      const a = S.lists.findIndex(l => l.id === U.ldrag), b = S.lists.findIndex(l => l.id === t.dataset.lid), [m] = S.lists.splice(a, 1);
-      S.lists.splice(b < 0 ? S.lists.length : b, 0, m); save(); renderSide(); // takes the target's place: before it when moving up, after it when moving down
+      const bad = new Set([src.id, ...listDescendants(src.id)]);
+      if (t.dataset.lid) {
+        if (bad.has(t.dataset.lid)) return;
+        const dst = S.lists.find(l => l.id === t.dataset.lid), r = t.getBoundingClientRect(), y = (e.clientY - r.top) / r.height;
+        S.lists.splice(S.lists.indexOf(src), 1);
+        if (y >= 0.28 && y <= 0.72) { src.parent = dst.id; S.lists.push(src); S.settings.ui.fold['l:' + dst.id] = false; } // inside: last sublist
+        else { src.parent = dst.parent || null; S.lists.splice(S.lists.indexOf(dst) + (y > 0.72 ? 1 : 0), 0, src); } // next to it, sharing its parent
+      } else { src.parent = null; S.lists.splice(S.lists.indexOf(src), 1); S.lists.push(src); } // dropped on the "Lists" heading: top level
+      save(); renderSide();
     }
   } else if (U.pdrag) {
     const t = e.target.closest('.pg[data-page]');
@@ -173,7 +224,9 @@ function paletteItems(q) {
     ...PAGES.map(([k, n]) => go('Go to ' + n, 'View', () => { U.page = k; U.sel = null; render(); })),
     go('Go to History', 'View', () => { U.page = 'history'; U.sel = null; render(); }),
     ...SMART.map(([k, n]) => go('Open ' + n, 'List', () => setNav(k))),
-    ...S.lists.filter(l => l.id !== 'inbox').map(l => go('Open list: ' + l.name, 'List', () => setNav('list:' + l.id))),
+    ...S.lists.filter(l => l.id !== 'inbox').map(l => go('Open list: ' + listLabel(l.id), 'List', () => setNav('list:' + l.id))),
+    ...S.projects.map(p => go('Open project: ' + p.name, 'Project', () => setNav('project:' + p.id))),
+    go('Import from another app…', 'Action', () => openImport()), go('New list…', 'Action', () => openListForm(null, '')), go('New project…', 'Action', () => openProjectForm(null)),
     go('Open Completed', 'List', () => setNav('done')), go('Open Trash', 'List', () => setNav('trash')),
     go('Toggle sidebar', '[', () => uiToggle('side')), go('Toggle task details', ']', () => uiToggle('detail')),
     go('Focus mode: hide both panels', '\\', uiFocus),
@@ -182,8 +235,8 @@ function paletteItems(q) {
     go('Keyboard shortcuts', '?', openShortcuts),
     go('Gantt: zoom in', 'Gantt', () => { U.page = 'gantt'; render(); gtZoom(1); }), go('Gantt: zoom out', 'Gantt', () => { U.page = 'gantt'; render(); gtZoom(-1); }),
     go('Gantt: choose table columns…', 'Gantt', () => { U.page = 'gantt'; render(); openGtCols(); }),
-    go('Gantt: print / save as PDF', 'Gantt', () => { U.page = 'gantt'; U.gpane = 'tasks'; render(); setTimeout(() => window.print && window.print(), 100); }),
-    ...THEMES.map(t => go('Theme: ' + t[1], 'Theme', () => { S.settings.theme = t[0]; applyTheme(); save(); })),
+    go('Gantt: print / save as PDF', 'Gantt', () => { U.page = 'gantt'; render(); setTimeout(gtPrint, 100); }), go('Gantt: export…', 'Gantt', () => { U.page = 'gantt'; render(); openGtExport(); }), go('Gantt: show / hide the YAML editor', 'Gantt', () => { U.page = 'gantt'; U.gYaml = !U.gYaml; render(); }),
+    ...themeList().map(t => go('Theme: ' + t[1], 'Theme', () => { S.settings.theme = t[0]; applyTheme(); save(); })),
   ];
   q = q.toLowerCase().trim();
   const hit = out.filter(i => !q || i.label.toLowerCase().includes(q));

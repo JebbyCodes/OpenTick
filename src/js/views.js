@@ -57,13 +57,40 @@ const IC = {
   'arrow-up': '<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>',
   'arrow-down': '<line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/>',
   history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/><polyline points="12 7 12 12 15 14"/>',
+  folder: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
+  home: '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
+  briefcase: '<rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
+  book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+  cart: '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>',
+  heart: '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>',
+  zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+  target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+  music: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+  camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
+  code: '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
+  gift: '<polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>',
+  coffee: '<path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>',
+  dollar: '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  tool: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+  globe: '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+  send: '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
+  bookmark: '<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>',
+  play: '<polygon points="7 4 20 12 7 20 7 4" fill="currentColor"/>',
+  pause: '<rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor"/><rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor"/>',
+  'cloud-check': '<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/><polyline points="9.5 14.5 11.5 16.5 15.5 12"/>',
+  paperclip: '<path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',
   notes: '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>',
 };
 const ic = (n, s = 18) => `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${IC[n] || ''}</svg>`;
 
 // the coin from the app icon, cropped for small round spots (sidebar, About); the full square is used for favicons and app icons
 const logoHtml = (n = 28) => `<span class="logo" style="width:${n}px;height:${n}px"><img src="${esc(APP_LOGO)}" alt=""></span>`;
-const U = { tagSel: [], tagMode: 'all', hist: { acts: [], kinds: [], q: '', sort: 'new', shown: 150 },  page: 'tasks', nav: 'today', q: '', sel: null, calD: new Date(), fx: [], showDone: {}, drag: null, _rn: null, ttDate: null, ttTray: null, ttV: null };
+// icons offered for lists and projects (an emoji can be used instead)
+const LIST_ICONS = ['list', 'inbox', 'sun', 'calendar', 'star', 'flag', 'heart', 'home', 'briefcase', 'book', 'cart', 'folder', 'target', 'zap', 'music', 'camera', 'code', 'gift', 'coffee', 'dollar', 'user', 'users', 'tool', 'globe', 'send', 'bookmark', 'bell', 'clock', 'tag', 'file-text', 'layers', 'flame'];
+const listIcon = (o, n = 18) => { const i = o && o.icon; return i && IC[i] ? ic(i, n) : i ? `<span class="emo" style="font-size:${Math.round(n * 0.9)}px">${esc(i)}</span>` : ic(o && o.listIds ? 'layers' : 'list', n); };
+const U = { projList: {}, tagSel: [], tagMode: 'all', hist: { acts: [], kinds: [], q: '', sort: 'new', shown: 150 },  page: 'tasks', nav: 'today', q: '', sel: null, calD: new Date(), fx: [], showDone: {}, drag: null, _rn: null, ttDate: null, ttTray: null, ttV: null };
 const SMART = [['inbox', 'Inbox', 'inbox'], ['today', 'Today', 'sun'], ['tomorrow', 'Tomorrow', 'sunrise'], ['week', 'Next 7 Days', 'calendar'], ['all', 'All', 'layers']];
 const PAGES = [['tasks', 'Tasks', 'check-circle'], ['notes', 'Notes', 'notes'], ['calendar', 'Calendar', 'calendar'], ['timetable', 'Timetable', 'table'], ['gantt', 'Gantt', 'gantt'], ['matrix', 'Matrix', 'grid'], ['habits', 'Habit', 'activity'], ['focus', 'Focus', 'clock']];
 const FLAT = ['done', 'trash', 'wontdo', 'search'];
@@ -78,11 +105,51 @@ function metaX(t) {
 }
 const titleHtml = t => (t.title && t.title.trim() ? mdInline(t.title, true) : '<i>Untitled</i>');
 function noteBadge(t) {
-  if (!t.notes || !t.notes.trim()) return '';
-  const s = mdStats(t.notes);
-  return s.total ? `<span title="Checklist in notes">${ic('check-square', 12)} ${s.done}/${s.total}</span>` : `<span title="Has notes">${ic('file-text', 12)}</span>`;
+  const nl = typeof linkedNotes === 'function' ? linkedNotes(t).length : 0, nf = (t.files || []).length;
+  let out = '';
+  if (t.notes && t.notes.trim()) { const s = mdStats(t.notes); out += s.total ? `<span title="Checklist in notes">${ic('check-square', 12)} ${s.done}/${s.total}</span>` : `<span title="Has notes">${ic('file-text', 12)}</span>`; }
+  if (nl) out += `<span title="${nl} linked note${nl === 1 ? '' : 's'}">${ic('notes', 12)} ${nl}</span>`;
+  if (nf) out += `<span title="${nf} attachment${nf === 1 ? '' : 's'}">${ic('paperclip', 12)} ${nf}</span>`;
+  return out;
 }
+const listOpts = () => [['inbox', 'Inbox'], ...listTree().map(({ l, depth }) => [l.id, '\u2003'.repeat(depth) + (depth ? '↳ ' : '') + l.name])];
 const opts = (arr, cur) => arr.map(([v, n]) => `<option value="${esc(v)}"${String(cur) === String(v) ? ' selected' : ''}>${esc(n)}</option>`).join('');
+
+/* ---------- duration and reminder entry ----------
+   A duration is whole minutes (task.dur): typed as hours + minutes, or picked from presets. A reminder is "minutes before the
+   due time" (task.reminder): a preset, or any amount in minutes / hours / days / weeks. Both are small widgets reused by the
+   task panel, the schedule dialog and the slot editor, so each takes an id and is read back with durRead / remRead. */
+const DUR_PRESETS = [15, 30, 45, 60, 90, 120, 180, 240];
+const durHtml = (id, mins) => `<div class="durf" data-dur="${esc(id)}"><div class="durin"><input type="number" inputmode="numeric" class="dh" min="0" max="99" step="1" placeholder="0" value="${mins ? Math.floor(mins / 60) : ''}" aria-label="Hours"><span>h</span><input type="number" inputmode="numeric" class="dm" min="0" max="999" step="5" placeholder="0" value="${mins ? mins % 60 : ''}" aria-label="Minutes"><span>min</span><button type="button" class="btn sm" data-dp="0" title="No duration">${ic('x', 12)} Clear</button></div><div class="durp">${DUR_PRESETS.map(m => `<button type="button" class="btn sm${m === mins ? ' on' : ''}" data-dp="${m}">${fmtDur(m)}</button>`).join('')}</div></div>`;
+const durRead = box => { const n = sel => Math.max(0, Math.floor(+(box.querySelector(sel) || {}).value || 0)); return Math.min(n('.dh') * 60 + n('.dm'), 99 * 60 + 59) || null; };
+function durSet(box, mins) {
+  const h = box.querySelector('.dh'), m = box.querySelector('.dm'); if (!h || !m) return;
+  h.value = mins ? Math.floor(mins / 60) : ''; m.value = mins ? mins % 60 : '';
+  durMark(box, mins);
+}
+const durMark = (box, mins) => (box.querySelectorAll('[data-dp]') || []).forEach(b => b.classList.toggle('on', +b.dataset.dp === mins));
+const REM_PRESETS = [[0, 'On time'], [5, '5 minutes before'], [10, '10 minutes before'], [15, '15 minutes before'], [30, '30 minutes before'], [60, '1 hour before'], [120, '2 hours before'], [1440, '1 day before'], [2880, '2 days before'], [10080, '1 week before']];
+const REM_UNITS = [[1, 'minutes'], [60, 'hours'], [1440, 'days'], [10080, 'weeks']];
+function remParts(min) { const u = [10080, 1440, 60].find(x => min > 0 && min % x === 0) || 1; return { n: min == null ? 30 : min / u, u: min == null ? 1 : u }; }
+function remLabel(min) {
+  if (min == null) return 'No reminder'; if (min === 0) return 'On time';
+  const { n, u } = remParts(min), name = REM_UNITS.find(x => x[0] === u)[1];
+  return `${n} ${n === 1 ? name.replace(/s$/, '') : name} before`;
+}
+// forceCustom keeps the custom fields open after "Custom…" was chosen, even while the value happens to equal a preset
+function remHtml(id, rem, forceCustom, keep) {
+  const preset = rem != null && REM_PRESETS.some(x => x[0] === rem), custom = rem != null && (!preset || forceCustom), p = remParts(rem == null ? undefined : rem);
+  return `<div class="remf" data-rem="${esc(id)}"><select class="rsel" aria-label="Reminder">${opts([...(keep ? [['keep', '— Keep as is —']] : []), ['', 'No reminder'], ...REM_PRESETS, ['custom', 'Custom…']], keep && rem === undefined ? 'keep' : rem == null ? '' : custom ? 'custom' : rem)}</select><div class="remc"${custom ? '' : ' hidden'}><input type="number" inputmode="decimal" class="rn" min="0" step="any" value="${p.n}" aria-label="How long before"><select class="ru" aria-label="Unit">${opts(REM_UNITS, p.u)}</select><span class="hint">before</span></div></div>`;
+}
+function remRead(box) {
+  const v = box.querySelector('.rsel').value;
+  if (v === 'keep') return undefined; // the batch editor: leave each task's reminder alone
+  if (v === '') return null;
+  if (v === 'custom') return Math.max(0, Math.min(Math.round((+box.querySelector('.rn').value || 0) * +box.querySelector('.ru').value), 525600));
+  return +v;
+}
+// show the custom fields only while "Custom…" is picked
+const remSync = box => { const c = box.querySelector('.remc'); if (c) c.hidden = box.querySelector('.rsel').value !== 'custom'; };
 
 /* ---------- data scoping ---------- */
 function scopeTasks(nav) {
@@ -91,13 +158,14 @@ function scopeTasks(nav) {
   let r = S.tasks.filter(t => !t.deleted);
   if (nav === 'done') return r.filter(t => t.status === 'done').sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
   if (nav === 'wontdo') return r.filter(t => t.status === 'wontdo');
-  if (nav === 'search') { const q = U.q.toLowerCase(); return r.filter(t => t.status !== 'wontdo' && (t.title + ' ' + t.notes + ' ' + t.tags.join(' ')).toLowerCase().includes(q)); }
+  if (nav === 'search') { const q = U.q.toLowerCase(); return r.filter(t => t.status !== 'wontdo' && (t.title + ' ' + t.notes + ' ' + t.tags.join(' ') + ' ' + (t.files || []).map(f => f.name).join(' ')).toLowerCase().includes(q)); }
   r = r.filter(t => t.status !== 'wontdo');
   if (nav === 'inbox') return r.filter(t => t.listId === 'inbox');
   if (nav === 'today') return r.filter(t => t.due && (t.status === 'open' ? t.due <= td : t.due === td));
   if (nav === 'tomorrow') return r.filter(t => t.due === tm);
   if (nav === 'week') return r.filter(t => t.due && t.due >= td && t.due <= wk);
-  if (nav.startsWith('list:')) return r.filter(t => t.listId === nav.slice(5));
+  if (nav.startsWith('list:')) { const ids = new Set(listIds(nav.slice(5))); return r.filter(t => ids.has(t.listId)); } // a list's view includes its sublists
+  if (nav.startsWith('project:')) { const p = projectOf(nav.slice(8)), ids = new Set(p ? projectListIds(p) : []); return r.filter(t => ids.has(t.listId)); }
   if (nav.startsWith('tag:')) return r.filter(t => t.tags.includes(nav.slice(4)));
   return r;
 }
@@ -111,6 +179,7 @@ function navTitle(nav) {
   if (nav === 'trash') return 'Trash';
   if (nav === 'search') return 'Search';
   if (nav.startsWith('list:')) return listOf(nav.slice(5)).name;
+  if (nav.startsWith('project:')) return (projectOf(nav.slice(8)) || { name: 'Project' }).name;
   if (nav.startsWith('tag:')) return '#' + nav.slice(4);
   return 'Tasks';
 }
@@ -134,8 +203,8 @@ function sortTasks(a) {
 }
 // the tag filter (U.tagSel) narrows whatever list you are looking at: tasks that have all of the chosen tags, or any of them
 const tagFiltered = a => (U.tagSel.length ? a.filter(t => (U.tagMode === 'any' ? U.tagSel.some(g => t.tags.includes(g)) : U.tagSel.every(g => t.tags.includes(g)))) : a);
-function groupTasks(a) {
-  const g = S.settings.group, td = todayStr();
+function groupTasks(a, gOverride) {
+  const g = gOverride || S.settings.group, td = todayStr();
   if (g === 'none') return [{ title: '', tasks: a }];
   if (g === 'tag') { // a task shows under each of its tags
     const byTag = new Map(), none = [];
@@ -143,14 +212,14 @@ function groupTasks(a) {
     return [...[...byTag.keys()].sort().map(x => ({ title: '#' + esc(x), tasks: byTag.get(x) })), ...(none.length ? [{ title: 'No tag', tasks: none }] : [])];
   }
   const m = new Map();
-  const order = g === 'date' ? ['Overdue', 'Today', 'Tomorrow', 'Next 7 Days', 'Later', 'No Date'] : g === 'priority' ? ['High', 'Medium', 'Low', 'None'] : S.lists.map(l => l.name);
+  const order = g === 'date' ? ['Overdue', 'Today', 'Tomorrow', 'Next 7 Days', 'Later', 'No Date'] : g === 'priority' ? ['High', 'Medium', 'Low', 'None'] : [listLabel('inbox'), ...listTree().map(x => listLabel(x.l.id))];
   for (const t of a) {
     let k;
     if (g === 'date') {
       if (!t.due) k = 'No Date'; else if (isOverdue(t)) k = 'Overdue';
       else { const d = dayDiff(t.due, td); k = d <= 0 ? 'Today' : d === 1 ? 'Tomorrow' : d < 7 ? 'Next 7 Days' : 'Later'; }
     } else if (g === 'priority') k = ['None', 'Low', 'Medium', 'High'][t.priority];
-    else k = listOf(t.listId).name;
+    else k = listLabel(listOf(t.listId).id);
     if (!m.has(k)) m.set(k, []);
     m.get(k).push(t);
   }
@@ -161,6 +230,7 @@ const canDrag = () => S.settings.sort === 'manual' && sortDir() === 'asc' && S.s
 /* ---------- shell ---------- */
 const topHtml = (title, tools = '') => `<header class="top"><button class="ib burger" data-act="burger" aria-label="Menu">${ic('menu', 22)}</button><h1>${title}</h1><div class="tools">${tools}</div><button class="ib pt pt-det" data-act="uitoggle" data-k="detail" title="Show / hide task details  ]" aria-label="Show or hide the task details">${ic('panel-right', 20)}</button></header>`;
 function render() {
+  if (U.gFull && U.page !== 'gantt') { U.gFull = false; document.body.classList.remove('gtfull'); try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) { /* not in full screen */ } }
   document.body.classList.toggle('pg-notes', U.page === 'notes' || U.page === 'history'); // the Notes page uses the whole width: no details panel
   renderSide(); renderMain(); renderDetail(); renderTabbar();
 }
@@ -171,22 +241,33 @@ function renderTabbar() {
   const items = main.some(p => p[0] === U.page) || !cur ? main : [...main.slice(0, 3), cur];
   el.innerHTML = items.map(([k, n, i]) => `<button class="${U.page === k ? 'on' : ''}" data-act="page" data-page="${k}">${ic(i, 22)}<small>${n}</small></button>`).join('') + `<button data-act="burger">${ic('menu', 22)}<small>More</small></button>`;
 }
-function renderMain() { ({ tasks: renderTasks, notes: renderNotes, calendar: renderCal, timetable: renderTimetable, gantt: renderGantt, matrix: renderMatrix, habits: renderHabits, focus: renderFocus, history: renderHistory })[U.page](); fxFlush(); }
+function renderMain() { ({ tasks: renderTasks, notes: renderNotes, calendar: renderCal, timetable: renderTimetable, gantt: renderGantt, matrix: renderMatrix, habits: renderHabits, focus: renderFocus, history: renderHistory })[U.page](); fxFlush(); if (typeof batchPaint === 'function') batchPaint(); }
 
 function renderSide() {
   const q = $('#q'), keep = q ? q.value : '';
   const on = k => U.page === 'tasks' && ((U.nav === k && !U.q) || (k.startsWith('tag:') && U.tagSel.includes(k.slice(4)))) ? ' on' : '';
   const item = (key, label, icon, color, count, extra = '') => `<button class="nav${on(key)}" data-act="nav" data-nav="${esc(key)}"${extra}><span class="ni"${color ? ` style="color:${color}"` : ''}>${ic(icon, 18)}</span><span class="nl">${esc(label)}</span>${count ? `<span class="cnt">${count}</span>` : ''}</button>`;
   const sec = (k, title, add = '') => `<div class="sec"><button class="sech" data-act="fold" data-k="${k}" aria-expanded="${!folded(k)}">${ic(folded(k) ? 'right' : 'down', 14)}<span>${title}</span></button>${add}</div>`;
-  const tags = allTags(), lists = S.lists.filter(l => l.id !== 'inbox');
+  const tags = allTags();
+  // lists as a tree: a caret folds the sublists, the dots open the list menu (always visible on the selected list / on touch screens)
+  const hiddenUnder = new Set(), rows = [];
+  for (const { l, depth, kids } of listTree()) {
+    if (l.parent && hiddenUnder.has(l.parent)) { hiddenUnder.add(l.id); continue; }
+    if (kids && folded('l:' + l.id)) hiddenUnder.add(l.id);
+    const key = 'list:' + l.id, n = openCount(key);
+    rows.push(`<div class="navrow${on(key) ? ' on' : ''}" data-lid="${esc(l.id)}" draggable="true" style="--d:${depth}">${kids ? `<button class="caret${folded('l:' + l.id) ? '' : ' open'}" data-act="fold" data-k="l:${esc(l.id)}" aria-label="${folded('l:' + l.id) ? 'Expand' : 'Collapse'} ${esc(l.name)}" aria-expanded="${!folded('l:' + l.id)}">${ic('right', 12)}</button>` : '<span class="caret sp"></span>'}<button class="nav${on(key)}" data-act="nav" data-nav="${esc(key)}" title="${esc(listLabel(l.id))}"><span class="ni" style="color:${l.color}">${listIcon(l, 18)}</span><span class="nl">${esc(l.name)}</span>${n ? `<span class="cnt">${n}</span>` : ''}</button><button class="ib sm nmore" data-act="listmenu" data-lid="${esc(l.id)}" title="List options" aria-label="Options for ${esc(l.name)}">${ic('more', 14)}</button></div>`);
+  }
+  const projRows = S.projects.map(p => { const n = openCount('project:' + p.id); return `<button class="nav${on('project:' + p.id)}" data-act="nav" data-nav="project:${esc(p.id)}"><span class="ni" style="color:${p.color}">${listIcon(p, 18)}</span><span class="nl">${esc(p.name)}</span>${n ? `<span class="cnt">${n}</span>` : ''}</button>`; });
   $('#side').innerHTML = `
-<div class="brand">${logoHtml(28)}<span class="bn"><b>OpenTick</b><small class="ver" title="Version ${esc(APP_VERSION)}">v${esc(APP_VERSION)}</small></span>${syncBadge()}<button class="ib" data-act="uitoggle" data-k="side" title="${S.settings.ui.side ? 'Hide sidebar' : 'Dock sidebar'}">${ic('panel-left', 18)}</button><button class="ib" data-act="settings" title="Settings">${ic('sliders', 18)}</button></div>
+<div class="brand">${logoHtml(28)}<span class="bn"><b>OpenTick</b><small class="ver" title="Version ${esc(APP_VERSION)}">v${esc(APP_VERSION)}</small></span><button class="ib" data-act="uitoggle" data-k="side" title="${S.settings.ui.side ? 'Hide sidebar' : 'Dock sidebar'}">${ic('panel-left', 18)}</button><button class="ib" data-act="settings" title="Settings">${ic('sliders', 18)}</button></div>
 <div class="search">${ic('search', 16)}<input id="q" placeholder="Search" autocomplete="off"></div>
 <div class="pages">${pagesShown().map(([k, n, i]) => `<button class="pg${U.page === k ? ' on' : ''}" data-act="page" data-page="${k}" title="${n} — drag to reorder" draggable="true">${ic(i, 20)}<small>${n}</small></button>`).join('')}</div>
 <div class="scroll">
 ${SMART.map(([k, n, i]) => item(k, n, i, null, openCount(k))).join('')}
-${sec('lists', 'Lists', `<button class="ib sm" data-act="addlist" title="New list">${ic('plus', 14)}</button>`)}
-${folded('lists') ? '' : lists.map(l => item('list:' + l.id, l.name, 'list', l.color, openCount('list:' + l.id), ` draggable="true" data-lid="${esc(l.id)}"`)).join('')}
+${sec('lists', 'Lists', `<button class="ib sm" data-act="addlist" title="New list" aria-label="New list">${ic('plus', 14)}</button>`)}
+${folded('lists') ? '' : rows.join('')}
+${sec('projects', 'Projects', `<button class="ib sm" data-act="addproject" title="New project" aria-label="New project">${ic('plus', 14)}</button>`)}
+${folded('projects') ? '' : projRows.join('') || '<p class="hint nohint">Link lists together in a project.</p>'}
 ${tags.length ? sec('tags', 'Tags') + (folded('tags') ? '' : tags.map(g => item('tag:' + g, g, 'tag', tagColor(g), openCount('tag:' + g))).join('')) : ''}
 ${sec('more', 'More')}
 ${folded('more') ? '' : item('done', 'Completed', 'check-circle') + item('wontdo', "Won't Do", 'slash') + item('trash', 'Trash', 'trash') + `<button class="nav${U.page === 'history' ? ' on' : ''}" data-act="page" data-page="history"><span class="ni">${ic('history', 18)}</span><span class="nl">History</span></button>`}
@@ -195,6 +276,12 @@ ${folded('more') ? '' : item('done', 'Completed', 'check-circle') + item('wontdo
 }
 
 /* ---------- tasks page ---------- */
+// the strip at the top of a project: progress, what is in it, and the lists it links
+function projHead(p, all) {
+  const done = all.filter(t => t.status === 'done').length, open = all.filter(t => t.status === 'open'), late = open.filter(isOverdue).length, pct = all.length ? Math.round(done / all.length * 100) : 0;
+  const chips = (p.listIds || []).filter(id => S.lists.some(l => l.id === id)).map(id => { const l = listOf(id); return `<button class="pchip" style="--c:${l.color}" data-act="nav" data-nav="list:${esc(l.id)}" title="Open ${esc(listLabel(l.id))}"><span>${listIcon(l, 13)}</span>${esc(l.name)}</button>`; }).join('');
+  return `<div class="projhead" style="--c:${p.color}"><div class="pbar" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div><div class="pstat"><b>${pct}%</b><span>${done} of ${all.length} done</span>${late ? `<span class="late">${late} overdue</span>` : ''}</div><div class="pchips">${chips || '<span class="hint">No lists linked yet</span>'}</div></div>`;
+}
 // multi-tag filter strip: pick several tags, then choose whether a task needs all of them or any of them
 function tagBar(eff) {
   const tags = allTags(); if (!tags.length || FLAT.includes(eff) && eff !== 'search' && eff !== 'done') return '';
@@ -203,13 +290,13 @@ function tagBar(eff) {
 }
 function rowHtml(t, showList) {
   const l = listOf(t.listId), done = t.subtasks.filter(s => s.done).length, fin = t.status !== 'open';
-  return `<div class="task${fin ? ' fin' : ''}${U.sel === t.id ? ' sel' : ''}" data-act="open" data-id="${t.id}"${canDrag() || U.page === 'matrix' ? ' draggable="true"' : ''}>
+  return `<div class="task${fin ? ' fin' : ''}${U.sel === t.id ? ' sel' : ''}${U.bsel && U.bsel.has(t.id) ? ' picked' : ''}${editedCls(t.id)}" data-act="open" data-id="${t.id}"${canDrag() || U.page === 'matrix' ? ' draggable="true"' : ''}>
 <button class="chk p${t.priority}${t.status === 'done' ? ' on' : ''}" data-act="toggle" data-id="${t.id}" aria-label="Complete task">${t.status === 'done' ? ic('check', 13) : t.status === 'wontdo' ? ic('slash', 13) : ''}</button>
 <div class="tb"><div class="ttl">${titleHtml(t)}</div><div class="meta">${t.due ? `<span class="due${isOverdue(t) ? ' late' : ''}">${esc(dueLabel(t))}</span>` : ''}${t.repeat ? ic('repeat', 12) : ''}${metaX(t)}${t.reminder != null ? ic('bell', 12) : ''}${noteBadge(t)}${t.subtasks.length ? `<span>${ic('list', 12)} ${done}/${t.subtasks.length}</span>` : ''}${t.tags.map(tagChip).join('')}</div></div>
-${showList ? `<span class="ln"><i style="background:${l.color}"></i>${esc(l.name)}</span>` : ''}</div>`;
+${showList ? `<span class="ln" title="${esc(listLabel(l.id))}"><i style="background:${l.color}"></i>${esc(l.name)}</span>` : ''}</div>`;
 }
 function cardHtml(t) {
-  return `<div class="card p${t.priority}${U.sel === t.id ? ' sel' : ''}" draggable="true" data-act="open" data-id="${t.id}"><div class="ttl">${titleHtml(t)}</div><div class="meta">${t.due ? `<span class="due${isOverdue(t) ? ' late' : ''}">${esc(dueLabel(t))}</span>` : ''}${noteBadge(t)}${t.tags.map(tagChip).join('')}</div></div>`;
+  return `<div class="card p${t.priority}${U.sel === t.id ? ' sel' : ''}${U.bsel && U.bsel.has(t.id) ? ' picked' : ''}${editedCls(t.id)}" draggable="true" data-act="open" data-id="${t.id}"><div class="ttl">${titleHtml(t)}</div><div class="meta">${t.due ? `<span class="due${isOverdue(t) ? ' late' : ''}">${esc(dueLabel(t))}</span>` : ''}${noteBadge(t)}${t.tags.map(tagChip).join('')}</div></div>`;
 }
 function renderKanban(list, open) {
   const sec = t => (list.sections.includes(t.section) ? t.section : '');
@@ -222,14 +309,17 @@ function renderKanban(list, open) {
 function renderTasks() {
   const draft = U._rn === U.nav && $('#add') ? $('#add').value : ''; U._rn = U.nav;
   const eff = U.q ? 'search' : U.nav, isList = eff.startsWith('list:'), list = isList ? listOf(eff.slice(5)) : null;
+  const proj = eff.startsWith('project:') ? projectOf(eff.slice(8)) : null, subs = isList && listDescendants(list.id).length > 0;
   const all = tagFiltered(scopeTasks(eff)), flat = FLAT.includes(eff);
   const open = all.filter(t => t.status === 'open'), fin = all.filter(t => t.status !== 'open');
   const kan = isList && list.view === 'kanban';
   let tools = '';
   if (isList) tools += `<button class="ib${OG.links[list.id] ? ' on' : ''}" data-act="ogopen" data-list="${esc(list.id)}" title="OpenGantt: link, import or export">${ic('link')}</button>`;
   if (isList) tools += `<button class="ib${!kan ? ' on' : ''}" data-act="view" data-v="list" title="List view">${ic('list')}</button><button class="ib${kan ? ' on' : ''}" data-act="view" data-v="kanban" title="Board view">${ic('columns')}</button>`;
+  if (all.length && !(eff === 'trash')) tools += `<button class="ib${U.bsel ? ' on' : ''}" data-act="bstart" title="Select several tasks to edit them together" aria-label="Select several tasks">${ic('check-square')}</button>`;
   if (!flat && !kan) tools += `<select data-sel="group" title="Group by">${opts([['none', 'No grouping'], ['date', 'Group: date'], ['priority', 'Group: priority'], ['list', 'Group: list'], ['tag', 'Group: tag']], S.settings.group)}</select><select data-sel="sort" title="Sort by">${opts([['manual', 'Sort: manual'], ['due', 'Sort: due date'], ['priority', 'Sort: priority'], ['title', 'Sort: title'], ['created', 'Sort: created'], ['tags', 'Sort: tags']], S.settings.sort)}</select><button class=\"ib\" data-act=\"sortdir\" title=\"${sortDir() === 'asc' ? 'Ascending' : 'Descending'} — click to reverse\" aria-label=\"Reverse the sort order\">${ic(sortDir() === 'asc' ? 'arrow-up' : 'arrow-down')}</button>`;
   if (isList && list.id !== 'inbox') tools += `<button class="ib" data-act="listmenu" title="List options">${ic('more')}</button>`;
+  if (proj) tools += `<button class="btn" data-act="projmenu" data-pid="${esc(proj.id)}">${ic('sliders', 15)} Edit project</button>`;
   if (eff.startsWith('tag:')) tools += `<button class="ib" data-act="tagmenu" data-tag="${esc(eff.slice(4))}" title="Tag colour & name">${ic('more')}</button>`;
   if (eff === 'trash' && all.length) tools += `<button class="btn" data-act="emptytrash">Empty trash</button>`;
   if (eff === 'done' && all.length) tools += `<button class="btn" data-act="cleardone">Clear</button>`;
@@ -238,20 +328,21 @@ function renderTasks() {
   else if (kan) body = renderKanban(list, open);
   else if (flat) body = all.map(t => rowHtml(t, true)).join('');
   else {
-    body = groupTasks(sortTasks(open)).map(g => (g.title ? `<div class="grp">${g.title}<span>${g.tasks.length}</span></div>` : '') + g.tasks.map(t => rowHtml(t, !isList)).join('')).join('');
-    if (fin.length) body += `<button class="grp tog" data-act="showdone">${ic(U.showDone[eff] ? 'down' : 'right', 14)} Completed<span>${fin.length}</span></button>` + (U.showDone[eff] ? fin.map(t => rowHtml(t, !isList)).join('') : '');
+    body = groupTasks(sortTasks(open), proj && S.settings.group === 'none' ? 'list' : undefined).map(g => (g.title ? `<div class="grp">${g.title}<span>${g.tasks.length}</span></div>` : '') + g.tasks.map(t => rowHtml(t, !isList || subs)).join('')).join('');
+    if (fin.length) body += `<button class="grp tog" data-act="showdone">${ic(U.showDone[eff] ? 'down' : 'right', 14)} Completed<span>${fin.length}</span></button>` + (U.showDone[eff] ? fin.map(t => rowHtml(t, !isList || subs)).join('') : '');
   }
-  const tgt = isList ? list.name : 'Inbox';
+  const pl = proj ? projectListIds(proj) : [], pTarget = proj ? (pl.includes(U.projList[proj.id]) ? U.projList[proj.id] : (proj.listIds || []).find(id => S.lists.some(l => l.id === id))) : null;
+  const tgt = isList ? list.name : proj && pTarget ? listLabel(pTarget) : 'Inbox';
   $('#main').innerHTML = topHtml(U.q ? `Search “${esc(U.q)}”` : (eff.startsWith('tag:') && tagColor(eff.slice(4)) ? `<span style="color:${tagColor(eff.slice(4))}">${esc(navTitle(eff))}</span>` : esc(navTitle(eff))), tools)
-    + tagBar(eff)
-    + (flat || kan ? '' : `<div class="quick"><input id="add" autocomplete="off" placeholder="+ Add task to “${esc(tgt)}” — try “Pay rent every month !high #bills”"></div>`)
+    + (proj ? projHead(proj, all) : '') + tagBar(eff)
+    + (proj && !pTarget ? `<div class="quick"><p class="hint">Link at least one list to this project to add tasks here. <button class="btn sm" data-act="projmenu" data-pid="${esc(proj.id)}">Choose lists</button></p></div>` : flat || kan ? '' : `<div class="quick${proj ? ' withsel' : ''}">${proj && pl.length > 1 ? `<select data-sel="projlist" data-pid="${esc(proj.id)}" title="Add new tasks to…">${opts(pl.map(id => [id, listLabel(id)]), pTarget)}</select>` : ''}<input id="add" autocomplete="off" placeholder="+ Add task to “${esc(tgt)}” — try “Pay rent every month !high #bills”"></div>`)
     + `<div class="body${kan ? ' kb' : ''}">${body}</div>`;
   if (draft && $('#add')) $('#add').value = draft;
 }
 
 /* ---------- history page ---------- */
 const HIST_ICON = { add: 'plus', edit: 'notes', done: 'check-circle', reopen: 'refresh', wontdo: 'slash', delete: 'trash', restore: 'upload', purge: 'x', import: 'download' };
-const HIST_KIND_NAME = { task: 'Task', list: 'List', habit: 'Habit', note: 'Note', slot: 'Slot', app: '' };
+const HIST_KIND_NAME = { task: 'Task', list: 'List', project: 'Project', habit: 'Habit', note: 'Note', slot: 'Slot', app: '' };
 const HIST_FIELD = { title: 'Title', due: 'Due date', time: 'Time', dur: 'Duration', priority: 'Priority', tags: 'Tags', listId: 'List', section: 'Section', repeat: 'Repeat', reminder: 'Reminder', notes: 'Notes', subtasks: 'Subtasks', start: 'Plan start', astart: 'Actual start', slotId: 'Timetable slot', name: 'Name', color: 'Colour', icon: 'Icon', goal: 'Goal', sections: 'Sections', view: 'View', days: 'Days', end: 'End', loc: 'Location', body: 'Text', pinned: 'Pin' };
 function histVal(k, v) {
   if (v == null || v === '') return 'none';
@@ -260,7 +351,7 @@ function histVal(k, v) {
   if (k === 'listId') { const l = S.lists.find(x => x.id === v); return l ? l.name : 'another list'; }
   if (k === 'repeat') return repeatLabel(v) || 'none';
   if (k === 'dur') return fmtDur(v);
-  if (k === 'reminder') return v === 0 ? 'on time' : v + ' min before';
+  if (k === 'reminder') return remLabel(v).toLowerCase();
   if (k === 'goal') return habitGoalLabel(habitGoal({ goal: v }));
   if (k === 'slotId') { const sl = slotById(v); return sl ? sl.title : 'a slot'; }
   if (Array.isArray(v)) return v.join(', ') || 'none';
@@ -304,7 +395,7 @@ function histListHtml() {
 function renderHistory() {
   const h = U.hist, base = histFiltered(), cnt = a => base.filter(e => e.a === a).length;
   const acts = Object.keys(HIST_ACT).filter(a => S.history.some(e => e.a === a));
-  const kinds = ['task', 'list', 'habit', 'note', 'slot'].filter(k => S.history.some(e => e.k === k));
+  const kinds = ['task', 'list', 'project', 'habit', 'note', 'slot'].filter(k => S.history.some(e => e.k === k));
   $('#main').innerHTML = topHtml('History', `<select data-hsel="sort" title="Order">${opts([['new', 'Newest first'], ['old', 'Oldest first'], ['action', 'By action'], ['name', 'By name']], h.sort)}</select>${S.history.length ? `<button class="btn" data-act="hclear">Clear</button>` : ''}`)
     + `<div class="hfilters"><div class="search hs">${ic('search', 16)}<input id="hq" placeholder="Search the history" autocomplete="off" value="${esc(h.q)}"></div><div class="hchips">${acts.map(a => `<button class="tfc hc a-${a}${h.acts.includes(a) ? ' on' : ''}" data-act="hact" data-a="${a}" aria-pressed="${h.acts.includes(a)}">${HIST_ACT[a]}<small>${cnt(a)}</small></button>`).join('')}${kinds.length > 1 ? '<span class="hsep"></span>' + kinds.map(k => `<button class="tfc${h.kinds.includes(k) ? ' on' : ''}" data-act="hkind" data-k="${k}" aria-pressed="${h.kinds.includes(k)}">${HIST_KIND_NAME[k]}s</button>`).join('') : ''}${h.acts.length || h.kinds.length || h.q ? '<button class="btn sm" data-act="hreset">Reset</button>' : ''}</div></div>`
     + `<div class="body hist" id="hlist">${histListHtml()}</div><p class="hint pad">Kept on this device only (last ${HIST_MAX}). Quick edits to one item are combined.</p>`;
@@ -483,6 +574,12 @@ function notesHtml(t) {
       ? `<textarea data-f="notes" data-md placeholder="Notes — Markdown supported">${esc(t.notes)}</textarea>`
       : `<div class="nprev md" id="nprev" data-act="nedit" title="Click to edit">${t.notes.trim() ? md(t.notes) : '<span class="hint">Nothing to preview yet</span>'}</div>`) + '</div>';
 }
+// the notes box of a task grows with its text (never below a comfortable size, never taller than most of the screen)
+function fitTa(ta) {
+  if (!ta || !ta.style) return; ta.style.height = 'auto';
+  const max = Math.round((typeof window !== 'undefined' && window.innerHeight ? window.innerHeight : 800) * 0.7), min = narrow(700) ? 220 : 280;
+  ta.style.height = Math.min(max, Math.max(min, (ta.scrollHeight || 0) + 4)) + 'px';
+}
 function renderDetail() {
   const t = getT(U.sel), el = $('#detail');
   if (U._dsel !== U.sel) { U._dsel = U.sel; U.nMode = null; if (U.sel) fx('#detail > *', 'fade'); } // opening another task starts in the default mode
@@ -490,26 +587,29 @@ function renderDetail() {
   if (!t) { el.innerHTML = `<div class="empty">${ic('check-circle', 44)}<p>Select a task to see details</p></div>`; fxFlush(); return; }
   const rk = repeatKey(t.repeat), l = listOf(t.listId), secs = l.sections || [];
   const td = todayStr(), tm = ymd(addDays(new Date(), 1)), nw = ymd(addDays(new Date(), ((8 - new Date().getDay()) % 7) || 7));
-  const DURS = [15, 30, 45, 60, 90, 120, 180, 240]; if (t.dur && !DURS.includes(t.dur)) DURS.push(t.dur);
   const slots = [...S.slots].sort((a, b) => (a.days[0] || 0) - (b.days[0] || 0) || a.start.localeCompare(b.start));
   const RN = { daily: 'Daily', weekdays: 'Weekdays', weekly: 'Weekly', monthly: 'Monthly', yearly: 'Yearly' };
   el.innerHTML = `
 <div class="dhead"><button class="chk p${t.priority}${t.status === 'done' ? ' on' : ''}" data-act="toggle" data-id="${t.id}" aria-label="Complete task">${t.status === 'done' ? ic('check', 13) : ''}</button><input class="dtitle" data-f="title" value="${esc(t.title)}" placeholder="Task title"><button class="ib mob" data-act="closedetail" aria-label="Close">${ic('x', 20)}</button></div>
+<div class="dstat"><span class="sv" data-sv aria-live="polite"></span><span id="d-ed">${editedText(t)}</span><span class="dc">Created ${esc(fmtDate(ymd(new Date(t.created || Date.now()))))}</span></div>
 <div class="dbody">
 <div class="dr"><span>${ic('calendar', 16)}</span><input type="date" data-f="due" value="${t.due || ''}"><input type="time" data-f="time" value="${t.time || ''}"${t.due ? '' : ' disabled'}></div>
 <div class="chips"><button class="btn sm${t.due === td ? ' on' : ''}" data-act="qdate" data-w="today">Today</button><button class="btn sm${t.due === tm ? ' on' : ''}" data-act="qdate" data-w="tomorrow">Tomorrow</button><button class="btn sm${t.due === nw ? ' on' : ''}" data-act="qdate" data-w="next">Next week</button><button class="btn sm${!t.due ? ' on' : ''}" data-act="qdate" data-w="none">No date</button></div>
-<div class="dr"><span>${ic('clock', 16)}</span><select data-f="dur">${opts([['', 'No duration'], ...DURS.sort((a, b) => a - b).map(m => [m, m < 60 ? m + ' minutes' : m === 60 ? '1 hour' : fmtDur(m)])], t.dur || '')}</select></div>${slots.length ? `<div class="dr"><span>${ic('table', 16)}</span><select data-f="slot" title="Timetable slot">${opts([['', 'No timetable slot'], ...slots.map(x => [x.id, `${x.title} · ${x.days.map(d => DAYS[d]).join('/')} ${x.start}`])], t.slotId && slotById(t.slotId) ? t.slotId : '')}</select></div>` : ''}
+<div class="dr top"><span>${ic('clock', 16)}</span>${durHtml('task', t.dur)}</div>${slots.length ? `<div class="dr"><span>${ic('table', 16)}</span><select data-f="slot" title="Timetable slot">${opts([['', 'No timetable slot'], ...slots.map(x => [x.id, `${x.title} · ${x.days.map(d => DAYS[d]).join('/')} ${x.start}`])], t.slotId && slotById(t.slotId) ? t.slotId : '')}</select></div>` : ''}
 <div class="dr"><span>${ic('flag', 16)}</span><div class="pri">${[3, 2, 1, 0].map(p => `<button class="pf p${p}${t.priority === p ? ' on' : ''}" data-act="prio" data-p="${p}">${PRIO[p]}</button>`).join('')}</div></div>
-<div class="dr"><span>${ic('list', 16)}</span><select data-f="list">${opts(S.lists.map(x => [x.id, x.name]), t.listId)}</select>${secs.length ? `<select data-f="section">${opts([['', 'Not sectioned'], ...secs.map(s => [s, s])], t.section || '')}</select>` : ''}</div>
+<div class="dr"><span>${ic('list', 16)}</span><select data-f="list">${opts(listOpts(), t.listId)}</select>${secs.length ? `<select data-f="section">${opts([['', 'Not sectioned'], ...secs.map(s => [s, s])], t.section || '')}</select>` : ''}</div>
 <div class="dr"><span>${ic('repeat', 16)}</span><select data-f="repeat">${opts([['none', 'Does not repeat'], ...Object.keys(RN).map(k => [k, RN[k]]), ...(rk === 'custom' ? [['custom', repeatLabel(t.repeat)]] : [])], rk)}</select></div>
-<div class="dr"><span>${ic('bell', 16)}</span><select data-f="reminder">${opts([['', 'No reminder'], [0, 'On time'], [5, '5 minutes before'], [30, '30 minutes before'], [60, '1 hour before'], [1440, '1 day before']], t.reminder == null ? '' : t.reminder)}</select></div>
+<div class="dr top"><span>${ic('bell', 16)}</span>${remHtml('task', t.reminder, U.remCustom === t.id)}</div>
 <div class="dr"><span>${ic('tag', 16)}</span><input data-f="tags" value="${esc(t.tags.map(g => '#' + g).join(' '))}" placeholder="#tags"></div>
 ${gtDetailHtml(t)}
 ${t.tags.length ? `<div class="chips tg">${t.tags.map(g => `<button class="tag tagb"${tagColor(g) ? ` style="--tc:${tagColor(g)}"` : ''} data-act="tagcolor" data-tag="${esc(g)}" title="Colour this tag">#${esc(g)}</button>`).join('')}<small class="hint">tap a tag to colour it</small></div>` : ''}
 ${notesHtml(t)}
+${linkedNotesHtml(t)}
+${filesHtml('task', t.id)}
 <div class="subs"><h4>Subtasks</h4>${t.subtasks.map(s => `<div class="sub"><button class="chk sm${s.done ? ' on' : ''}" data-act="subtog" data-sid="${s.id}">${s.done ? ic('check', 11) : ''}</button><input data-sf="${s.id}" value="${esc(s.title)}" class="${s.done ? 'fin' : ''}">${s.start || s.due ? `<small class="sd" title="Edit subtask dates in OpenGantt">${esc(s.start && s.due ? fmtDate(s.start) + ' – ' + fmtDate(s.due) : fmtDate(s.start || s.due))}</small>` : ''}<button class="ib sm" data-act="subdel" data-sid="${s.id}">${ic('x', 14)}</button></div>`).join('')}<input id="d-subnew" placeholder="+ Add subtask" autocomplete="off"></div>
 </div>
 <div class="dfoot">${t.deleted ? `<button class="btn" data-act="restore">Restore</button><button class="btn danger" data-act="purge">Delete forever</button>` : `<button class="btn" data-act="wontdo">${t.status === 'wontdo' ? 'Reopen' : "Won't do"}</button><button class="btn" data-act="dup">Duplicate</button><button class="btn danger" data-act="del">Delete</button>`}</div>`;
+  fitTa($('#detail textarea[data-f="notes"]'));
   fxFlush();
 }
 
@@ -519,7 +619,10 @@ ${notesHtml(t)}
    inside that slot's block on its due date.
    Adding: click (or tap) the grid, or drag across it to pick a time range, and a small form asks what to add.
    On a phone the grid shows one day at a time with a week strip on top; swipe sideways to change day. */
-let TT_HH = 52; // px per hour; taller on touch screens
+let TT_HH = 64; // px per hour; taller on touch screens
+const TT_MINH = () => (narrow(600) ? 36 : 30); // the shortest a block is drawn, so a 15-minute task can still be tapped
+const coarse = () => !!(typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(pointer:coarse)').matches);
+const dragAttr = () => (coarse() ? '' : ' draggable="true"'); // touch screens drag with a long press instead (see main.js)
 const ttView = () => U.ttV || (narrow(600) ? 'day' : (S.settings.tt.view || 'week'));
 const ttStep = () => ({ day: 1, '3day': 3, week: 7 }[ttView()] || 7);
 function ttDays() {
@@ -564,7 +667,7 @@ function ttRange(days) {
 // the room the tray needs: on by default only when the window is wide enough to keep the grid readable
 const ttTrayOn = () => { if (narrow(820)) return false; const u = S.settings.ui; return U.ttTray == null ? window.innerWidth - (u.side ? u.sideW : 0) - (u.detail ? u.detailW : 0) >= 900 : U.ttTray; };
 const ttUnscheduled = () => S.tasks.filter(t => !t.deleted && t.status === 'open' && !t.time).sort((a, b) => dueKey(a).localeCompare(dueKey(b)) || b.priority - a.priority);
-const ttTrayItem = t => `<div class="tri p${t.priority}${U.sel === t.id ? ' sel' : ''}" draggable="true" data-act="open" data-id="${t.id}"><div class="tri-b"><div class="ttl">${titleHtml(t)}</div><div class="meta">${t.due ? `<span class="due${isOverdue(t) ? ' late' : ''}">${esc(dueLabel(t))}</span>` : ''}${metaX(t)}</div></div><button class="ib sm" data-act="ttsched" data-id="${t.id}" title="Pick a day and time" aria-label="Schedule on the timetable">${ic('clock', 15)}</button></div>`;
+const ttTrayItem = t => `<div class="tri p${t.priority}${U.sel === t.id ? ' sel' : ''}"${dragAttr()} data-act="open" data-id="${t.id}"><div class="tri-b"><div class="ttl">${titleHtml(t)}</div><div class="meta">${t.due ? `<span class="due${isOverdue(t) ? ' late' : ''}">${esc(dueLabel(t))}</span>` : ''}${metaX(t)}</div></div><button class="ib sm" data-act="ttsched" data-id="${t.id}" title="Pick a day and time" aria-label="Schedule on the timetable">${ic('clock', 15)}</button></div>`;
 // a week strip for day / 3-day views: tap a day to jump to it (dots show how busy it is)
 function ttStrip(base) {
   const ws = +S.settings.weekStart, start = addDays(base, -((base.getDay() - ws + 7) % 7)), td = todayStr(), sel = ymd(base), span = ttView() === '3day' ? [sel, ymd(addDays(base, 1)), ymd(addDays(base, 2))] : [sel];
@@ -574,20 +677,20 @@ function ttStrip(base) {
   }).join('')}</div>`;
 }
 function renderTimetable() {
-  TT_HH = narrow(600) ? 64 : 52;
+  TT_HH = narrow(600) ? 72 : 64;
   const tt = S.settings.tt, view = ttView(), days = ttDays(), ppm = TT_HH / 60, td = todayStr(), phone = narrow(600);
   const data = days.map(d => { const r = ttItems(d); ttLayout(r.items); return { d, k: ymd(d), ...r }; });
   let from = tt.from * 60, to = tt.to * 60, firstA = 1440;
   for (const x of data) for (const it of x.items) { from = Math.min(from, Math.floor(it.a / 60) * 60); to = Math.max(to, Math.ceil(it.b / 60) * 60); firstA = Math.min(firstA, it.a); }
   from = Math.max(0, from); to = Math.min(1440, Math.max(to, from + 60));
   const now = new Date(), nowM = now.getHours() * 60 + now.getMinutes(), showsToday = data.some(x => x.k === td);
-  const pos = it => `top:${(it.a - from) * ppm}px;height:${Math.max(18, (it.b - it.a) * ppm - 2)}px;left:calc(${(it.col / it.n) * 100}% + 1px);width:calc(${100 / it.n}% - 3px)`;
+  const pos = it => `top:${(it.a - from) * ppm}px;height:${Math.max(TT_MINH(), (it.b - it.a) * ppm - 2)}px;left:calc(${(it.col / it.n) * 100}% + 1px);width:calc(${100 / it.n}% - 3px)`;
   const taskLine = t => `<div class="bl${t.status !== 'open' ? ' fin' : ''}" data-act="open" data-id="${t.id}"><button class="chk sm p${t.priority}${t.status === 'done' ? ' on' : ''}" data-act="toggle" data-id="${t.id}" aria-label="Complete task">${t.status === 'done' ? ic('check', 11) : ''}</button><span>${titleHtml(t)}</span></div>`;
   const block = (it, d) => it.k === 'slot'
-    ? `<div class="blk slot${it.clash ? ' clash' : ''}" style="${pos(it)};--c:${it.s.color}" data-act="ttslot" data-sid="${it.s.id}" data-day="${d.getDay()}" data-a="${it.a}" data-b="${it.b}" draggable="true" title="${esc(it.s.title)} ${it.s.start}–${it.s.end}${it.clash ? ' (overlaps another slot)' : ''}"><div class="bt">${it.clash && it.n === 1 ? ic('alert', 12) + ' ' : ''}<span class="tt-t">${esc(it.s.title)}</span></div><div class="bm">${it.s.start}–${it.s.end}${it.s.loc ? ` · ${ic('pin', 11)} ${esc(it.s.loc)}` : ''}</div>${it.tasks.map(taskLine).join('')}<i class="rz rz-t" data-e="top" data-k="slot" data-id="${it.s.id}"></i><i class="rz" data-k="slot" data-id="${it.s.id}"></i></div>`
-    : `<div class="blk tk p${it.t.priority}${it.t.status !== 'open' ? ' fin' : ''}${U.sel === it.t.id ? ' sel' : ''}" style="${pos(it)}" data-act="open" data-id="${it.t.id}" data-a="${it.a}" data-b="${it.b}" draggable="true"><div class="bt"><button class="chk sm p${it.t.priority}${it.t.status === 'done' ? ' on' : ''}" data-act="toggle" data-id="${it.t.id}" aria-label="Complete task">${it.t.status === 'done' ? ic('check', 11) : ''}</button> <span class="tt-t">${titleHtml(it.t)}</span></div><div class="bm">${it.t.time}${it.t.dur ? ' · ' + fmtDur(it.t.dur) : ''}</div><i class="rz rz-t" data-e="top" data-k="task" data-id="${it.t.id}"></i><i class="rz" data-k="task" data-id="${it.t.id}"></i></div>`;
+    ? `<div class="blk slot${it.clash ? ' clash' : ''}${editedCls(it.s.id)}" style="${pos(it)};--c:${it.s.color}" data-act="ttslot" data-sid="${it.s.id}" data-day="${d.getDay()}" data-a="${it.a}" data-b="${it.b}"${dragAttr()} title="${esc(it.s.title)} ${it.s.start}–${it.s.end}${it.clash ? ' (overlaps another slot)' : ''}"><div class="bt">${it.clash && it.n === 1 ? ic('alert', 12) + ' ' : ''}<span class="tt-t">${esc(it.s.title)}</span><span class="tt-tm">${it.s.start}</span></div><div class="bm">${it.s.start}–${it.s.end}${it.s.loc ? ` · ${ic('pin', 11)} ${esc(it.s.loc)}` : ''}</div>${it.tasks.map(taskLine).join('')}<i class="rz rz-t" data-e="top" data-k="slot" data-id="${it.s.id}"></i><i class="rz" data-k="slot" data-id="${it.s.id}"></i></div>`
+    : `<div class="blk tk p${it.t.priority}${it.t.status !== 'open' ? ' fin' : ''}${U.sel === it.t.id ? ' sel' : ''}${editedCls(it.t.id)}" style="${pos(it)}" data-act="open" data-id="${it.t.id}" data-a="${it.a}" data-b="${it.b}"${dragAttr()}><div class="bt"><button class="chk sm p${it.t.priority}${it.t.status === 'done' ? ' on' : ''}" data-act="toggle" data-id="${it.t.id}" aria-label="Complete task">${it.t.status === 'done' ? ic('check', 11) : ''}</button> <span class="tt-t">${titleHtml(it.t)}</span><span class="tt-tm">${it.t.time}</span></div><div class="bm">${it.t.time}${it.t.dur ? ' · ' + fmtDur(it.t.dur) : ''}</div><i class="rz rz-t" data-e="top" data-k="task" data-id="${it.t.id}"></i><i class="rz" data-k="task" data-id="${it.t.id}"></i></div>`;
   const head = `<div class="tt-row"><div class="tt-cor"></div>${data.map(x => `<button class="tt-dh${x.k === td ? ' today' : ''}" data-act="ttday" data-d="${x.k}" title="Open this day"><small>${DAYS[x.d.getDay()]}</small><b>${x.d.getDate()}</b></button>`).join('')}</div>`;
-  const allday = `<div class="tt-row tt-adrow"><div class="tt-cor"><small>all day</small></div>${data.map(x => `<div class="tt-ad" data-d="${x.k}">${x.allday.map(t => `<div class="chip p${t.priority}${t.status !== 'open' ? ' fin' : ''}${U.sel === t.id ? ' sel' : ''}" data-act="open" data-id="${t.id}" draggable="true">${titleHtml(t)}</div>`).join('')}</div>`).join('')}</div>`;
+  const allday = `<div class="tt-row tt-adrow"><div class="tt-cor"><small>all day</small></div>${data.map(x => `<div class="tt-ad" data-d="${x.k}">${x.allday.map(t => `<div class="chip adc p${t.priority}${t.status !== 'open' ? ' fin' : ''}${U.sel === t.id ? ' sel' : ''}${editedCls(t.id)}" data-act="open" data-id="${t.id}"${dragAttr()}><button class="chk sm p${t.priority}${t.status === 'done' ? ' on' : ''}" data-act="toggle" data-id="${t.id}" aria-label="Complete task">${t.status === 'done' ? ic('check', 13) : ''}</button><span class="adt">${titleHtml(t)}</span></div>`).join('')}</div>`).join('')}</div>`;
   const hours = Array.from({ length: (to - from) / 60 }, (_, i) => `<span style="top:${i * TT_HH}px">${pad(from / 60 + i)}:00</span>`).join('');
   const cols = data.map(x => `<div class="tt-col${x.k === td ? ' today' : ''}" data-act="ttcell" data-d="${x.k}" data-from="${from}">${x.items.map(it => block(it, x.d)).join('')}${x.k === td && nowM >= from && nowM <= to ? `<div class="tt-now" style="top:${(nowM - from) * ppm}px"></div>` : ''}</div>`).join('');
   const trayOn = ttTrayOn(), un = ttUnscheduled();
@@ -600,7 +703,7 @@ function renderTimetable() {
   const legend = phone ? '' : `<div class="tt-legend"><span><i class="lg slot"></i>Weekly slot</span><span><i class="lg task"></i>Task with a time</span><span class="hint">Click or drag on the grid to add · drag a block to move it · pull its top or bottom edge to resize</span></div>`;
   const strip = view === 'week' ? '' : ttStrip(days[0]);
   $('#main').innerHTML = topHtml(esc(ttRange(days)), tools) + strip + hint + legend
-    + `<div class="tt"><div class="tt-scroll"><div class="tt-inner" style="--n:${data.length};--cw:${view === 'week' ? (phone ? 56 : 96) : 0}px;--hh:${TT_HH}px"><div class="tt-top">${view === 'day' ? '' : head}${allday}</div><div class="tt-body" style="height:${(to - from) * ppm}px"><div class="tt-gut">${hours}</div>${cols}</div></div></div>${tray}</div>`
+    + `<div class="tt"><div class="tt-scroll"><div class="tt-inner" style="--n:${data.length};--cw:${view === 'week' ? (phone ? 92 : 104) : 0}px;--hh:${TT_HH}px"><div class="tt-top">${view === 'day' ? '' : head}${allday}</div><div class="tt-body" style="height:${(to - from) * ppm}px"><div class="tt-gut">${hours}</div>${cols}</div></div></div>${tray}</div>`
     + `<button class="fab" data-act="ttadd" aria-label="Add to the timetable">${ic('plus', 26)}</button>`;
   const sc = $('.tt-scroll');
   if (sc) sc.scrollTop = keep != null ? keep : Math.max(0, ((showsToday ? nowM - 60 : (firstA < 1440 ? firstA : 8 * 60) - 30) - from) * ppm);

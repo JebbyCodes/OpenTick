@@ -10,11 +10,11 @@ const SYNC_KEY = 'opentick.sync.v1', SYNC_FILE = 'opentick.json', SYNC_V = 3; //
 const syncErr = msg => Object.assign(new Error(msg), { sync: true });
 
 /* ---------- config (kept out of S so credentials never end up in backups or on the server) ---------- */
-const syncDefaults = () => ({ provider: '', auto: true, device: uid(), rev: null, fp: null, last: 0, webdav: { url: '', folder: 'OpenTick', user: '', pass: '' }, file: { path: '', name: '' } });
+const syncDefaults = () => ({ provider: '', auto: true, device: uid(), rev: null, fp: null, last: 0, webdav: { url: '', folder: 'OpenTick', user: '', pass: '' }, file: { path: '', name: '' }, git: { base: 'https://api.github.com', repo: '', path: 'opentick.json', branch: '', token: '' }, s3: { endpoint: '', region: 'us-east-1', bucket: '', key: 'opentick.json', access: '', secret: '' } });
 function loadSyncCfg() {
   try {
     const c = JSON.parse(localStorage.getItem(SYNC_KEY)), d = syncDefaults();
-    if (c && typeof c === 'object') return { ...d, ...c, webdav: { ...d.webdav, ...c.webdav }, file: { ...d.file, ...c.file } };
+    if (c && typeof c === 'object') return { ...d, ...c, webdav: { ...d.webdav, ...c.webdav }, file: { ...d.file, ...c.file }, git: { ...d.git, ...c.git }, s3: { ...d.s3, ...c.s3 } };
   } catch (e) { /* fall through */ }
   return syncDefaults();
 }
@@ -105,7 +105,109 @@ const filep = {
     return { rev: cyrb53(text) };
   },
 };
-const PROVIDERS = { webdav: dav, file: filep };
+/* ---------- provider: a Git repository file (GitHub, GitHub Enterprise, Gitea, Forgejo, Codeberg) ----------
+   Uses the "contents" API. The file's blob SHA is the revision, and a write that names an outdated SHA is refused, which is
+   exactly the conditional write sync needs. Use a private repository that exists just for this; every sync that changes
+   something is one commit. The token needs read and write access to that repository's contents. Files up to 1 MB. */
+const bytesToB64 = bytes => { let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000)); return btoa(s); };
+const b64ToText = b => new TextDecoder().decode(Uint8Array.from(atob(String(b).replace(/\s/g, '')), c => c.charCodeAt(0)));
+const gitp = {
+  label: 'Git repository',
+  url(c) {
+    const base = c.base.trim().replace(/\/+$/, ''), path = c.path.split('/').map(x => x.trim()).filter(Boolean).map(encodeURIComponent).join('/');
+    return `${base}/repos/${c.repo.trim().replace(/^\/+|\/+$/g, '')}/contents/${path}${c.branch.trim() ? '?ref=' + encodeURIComponent(c.branch.trim()) : ''}`;
+  },
+  headers: c => ({ Authorization: 'token ' + c.token.trim(), Accept: 'application/vnd.github+json' }),
+  async read(c, rev) {
+    const r = await httpx('GET', gitp.url(c), gitp.headers(c));
+    if (r.status === 404) return { status: 'missing' }; // no file yet (a wrong repository name shows up on the first upload)
+    authFail(r);
+    if (!r.ok) throw syncErr(`The server answered ${r.status} ${r.statusText || ''}`.trim());
+    const j = await r.json();
+    if (rev && j.sha === rev) return { status: 'nochange' };
+    if (!j.content && j.size > 0) throw syncErr('The sync file is larger than 1 MB, which the contents API cannot read');
+    return { status: 'ok', text: b64ToText(j.content || ''), rev: j.sha };
+  },
+  async write(c, text, rev, isNew) {
+    const body = { message: 'OpenTick sync', content: bytesToB64(new TextEncoder().encode(text)) };
+    if (!isNew && rev) body.sha = rev; if (c.branch.trim()) body.branch = c.branch.trim();
+    const r = await httpx('PUT', gitp.url(c).replace(/\?ref=.*$/, ''), { ...gitp.headers(c), 'Content-Type': 'application/json' }, JSON.stringify(body));
+    if (r.status === 409 || r.status === 422) { const j = await r.json().catch(() => ({})); if (r.status === 409 || /sha|exist|conflict/i.test(j.message || '')) return { conflict: true }; throw syncErr('The repository refused the upload: ' + (j.message || r.status)); }
+    if (r.status === 404) throw syncErr('Repository not found, or the token is not allowed to write to it');
+    authFail(r);
+    if (!r.ok) throw syncErr(`Upload failed: the server answered ${r.status} ${r.statusText || ''}`.trim());
+    const j = await r.json(); return { rev: (j.content && j.content.sha) || null };
+  },
+};
+
+/* ---------- provider: S3-compatible object storage (AWS S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO, …) ----------
+   Requests are signed with AWS Signature V4 in the browser (Web Crypto). The ETag is the revision and writes are
+   conditional (If-Match / If-None-Match). A browser needs CORS on the bucket (allow GET, PUT, the headers
+   authorization, content-type, if-match, if-none-match, x-amz-*, and expose ETag); the desktop and mobile apps do not. */
+const hexOf = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+const utf8 = s => (typeof s === 'string' ? new TextEncoder().encode(s) : s);
+const sha256hex = async d => hexOf(await crypto.subtle.digest('SHA-256', utf8(d)));
+async function hmac256(key, data) { const k = await crypto.subtle.importKey('raw', utf8(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']); return new Uint8Array(await crypto.subtle.sign('HMAC', k, utf8(data))); }
+// -> request headers including Authorization (pure apart from `date`, so it can be checked against AWS's published examples)
+async function sigV4({ method, url, headers = {}, payloadHash, access, secret, region, service = 's3', date = new Date() }) {
+  const u = new URL(url), amz = date.toISOString().replace(/[:-]|\.\d{3}/g, ''), day = amz.slice(0, 8), h = {};
+  for (const [k, v] of Object.entries(headers)) h[k.toLowerCase()] = String(v).trim().replace(/\s+/g, ' ');
+  h.host = u.host; h['x-amz-date'] = amz; h['x-amz-content-sha256'] = payloadHash;
+  const names = Object.keys(h).sort(), signed = names.join(';'), query = [...u.searchParams].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&');
+  const canonical = [method, u.pathname, query, names.map(n => n + ':' + h[n] + '\n').join(''), signed, payloadHash].join('\n'), scope = `${day}/${region}/${service}/aws4_request`;
+  const toSign = ['AWS4-HMAC-SHA256', amz, scope, await sha256hex(canonical)].join('\n');
+  let k = await hmac256('AWS4' + secret, day); for (const part of [region, service, 'aws4_request']) k = await hmac256(k, part);
+  const sig = hexOf(await hmac256(k, toSign)), out = { ...headers, 'x-amz-date': amz, 'x-amz-content-sha256': payloadHash, Authorization: `AWS4-HMAC-SHA256 Credential=${access}/${scope},SignedHeaders=${signed},Signature=${sig}` };
+  return out;
+}
+const s3p = {
+  label: 'S3-compatible storage',
+  url: c => `${c.endpoint.trim().replace(/\/+$/, '')}/${encodeURIComponent(c.bucket.trim())}/${c.key.split('/').map(encodeURIComponent).join('/')}`,
+  async call(c, method, headers, body) {
+    if (!(typeof crypto !== 'undefined' && crypto.subtle)) throw syncErr('This browser context cannot sign requests (Web Crypto needs https). Use the desktop or mobile app, or open OpenTick over https.');
+    const url = s3p.url(c), h = await sigV4({ method, url, headers, payloadHash: await sha256hex(body == null ? '' : body), access: c.access.trim(), secret: c.secret.trim(), region: c.region.trim() || 'us-east-1' });
+    return httpx(method, url, h, body);
+  },
+  async read(c, rev) {
+    const r = await s3p.call(c, 'GET', rev ? { 'If-None-Match': rev } : {});
+    if (r.status === 304) return { status: 'nochange' };
+    if (r.status === 404) return { status: 'missing' };
+    authFail(r);
+    if (!r.ok) throw syncErr(`The storage service answered ${r.status} ${r.statusText || ''}`.trim());
+    return { status: 'ok', text: await r.text(), rev: r.headers.get('etag') };
+  },
+  async write(c, text, rev, isNew) {
+    const cond = isNew ? { 'If-None-Match': '*' } : rev ? { 'If-Match': rev } : {};
+    let r = await s3p.call(c, 'PUT', { ...cond, 'Content-Type': 'application/json' }, text);
+    if (r.status === 501 && Object.keys(cond).length) r = await s3p.call(c, 'PUT', { 'Content-Type': 'application/json' }, text); // a service without conditional writes: sync still merges before it writes
+    if (r.status === 412 || r.status === 409) return { conflict: true };
+    authFail(r);
+    if (!r.ok) throw syncErr(`Upload failed: the storage service answered ${r.status} ${r.statusText || ''}`.trim());
+    return { rev: r.headers.get('etag') };
+  },
+};
+const PROVIDERS = { webdav: dav, file: filep, git: gitp, s3: s3p };
+const DAV_PRESETS = [['', 'Other WebDAV server', ''], ['nextcloud', 'Nextcloud / ownCloud', 'https://YOUR-SERVER/remote.php/dav/files/USERNAME/'], ['box', 'Box', 'https://dav.box.com/dav'], ['pcloud', 'pCloud (EU)', 'https://ewebdav.pcloud.com'], ['pcloudus', 'pCloud (US)', 'https://webdav.pcloud.com'], ['koofr', 'Koofr', 'https://app.koofr.net/dav/Koofr'], ['yandex', 'Yandex Disk', 'https://webdav.yandex.com'], ['synology', 'Synology NAS', 'https://YOUR-NAS:5006/']];
+
+/* ---------- automatic local backups: one snapshot a day, the last 7 kept in this browser's IndexedDB ---------- */
+const SNAP_KEEP = 7;
+async function snapKeys() { try { return ((await idb('readonly', s => s.getAllKeys())) || []).filter(k => /^snap:/.test(k)).sort(); } catch (e) { return []; } }
+async function snapList() {
+  const out = [];
+  for (const k of await snapKeys()) { try { const v = await idb('readonly', s => s.get(k)); if (v) out.push({ key: k, at: v.at, tasks: v.tasks, fp: v.fp }); } catch (e) { /* skip */ } }
+  return out.reverse();
+}
+async function snapSave(force) {
+  try {
+    flush(); const key = 'snap:' + todayStr(), fp = fingerprint(snapshot()), cur = await idb('readonly', s => s.get(key));
+    if (cur && cur.fp === fp && !force) return false;
+    await idb('readwrite', s => s.put({ at: Date.now(), tasks: S.tasks.filter(t => !t.deleted).length, fp, data: JSON.stringify({ ...S, history: [] }) }, key));
+    const keys = await snapKeys(); for (const k of keys.slice(0, Math.max(0, keys.length - SNAP_KEEP))) await idb('readwrite', s => s.delete(k));
+    return true;
+  } catch (e) { return false; }
+}
+async function snapRestore(key) { const v = await idb('readonly', s => s.get(key)); if (!v) throw new Error('That backup is gone'); await snapSave(true); replaceAll(JSON.parse(v.data)); histNote('import', 'Restored the automatic backup from ' + key.slice(5)); save(); }
+async function snapDownload(key) { const v = await idb('readonly', s => s.get(key)); if (!v) return; const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([v.data], { type: 'application/json' })); a.download = `opentick-backup-${key.slice(5)}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); }
 
 /* ---------- engine ---------- */
 const Sync = { cfg: loadSyncCfg(), state: 'off', msg: '', busy: false, queued: false, timer: 0, get on() { return !!(this.cfg.provider && PROVIDERS[this.cfg.provider]); } };
@@ -119,7 +221,7 @@ function parsePayload(text) {
   let d; try { d = JSON.parse(text); } catch (e) { throw syncErr('The remote file is not valid JSON — leaving it alone'); }
   if (!d || d.app !== 'opentick' || !Array.isArray(d.tasks) || !Array.isArray(d.lists)) throw syncErr('The remote file is not an OpenTick sync file — refusing to overwrite it');
   if ((d.schema || 1) > SYNC_V) throw syncErr('The remote data was written by a newer OpenTick — please update this app');
-  d.habits = d.habits || []; d.tags = d.tags || []; d.slots = d.slots || []; d.notes = d.notes || []; d.pomo = d.pomo || []; d.tomb = d.tomb || {};
+  d.habits = d.habits || []; d.tags = d.tags || []; d.slots = d.slots || []; d.notes = d.notes || []; d.projects = d.projects || []; d.pomo = d.pomo || []; d.tomb = d.tomb || {};
   return d;
 }
 function setSync(state, msg = '') { Sync.state = state; Sync.msg = msg; paintSync(); }
@@ -197,6 +299,7 @@ function syncBadge() {
 }
 function paintSync() {
   const b = $('#syncb'); if (b && b.outerHTML !== undefined) b.outerHTML = syncBadge();
+  if (typeof paintDock === 'function') paintDock();
   const m = $('#sy-status'); if (m) m.innerHTML = syncStatusText();
 }
 
@@ -209,13 +312,24 @@ async function connectSync(d) {
     if (!/^https?:\/\/\S+$/i.test(d.webdav.url)) { toast('Enter the full server address, starting with https://'); return false; }
   }
   if (d.provider === 'file' && !d.file.path && !d.file.name) { toast('Choose a file first'); return false; }
-  Object.assign(c, { provider: d.provider, auto: d.auto, webdav: d.webdav, file: d.file, rev: null, fp: null });
+  if (d.provider === 'git') {
+    d.git.base = d.git.base.trim() || 'https://api.github.com';
+    if (!/^[\w.-]+\/[\w.-]+$/.test(d.git.repo.trim())) { toast('Enter the repository as owner/name'); return false; }
+    if (!d.git.token.trim()) { toast('Paste an access token that can write to the repository'); return false; }
+    if (!d.git.path.trim()) d.git.path = 'opentick.json';
+  }
+  if (d.provider === 's3') {
+    if (!/^https?:\/\/\S+$/i.test(d.s3.endpoint.trim())) { toast('Enter the service endpoint, starting with https://'); return false; }
+    if (!d.s3.bucket.trim() || !d.s3.access.trim() || !d.s3.secret.trim()) { toast('Bucket, access key and secret key are all needed'); return false; }
+    if (!d.s3.key.trim()) d.s3.key = 'opentick.json';
+  }
+  Object.assign(c, { provider: d.provider, auto: d.auto, webdav: d.webdav, file: d.file, git: d.git, s3: d.s3, rev: null, fp: null });
   saveSyncCfg(); setSync('busy'); renderSide();
   await syncNow(true);
   return true;
 }
 function disconnectSync() {
-  const c = Sync.cfg; c.provider = ''; c.rev = c.fp = null; c.webdav.pass = '';
+  const c = Sync.cfg; c.provider = ''; c.rev = c.fp = null; c.webdav.pass = ''; c.git.token = ''; c.s3.secret = '';
   saveSyncCfg(); clearTimeout(Sync.timer); setSync('off'); renderSide();
   return true;
 }
@@ -243,18 +357,22 @@ async function undoMerge() {
 }
 
 /* ---------- dialog ---------- */
+const syncFormGit = fld => fld('Repository (owner/name)', 'git.repo', 'text', 'me/opentick-data') + fld('Access token', 'git.token', 'password', 'ghp_… or a Gitea token') + fld('File in the repository', 'git.path', 'text', 'opentick.json') + fld('Branch (blank = default)', 'git.branch', 'text', 'main') + fld('API address', 'git.base', 'url', 'https://api.github.com')
+  + '<p class="hint">Use a private repository made for this. GitHub: a fine-grained token with “Contents: read and write” on that repository. Gitea / Forgejo / Codeberg: set the API address to https://your-host/api/v1. The token stays on this device; each sync that changes something is one commit.</p>';
+const syncFormS3 = fld => fld('Endpoint', 's3.endpoint', 'url', 'https://s3.us-east-1.amazonaws.com') + fld('Region', 's3.region', 'text', 'us-east-1 (auto for R2)') + fld('Bucket', 's3.bucket') + fld('Object name', 's3.key', 'text', 'opentick.json') + fld('Access key ID', 's3.access') + fld('Secret access key', 's3.secret', 'password')
+  + `<p class="hint">Works with AWS S3, Cloudflare R2 (endpoint https://ACCOUNT.r2.cloudflarestorage.com, region auto), Backblaze B2, Wasabi and MinIO. Use a key limited to this bucket. The secret stays on this device.${TAURI() && TAURI().http ? '' : ' In a browser the bucket needs a CORS rule (allow GET and PUT, expose ETag); the desktop and mobile apps do not.'}</p>`;
 function openSync() {
-  const c = Sync.cfg, d = { provider: c.provider, auto: c.auto, webdav: { ...c.webdav }, file: { ...c.file } };
+  const c = Sync.cfg, d = { provider: c.provider, auto: c.auto, webdav: { ...c.webdav }, file: { ...c.file }, git: { ...c.git }, s3: { ...c.s3 }, preset: '' };
   const fld = (label, key, type = 'text', ph = '') => `<label>${label}<input type="${type}" data-sy="${key}" value="${esc(key.split('.').reduce((o, k) => o[k], d))}" placeholder="${esc(ph)}" autocomplete="${type === 'password' ? 'new-password' : 'off'}" spellcheck="false" autocapitalize="off"></label>`;
   const draw = () => {
     const web = !(TAURI() && TAURI().http);
-    const body = d.provider === 'webdav'
-      ? fld('Server address', 'webdav.url', 'url', 'https://cloud.example.com/remote.php/dav/files/me/') + fld('Folder', 'webdav.folder', 'text', 'OpenTick') + fld('Username', 'webdav.user') + fld('Password (use an app password)', 'webdav.pass', 'password')
+    const body = d.provider === 'git' ? syncFormGit(fld) : d.provider === 's3' ? syncFormS3(fld) : d.provider === 'webdav'
+      ? `<label>Service<select data-sy="preset">${DAV_PRESETS.map(([k, n]) => `<option value="${k}"${d.preset === k ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></label>` + fld('Server address', 'webdav.url', 'url', 'https://cloud.example.com/remote.php/dav/files/me/') + fld('Folder', 'webdav.folder', 'text', 'OpenTick') + fld('Username', 'webdav.user') + fld('Password (use an app password)', 'webdav.pass', 'password')
         + `<p class="hint">Works with Nextcloud, ownCloud, Synology, Apache/nginx WebDAV and more. The password is stored on this device only.${web ? ' In a browser the server must allow CORS (see the README); the desktop and mobile apps don’t need that.' : ''}</p>`
       : d.provider === 'file'
         ? `<label>File<div class="filerow"><span>${esc(d.file.path || d.file.name || 'None chosen')}</span><button data-m="pickfile">Choose…</button></div></label><p class="hint">Pick a file inside a folder that Syncthing, Dropbox, OneDrive, iCloud Drive or a Nextcloud client already keeps in sync.</p>`
         : '<p class="hint">Sync keeps your tasks, lists, tag colours, timetable, habits and focus history identical on all your devices. Changes made on different devices are merged; the most recent edit to a task wins.</p>';
-    openModal(`<h3>Sync</h3><div class="form one"><label>Provider<select data-sy="provider">${opts([['', 'Off'], ['webdav', 'WebDAV'], ...(fileSupported() ? [['file', 'File or synced folder']] : [])], d.provider)}</select></label>${body}
+    openModal(`<h3>Sync</h3><div class="form one"><label>Provider<select data-sy="provider">${opts([['', 'Off'], ['webdav', 'WebDAV (Nextcloud, Box, pCloud…)'], ['git', 'Git repository (GitHub, Gitea…)'], ['s3', 'S3 storage (AWS, R2, B2, MinIO…)'], ...(fileSupported() ? [['file', 'File or synced folder']] : [])], d.provider)}</select></label>${body}
 ${d.provider ? `<label class="inl"><input type="checkbox" data-sy="auto"${d.auto ? ' checked' : ''}> Sync automatically</label>` : ''}</div>
 <p class="hint" id="sy-status">${syncStatusText()}</p>
 <div class="mrow"><button class="pri" data-m="save">${d.provider ? 'Save &amp; sync' : 'Save'}</button>${Sync.on ? '<button data-m="now">Sync now</button><button data-m="undo">Undo last merge</button><button class="danger" data-m="off">Disconnect</button>' : ''}</div>
@@ -262,6 +380,7 @@ ${d.provider ? `<label class="inl"><input type="checkbox" data-sy="auto"${d.auto
       const upd = e => {
         const el = e.target, k = el.dataset.sy; if (!k) return;
         if (k === 'provider') { d.provider = el.value; draw(); }
+        else if (k === 'preset') { d.preset = el.value; const pr = DAV_PRESETS.find(x => x[0] === el.value); if (pr && pr[2]) d.webdav.url = pr[2]; draw(); }
         else if (k === 'auto') d.auto = el.checked;
         else { const [g, f] = k.split('.'); d[g][f] = el.value; }
       };

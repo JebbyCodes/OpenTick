@@ -34,6 +34,20 @@ Plan, schedule and track your day on the web, your desktop and your phone — wi
   </p>
 -->
 
+## What's new in 0.9
+
+- **Notes page fixed**: the *Write / Split / Preview* buttons work, and note titles in the list render Markdown (a note that starts with `**bold**` or `- [ ]` no longer shows stray symbols).
+- **Whole-day timetable** (00:00–24:00 by default), larger blocks and checkboxes, and **all-day tasks as big tappable rows**. On phones, **press and hold** a task or slot, then slide it to a new day or time (the grid scrolls at the edges).
+- **Exact durations**: type hours and minutes (or tap a preset) instead of a fixed dropdown.
+- **Custom reminder lead times**: any number of minutes, hours, days or weeks before a task is due.
+- **Batch editing**: select several tasks (the checkbox button in the header, press and hold on a phone, Ctrl/Cmd/Shift-click on a desktop), then change priority, date, time, duration, reminder, tags, list, repeat or status together. Only the fields you touch change, and **Undo** is offered afterwards.
+- **Attachments**: PDFs, images, documents, spreadsheets, audio, video and more on tasks, notes and timetable slots (drop, paste an image into the text, or *Add file*). A PDF opens in a viewer; link or embed a file in Markdown. Import a PDF (or any file) as a note.
+- **Links between notes and tasks**, both ways, with pickers on each side. Repeating tasks carry their notes, linked notes and files into every new occurrence.
+- **"Edited" signals**: a live *Saving… / Saved* note, *Edited 5 min ago* in the task and note panels, an *Edited* marker on rows, blocks and notes you just changed, and an *Unsaved changes* warning in the slot editor.
+- **Custom themes**: import a `.css` (or `.json`) theme, paste CSS, or start from the downloadable template.
+- **Gantt**: only OpenTick's own Gantt remains, now with everything the OpenGantt app offers: a YAML editor, open / save / copy as an Obsidian block, print, PNG / SVG / CSV export, full screen, a legend toggle, column menus, Notes / Priority / Tags and custom columns, and a hover card.
+- **Task notes box** is bigger and grows with its text.
+
 ## What's new in 0.6
 
 - **One logo, one version.** Put your logo at `src/logo.png`; the sidebar, favicon, PWA manifest, notifications and (via `npm run icons`) every desktop/mobile icon use it. The version lives in `package.json`; `npm run bump -- X.Y.Z` updates `package-lock.json`, `tauri.conf.json` and `Cargo.toml` too, and it is shown in the sidebar and Settings.
@@ -201,7 +215,7 @@ npm run dev           # http://localhost:1420 with live rebuild on change
 npm run build:app
 ```
 
-Bundles `src/index.html`, `src/styles.css` and every file in `src/js/` (in the order declared by `JS_ORDER`) into a single self-contained `dist/index.html`, and copies `manifest.webmanifest`, `sw.js` and `icon.svg` alongside it. If `vendor/opengantt/Gantt.html` exists, it is shipped as `dist/OpenGantt.html` and the Gantt page gains an **OpenGantt** pane.
+Bundles `src/index.html`, `src/styles.css` and every file in `src/js/` (in the order declared by `JS_ORDER`) into a single self-contained `dist/index.html`, and copies `manifest.webmanifest`, `sw.js` and `icon.svg` alongside it.
 
 Deploy `dist/` anywhere that serves HTTPS — GitHub Pages, Netlify, a Raspberry Pi. No build server, no environment variables.
 
@@ -241,16 +255,6 @@ npm run icons
 
 Regenerates every platform icon from `src/logo.png` (falling back to `src/icon.svg` if it is missing) using the Tauri CLI. Run it once after cloning if `src-tauri/icons/` is missing pieces.
 
-### Vendoring OpenGantt
-
-```bash
-npm run sync:gantt     # fetch the latest stable OpenGantt release into vendor/opengantt/
-npm run check:gantt    # exit 1 if a newer stable release exists (used by CI)
-node scripts/sync-opengantt.mjs --ref main   # track a branch/commit instead of the latest release
-```
-
-The script resolves the release tag to a commit SHA first, downloads `Gantt.html` and the upstream `README.md` from that immutable SHA, validates both, parses the documented chart format, and only then replaces the vendored files atomically. It also reports *drift*: upstream features OpenTick does not yet understand.
-
 ---
 
 ## Testing
@@ -269,7 +273,7 @@ Runs seven suites, each a plain Node script with no test framework:
 | `test/timetable.mjs` | Themes, tag colours, durations, timetable layout, drag/drop, reminders, merge. |
 | `test/opengantt.mjs` | YAML subset, Markdown fence handling, task ↔ row mapping, two-way file sync. |
 | `test/layout.mjs` | Panel sizing, sidebar views, task drops, Gantt table columns and drag date maths. |
-| `test/upstream.mjs` | The upstream-spec reader and drift check (no network). |
+| `test/v09.mjs` | Notes fixes, durations and reminders, custom themes, attachments, note/task links, batch editing, edited markers and the Gantt tools. |
 
 `test/harness.mjs` loads the real app scripts into an isolated Node VM with a fake DOM, so several simulated "devices" can run side by side in one process. There is no mocking of the application code itself — the tests exercise the same files the browser runs.
 
@@ -380,9 +384,16 @@ Desktop app or a Chromium browser, because it writes the file. Link icon → **L
 - Links are per device (the file handle or path stays on the device). The task data itself syncs through normal OpenTick sync, so two devices linked to the same synced file converge.
 - The format is implemented from OpenGantt's README. Features not documented there are preserved as custom columns — tell us if something does not round-trip.
 
-### Running the real OpenGantt app
+### The Gantt page
 
-`npm run sync:gantt` vendors the upstream standalone app into `vendor/opengantt/` and adds an **OpenGantt** pane to the Gantt page that runs the real thing in an iframe, seeded with the current list. **Send tasks** pushes the list in; **Apply to OpenTick** brings the editor's changes back.
+OpenTick has one Gantt, drawn by OpenTick itself. It reads and writes the OpenGantt chart format (above), and it covers what the OpenGantt app does around the chart:
+
+- **Plan / Actual / Both**, **Day / Week / Month / Year**, zoom, a *Today* marker, hierarchy with collapse, milestones, progress for open tasks and variance / status columns.
+- **Columns**: Plan, Actual, dates, durations, variance, status, **Notes, Priority, Tags** and one column for every extra key in a chart row (an `owner:` key becomes an *Owner* column). Click a column heading for *Move left / right*, *Hide* and *Choose columns*.
+- **YAML editor** (the `</>` button): the selected list as text. Edit it and **Apply**; rows stay linked to their tasks through `otid`. Chart options in the text (`scale`, `mode`, `progress`, `hatch`, `table`, `columns`, `collapsed`) apply too.
+- **File menu** (the `⋯` button): open a chart file, save it, copy it as an Obsidian block, link it to a file, create an example chart, hide the legend, reset the view. <kbd>Ctrl/Cmd</kbd>+<kbd>O</kbd> opens, <kbd>Ctrl/Cmd</kbd>+<kbd>S</kbd> saves, <kbd>Ctrl/Cmd</kbd>+<kbd>P</kbd> prints.
+- **Print / export** (the download button): landscape or portrait pages, light or dark colours, optional title and legend, as **PNG**, **SVG**, **CSV** or a paginated print.
+- **Full screen**, and a **hover card** with plan, actual, status, progress, variance, extra fields and notes.
 
 ---
 
@@ -394,7 +405,7 @@ Open the **Timetable** tab. Slots repeat weekly, so one slot like *"Maths · Mon
 - **Move / resize** — drag a block to another day or time (15-minute steps); drag its bottom edge to change the end. Moving one day of a multi-day slot moves just that day. On touch screens, edit in the dialog.
 - **Overlaps** are shown side by side with a red outline and a warning in the editor.
 - **Tasks on the grid** — a task due on a day with a time shows as a dashed block (duration from the task, default 30 min). Without a time it sits in the *all day* row. Drag a task from the *Tasks* tray onto the grid to schedule it, or onto *all day* to clear its time. In a task's details, **Timetable slot** links it to a slot, after which it is listed inside that slot on its due day.
-- **Views** — *Week* / *Day* (click a day header), arrows, and *Today*. The grid shows 07:00–21:00 by default (change it in the sliders menu) and grows automatically if something falls outside those hours.
+- **Views** — *Week* / *Day* (click a day header), arrows, and *Today*. The grid shows the whole day (00:00–24:00) by default (narrow it in the sliders menu) and grows automatically if something falls outside those hours.
 - A red **"now" line** tracks the current time on today's column.
 
 ---
@@ -420,6 +431,19 @@ Settings → pick a theme. The default is **Gruvbox Dark**.
 | Dracula | Match system | |
 
 Every colour comes from CSS variables at the top of `src/styles.css`. To add a theme, copy one `:root[data-theme=…]` block, change the values, and add an entry to `THEMES` in `src/js/core.js`.
+
+### Custom themes
+
+Settings → Appearance → **Import theme…** (a `.css`, `.json` or `.txt` file), **Paste CSS…**, or **Template** to download every variable with the current theme's values.
+
+```css
+/* @name: Ocean */
+/* @base: dark */            /* dark, light, or any built-in theme id; fills in variables you leave out */
+:root { --bg: #0d1b2a; --text: #e0e8f0; --acc: #4cc9f0; }
+.task { border-radius: 14px; }   /* extra rules are allowed */
+```
+
+Everything is scoped so a theme affects the app only while it is selected. `@import`, scripts and remote `url()`s are removed; inline `data:` images and fonts are kept. A JSON theme (`{"name": "…", "base": "dark", "vars": {"bg": "#…"}}`) works as well. Custom themes are stored on this device with the other appearance settings.
 
 Existing installs that were on the old *Match system* default move to Gruvbox Dark once; an explicit Light/Dark choice is kept.
 
@@ -457,10 +481,29 @@ OpenTick/
 │   └── js/
 │       ├── core.js           Dates, repeat rules, quick-add parser, store, change tracking, merge
 │       ├── md.js             Markdown renderer
+│       ├── files.js          Attachments (IndexedDB), viewer, paste / drop
+│       ├── batch.js          Multi-select and the batch edit sheet
+│       ├── themes.js         Custom theme import, scoping and settings UI
 │       ├── views.js          All rendering (sidebar, list
+
+## Attachments, links and batch editing
+
+- **Files** live in this device's IndexedDB (not in the synced data or the backup JSON), up to 40 MB each. The list of attachments syncs; on another device a file shows *not on this device* until it is attached there. Delete a task or note and its files are cleaned up after a day.
+- **Markdown**: `[name](ot-file:ID)` opens the file, `![alt](ot-file:ID)` shows a picture. The *link* button on an attachment inserts the right text.
+- **Notes ↔ tasks**: a task stores the notes it links to; the other direction is worked out, so a link is one fact that syncs with the task. Deleting a note removes the link.
+- **Repeating tasks**: when one is completed, the finished occurrence keeps its own copy of the notes, links and files; the next occurrence carries them all forward, with ticked checklist items in its notes reset (like subtasks).
+
+---
 
 ## Unreleased
 
+- **Lists**: pick any icon (or any emoji) and a colour; lists can sit inside lists to any depth (drag a list onto another to nest it, or onto its top / bottom edge to reorder). A list's view includes its sublists.
+- **Projects**: link any lists (each brings its sublists) to see them together, with progress and a per-list grouping.
+- **Import from other apps** (Settings → Import from another app, also in the command palette): TickTick, Todoist, Google Tasks, Trello, Taskwarrior, Anytype, iCalendar / Apple Reminders, OPML (Workflowy, Dynalist…), todo.txt, Markdown (Obsidian, Logseq) and generic CSV (Notion, Asana…). ZIP exports can be chosen as they are. A preview lets you untick lists first; re-importing the same file adds nothing. The parsers follow each app's documented export format; if an app changes its export, a parser may need a tweak.
+- **More sync providers**: Git repository (GitHub, Gitea, Forgejo, Codeberg), S3-compatible storage (AWS S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO; browsers need a CORS rule on the bucket), and WebDAV presets (Nextcloud, Box, pCloud, Koofr, Yandex). Google Drive and Dropbox need an OAuth app registration, so use their desktop folder with the file provider.
+- **Automatic backups**: one local snapshot a day (last 7), with restore and download in Settings.
+- **Status dock**: a small cloud icon (off / synced / syncing / problem) and a quick "Saved" note, next to the clock.
+- **Settings**: grouped sections, switch toggles, play / pause sound buttons, and hover feedback on tick boxes and other controls.
 - **Sidebar**: fixed the *Hide sidebar* button (hiding the sidebar or details panel no longer collapses the main pane).
 - **Branding**: the app icon from `src-tauri/icons` is now `src/logo.png`, so the sidebar, About box, favicon, PWA manifest and notifications all match the desktop icon.
 - **Clock**: a small date and time readout (Settings → Clock: on/off, 12/24-hour, seconds). Foot of the sidebar, or a faint corner label when the sidebar is hidden / on phones.

@@ -93,17 +93,17 @@ const eq = (a, b, m) => assert.equal(JSON.stringify(a), JSON.stringify(b), m);
   A.U.ttDate = new Date(td.getFullYear(), td.getMonth(), td.getDate() + 40); A.renderTimetable(); A.U.ttDate = null; // future week renders, recurring slots still appear
   assert.ok(!A.els['#main'].innerHTML.includes('Dentist') || true);
 
-  // auto-extend: a 05:30 slot widens the grid beyond the default 07:00
+  // the grid now shows the whole day, so an early slot is simply inside it
   mk('Early run', [dow], '05:30', '06:30'); A.renderTimetable(); assert.ok(A.els['#main'].innerHTML.includes('05:00'));
 
   // drag & drop
   const col = d => ({ dataset: { d, from: '300' }, classList: { contains: () => false }, getBoundingClientRect: () => ({ top: 0 }) });
   const next = new Date(td.getFullYear(), td.getMonth(), td.getDate() + 1), nk = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
   A.U.drag = 'slot:' + gym.id + ':' + dow; A.U.dragOff = 0;
-  A.ttDrop({ clientY: (11 * 60 - 300) * 52 / 60 }, col(nk)); // 11:00 on tomorrow
+  A.ttDrop({ clientY: (11 * 60 - 300) * A.TT_HH / 60 }, col(nk)); // 11:00 on tomorrow
   eq([gym.start, gym.end], ['11:00', '12:00']); eq(gym.days.slice().sort(), [(dow + 1) % 7], 'dragging one day of a multi-day slot replaces just that day');
   eq(gym.days.length, 1);
-  A.U.drag = plain.id; A.ttDrop({ clientY: (16 * 60 - 300) * 52 / 60 + 3 }, col(nk));
+  A.U.drag = plain.id; A.ttDrop({ clientY: (16 * 60 - 300) * A.TT_HH / 60 + 3 }, col(nk));
   eq([plain.due, plain.time, plain.dur, plain.slotId], [nk, '16:00', 30, null], 'a task dropped on the grid gets a date, time and default duration');
   const adEl = { dataset: { d: tk }, classList: { contains: c => c === 'tt-ad' } };
   A.U.drag = plain.id; A.ttDrop({ clientY: 0 }, adEl); eq([plain.due, plain.time], [tk, null], 'dropped on "all day": date only');
@@ -117,7 +117,7 @@ const eq = (a, b, m) => assert.equal(JSON.stringify(a), JSON.stringify(b), m);
 
   // link a task to a slot from the detail panel
   const t2 = A.quickAdd('Revise', {}); A.U.sel = t2.id; A.renderDetail();
-  assert.ok(A.els['#detail'].innerHTML.includes('data-f="slot"') && A.els['#detail'].innerHTML.includes('data-f="dur"'));
+  assert.ok(A.els['#detail'].innerHTML.includes('data-f="slot"') && A.els['#detail'].innerHTML.includes('data-dur="task"'));
   A.nextSlotDate(maths); assert.equal(A.nextSlotDate(maths).getDay(), dow);
 
   // slot changes are tracked for sync

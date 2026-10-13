@@ -327,7 +327,7 @@ async function ogPickText() {
   if (T && T.dialog && T.fs) { const p = pathOf(await T.dialog.open({ multiple: false, filters: [{ name: 'OpenGantt chart', extensions: ['md', 'yaml', 'yml', 'txt'] }] })); return p ? { name: p.split(/[\\/]/).pop(), text: await T.fs.readTextFile(p) } : null; }
   return new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = '.md,.markdown,.yaml,.yml,.txt,text/*'; i.onchange = async () => res(i.files[0] ? { name: i.files[0].name, text: await i.files[0].text() } : null); i.click(); });
 }
-const ogHead = list => [`title: ${ogStr(list.name)}`, `scale: ${(S.settings.gantt || {}).scale || 'week'}`, 'mode: both'];
+const ogHead = list => [`title: ${ogStr(list.name)}`, `scale: ${(S.settings.gantt || {}).scale || 'week'}`, `mode: ${{ plan: 'plan', actual: 'actual' }[(S.settings.gantt || {}).mode] || 'both'}`];
 function ogBuild(list, existingYaml) {
   const rows = S.tasks.filter(t => t.listId === list.id && ogExportable(t)).sort((a, b) => (a.order || 0) - (b.order || 0)).map(ogRowOfTask);
   return { rows, yaml: ogMergeYaml(existingYaml || '', rows, ogHead(list)) };
@@ -389,6 +389,7 @@ function ogImportText(text, fileName, listId) {
     S.lists.push(list); created = true;
   }
   const { st } = ogMerge(list.id, doc.rows, {}, false);
+  if (typeof ogApplyOpts === 'function') ogApplyOpts(doc, list.id); // scale, mode, columns… from the chart file
   save(); flush();
   return { list, created, ...st };
 }

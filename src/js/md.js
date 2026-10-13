@@ -6,7 +6,7 @@
    and inline png/jpg/gif/webp only), footnotes, > quotes, bullet / numbered / nested lists, - [ ] task lists (clickable),
    tables, horizontal rules, :emoji: shortcodes and [[wiki links]] to other notes. */
 const MD_URL = /^(?:https?:\/\/|mailto:|tel:)[^\s"'<>]*$/i;
-const MD_IMG = /^(?:https?:\/\/[^\s"'<>]*|data:image\/(?:png|jpe?g|gif|webp);base64,[A-Za-z0-9+/=]+)$/i;
+const MD_IMG = /^(?:ot-file:[\w-]+|https?:\/\/[^\s"'<>]*|data:image\/(?:png|jpe?g|gif|webp);base64,[A-Za-z0-9+/=]+)$/i;
 const MD_EMOJI = { smile: '😄', grin: '😁', joy: '😂', wink: '😉', heart: '❤️', thumbsup: '👍', '+1': '👍', '-1': '👎', tada: '🎉', fire: '🔥', star: '⭐', check: '✅', white_check_mark: '✅', x: '❌', warning: '⚠️', bulb: '💡', memo: '📝', book: '📖', calendar: '📅', clock: '🕒', rocket: '🚀', eyes: '👀', thinking: '🤔', pray: '🙏', clap: '👏', muscle: '💪', coffee: '☕', zap: '⚡', bug: '🐛', lock: '🔒', pushpin: '📌', question: '❓', sparkles: '✨' };
 let MD_REFS = {}, MD_FN = null, MD_WIKI = null; // per-render state: link definitions, footnotes; MD_WIKI(title) -> { id, title } | null is set by the notes page
 const MD_ITEM = /^(\s*)([-*+]|\d{1,9}[.)])\s+(.*)$/;
@@ -50,6 +50,8 @@ function mdInline(src, noLinks) {
   // images: ![alt](https://… "title"); in a title or chip they collapse to their alt text
   t = t.replace(/!\[([^\]\n]*)\]\(\s*([^)\s]+)(?:\s+&quot;[^)]*?&quot;)?\s*\)/g, (m, alt, url) => {
     if (!MD_IMG.test(url.replace(/&amp;/g, '&'))) return m;
+    const of = url.match(/^ot-file:([\w-]+)$/); // an attached picture: filled in from this device's file store
+    if (of) return noLinks ? hold(alt) : hold(`<img class="fimg" data-file="${of[1]}" alt="${alt}" loading="lazy">`);
     return noLinks ? hold(alt) : hold(`<img src="${url}" alt="${alt}" loading="lazy" decoding="async" referrerpolicy="no-referrer">`);
   });
   // [[Note title]] and [[Note title|shown text]]: links between notes
@@ -64,6 +66,8 @@ function mdInline(src, noLinks) {
     return hold(`<sup class="fnr">${n}</sup>`);
   });
   t = t.replace(/\[([^\]\n]*)\]\(\s*([^)\s]+)(?:\s+&quot;[^)]*?&quot;)?\s*\)/g, (m, txt, url) => {
+    const of = url.match(/^ot-file:([\w-]+)$/); // an attached file: opens in the viewer
+    if (of) return noLinks ? hold(fmt(txt || 'file')) : hold(`<a class="fl" data-file="${of[1]}" role="button" tabindex="0">${fmt(txt || 'file')}</a>`);
     if (!MD_URL.test(url.replace(/&amp;/g, '&'))) return m;
     return noLinks ? hold(fmt(txt || url)) : hold(MD_LINK(url, fmt(txt || url)));
   });

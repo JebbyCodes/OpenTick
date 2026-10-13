@@ -150,7 +150,7 @@ function migrate(r) {
   r.lists = r.lists || [];
   if (!r.lists.some(l => l.id === 'inbox')) r.lists.unshift({ id: 'inbox', name: 'Inbox', color: '#4772fa', sections: [] });
   r.lists.forEach(l => { l.sections = l.sections || []; });
-  r.tasks.forEach(t => { t.tags = t.tags || []; t.subtasks = t.subtasks || []; t.notes = t.notes || ''; t.status = t.status || 'open'; });
+  r.tasks.forEach(t => { t.tags = t.tags || []; t.subtasks = t.subtasks || []; t.notes = t.notes || ''; t.status = t.status || 'open'; if (t.links && !Array.isArray(t.links)) t.links = []; });
   r.habits = r.habits || []; r.pomo = r.pomo || []; r.fired = r.fired || {}; r.tomb = r.tomb || {};
   r.tags = r.tags || []; r.slots = r.slots || []; r.notes = Array.isArray(r.notes) ? r.notes : [];
   r.notes.forEach(n => { n.title = n.title || ''; n.body = n.body || ''; n.tags = n.tags || []; n.created = n.created || Date.now(); n.updated = n.updated || n.created; });
@@ -158,11 +158,15 @@ function migrate(r) {
   r.settings = { theme: DEFAULT_THEME, sort: 'manual', group: 'none', weekStart: localWeekStart(), ...(r.settings || {}) };
   // 'auto' used to be the default; the default is now Gruvbox Dark (an explicit light/dark choice is kept)
   if (r.settings.themeV !== 2) { if (r.settings.theme === 'auto') r.settings.theme = DEFAULT_THEME; r.settings.themeV = 2; }
-  if (!THEMES.some(t => t[0] === r.settings.theme)) r.settings.theme = DEFAULT_THEME;
+  r.settings.customThemes = Array.isArray(r.settings.customThemes) ? r.settings.customThemes.filter(c => c && c.id && typeof c.css === 'string') : [];
+  if (!THEMES.some(t => t[0] === r.settings.theme) && !r.settings.customThemes.some(c => c.id === r.settings.theme)) r.settings.theme = DEFAULT_THEME;
   r.settings.gantt = { scale: 'week', mode: 'both', zoom: 1, nameW: 290, cols: ['plan', 'actual'], hatch: true, progress: true, tray: true, trayW: 220, lanes: true, ...(r.settings.gantt || {}) };
   // layout is per device: panel widths, which panels are hidden, folded sidebar sections, sidebar views
   r.settings.ui = { sideW: 300, detailW: 380, side: true, detail: true, trayW: 236, tray: true, fold: {}, hidePages: [], pageOrder: [], ...(r.settings.ui || {}) };
-  r.settings.tt = { from: 7, to: 21, view: 'week', weekends: true, ...(r.settings.tt || {}) };
+  r.settings.tt = { from: 0, to: 24, view: 'week', weekends: true, ...(r.settings.tt || {}) };
+  // the grid used to default to 07:00–21:00; the whole day is now shown unless the range was chosen deliberately after that change
+  if (r.settings.tt.v !== 2) { if (r.settings.tt.from === 7 && r.settings.tt.to === 21) { r.settings.tt.from = 0; r.settings.tt.to = 24; } r.settings.tt.v = 2; }
+  r.projects = Array.isArray(r.projects) ? r.projects : []; // projects link lists (and, with them, their sublists) together
   r.history = Array.isArray(r.history) ? r.history : []; // this device's log of changes (never synced)
   r.settings.cal = { view: 'month', ...(r.settings.cal || {}) };
   r.settings.clock = { on: true, h24: false, sec: false, ...(r.settings.clock || {}) };
@@ -206,9 +210,12 @@ function load() {
    Every record (task, list, habit) carries `u`, the time it last changed. Instead of touching every mutation site,
    save() compares each record with a snapshot (SEEN) and stamps the ones that differ. Records that disappeared get a
    tombstone in S.tomb so a deletion can be told apart from "this device has never seen it". */
-const COLL = ['tasks', 'lists', 'habits', 'tags', 'slots', 'notes'];
-const SEEN = { tasks: new Map(), lists: new Map(), habits: new Map(), tags: new Map(), slots: new Map(), notes: new Map() };
+const COLL = ['tasks', 'lists', 'habits', 'tags', 'slots', 'notes', 'projects'];
+const SEEN = { tasks: new Map(), lists: new Map(), habits: new Map(), tags: new Map(), slots: new Map(), notes: new Map(), projects: new Map() };
 const hashOf = o => JSON.stringify(o, (k, v) => (k === 'u' ? undefined : v));
+// "edited just now" markers: which records this device changed in the last couple of minutes (never synced, never saved)
+const EDITED = new Map(), EDIT_SHOW = 120000;
+const editedCls = id => (EDITED.has(id) && Date.now() - EDITED.get(id) < EDIT_SHOW ? ' edited' : '');
 function initSeen() { for (const c of COLL) { SEEN[c].clear(); for (const o of S[c]) SEEN[c].set(o.id, hashOf(o)); } }
 function stamp() {
   const now = Date.now(); let changed = false; const seen = [];
@@ -217,7 +224,7 @@ function stamp() {
     for (const o of S[c]) {
       live.add(o.id);
       const h = hashOf(o), prev = SEEN[c].get(o.id);
-      if (prev !== h) { o.u = Math.max(now, (o.u || 0) + 1); SEEN[c].set(o.id, h); changed = true; seen.push([c, prev, o]); }
+      if (prev !== h) { o.u = Math.max(now, (o.u || 0) + 1); SEEN[c].set(o.id, h); changed = true; seen.push([c, prev, o]); if (prev && c !== 'habits') EDITED.set(o.id, now); }
     }
     for (const id of [...SEEN[c].keys()]) if (!live.has(id)) { seen.push([c, SEEN[c].get(id), null]); SEEN[c].delete(id); S.tomb[id] = Math.max(now, (S.tomb[id] || 0) + 1); changed = true; }
   }
@@ -230,11 +237,11 @@ function stamp() {
    built from those differences (nothing has to be remembered at each call site). Changes that arrive through sync are
    not logged. Quick successive edits of one record (typing a title) are folded into one entry. */
 const HIST_MAX = 2000, HIST_MERGE = 90000;
-const HIST_KIND = { tasks: 'task', lists: 'list', habits: 'habit', notes: 'note', slots: 'slot' };
+const HIST_KIND = { tasks: 'task', lists: 'list', habits: 'habit', notes: 'note', slots: 'slot', projects: 'project' };
 const HIST_ACT = { add: 'Added', edit: 'Edited', done: 'Completed', reopen: 'Reopened', wontdo: "Won't do", delete: 'Deleted', restore: 'Restored', purge: 'Deleted forever', import: 'Imported' };
 const HIST_IGN = new Set(['u', 'id', 'order', 'updated', 'created', 'doneAt', 'logU', 'deleted', 'log', 'pinned']);
 const HIST_FLAG = new Set(['notes', 'body', 'subtasks', 'log']); // changes shown as "edited", without values
-const histName = (k, o) => String((k === 'task' ? o.title : k === 'list' || k === 'habit' ? o.name : k === 'note' ? noteTitle(o) : o.title) || '').trim().slice(0, 90) || 'Untitled';
+const histName = (k, o) => String((k === 'task' ? o.title : k === 'list' || k === 'habit' || k === 'project' ? o.name : k === 'note' ? noteTitle(o) : o.title) || '').trim().slice(0, 90) || 'Untitled';
 function histChange(k, o, n) {
   if (k === 'task') {
     if (!o.deleted && n.deleted) return { a: 'delete' };
@@ -298,15 +305,16 @@ function flush() {
   clearTimeout(saveTimer);
   const changed = stamp();
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('Could not save — storage is full'); }
-  if (changed) { hooks.change(); if (typeof ogSchedule === 'function') ogSchedule(); }
+  if (changed) { hooks.change(); if (typeof ogSchedule === 'function') ogSchedule(); if (typeof dockSaved === 'function') dockSaved(); if (typeof editedPaint === 'function') editedPaint(); }
+  else if (typeof dockSaved === 'function') dockSaved(true);
 }
-function save() { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 120); }
+function save() { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 120); if (typeof savePending === 'function') savePending(); }
 
 /* ---------- merge (pure): last-writer-wins per record, deletions via tombstones ---------- */
 const TOMB_TTL = 180 * 864e5;
 const canon = o => JSON.stringify(Object.keys(o || {}).sort().map(k => [k, o[k]]));
 const cyrb53 = s => { let a = 0xdeadbeef, b = 0x41c6ce57; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 2654435761); b = Math.imul(b ^ c, 1597334677); } a = Math.imul(a ^ (a >>> 16), 2246822507) ^ Math.imul(b ^ (b >>> 13), 3266489909); b = Math.imul(b ^ (b >>> 16), 2246822507) ^ Math.imul(a ^ (a >>> 13), 3266489909); return (4294967296 * (2097151 & b) + (a >>> 0)).toString(36); };
-const snapshot = () => ({ tasks: S.tasks, lists: S.lists, habits: S.habits, tags: S.tags, slots: S.slots, notes: S.notes, pomo: S.pomo, tomb: S.tomb });
+const snapshot = () => ({ tasks: S.tasks, lists: S.lists, habits: S.habits, tags: S.tags, slots: S.slots, notes: S.notes, projects: S.projects, pomo: S.pomo, tomb: S.tomb });
 function fingerprint(d) {
   const p = [];
   for (const c of COLL) for (const o of (d[c] || [])) p.push(c[0] + o.id + ':' + (o.u || 0));
@@ -355,7 +363,7 @@ function mergeData(L, R) {
   return out;
 }
 function applyMerged(m) {
-  S.tasks = m.tasks; S.lists = m.lists; S.habits = m.habits; S.tags = m.tags; S.slots = m.slots; S.notes = m.notes; S.pomo = m.pomo; S.tomb = m.tomb;
+  S.tasks = m.tasks; S.lists = m.lists; S.habits = m.habits; S.tags = m.tags; S.slots = m.slots; S.notes = m.notes; S.projects = m.projects; S.pomo = m.pomo; S.tomb = m.tomb;
   migrate(S); initSeen();
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* keep going: memory copy is still right */ }
 }
@@ -392,6 +400,27 @@ const slotById = id => S.slots.find(x => x.id === id);
 function nextSlotDate(s, from = new Date()) { for (let i = 0; i < 7; i++) { const d = addDays(from, i); if ((s.days || []).includes(d.getDay())) return d; } return from; }
 const fmtDur = m => (m % 60 === 0 ? `${m / 60}h` : m > 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`);
 const listOf = id => S.lists.find(l => l.id === id) || S.lists[0];
+/* ---------- sublists and projects ----------
+   A list may sit inside another (list.parent) to any depth; a list's view includes its sublists. A project links any
+   number of lists (and so their sublists) so they can be looked at together. A missing or cyclic parent is treated as top level. */
+function listTree() {
+  const ids = new Set(S.lists.map(l => l.id)), by = new Map(), out = [], seen = new Set();
+  for (const l of S.lists) { if (l.id === 'inbox') continue; const p = l.parent && ids.has(l.parent) && l.parent !== l.id && l.parent !== 'inbox' ? l.parent : ''; if (!by.has(p)) by.set(p, []); by.get(p).push(l); }
+  const walk = (p, d) => { for (const l of by.get(p) || []) { if (seen.has(l.id)) continue; seen.add(l.id); out.push({ l, depth: d, kids: (by.get(l.id) || []).length }); walk(l.id, d + 1); } };
+  walk('', 0);
+  for (const l of S.lists) if (l.id !== 'inbox' && !seen.has(l.id)) { seen.add(l.id); out.push({ l, depth: 0, kids: 0 }); } // only reachable through a cycle
+  return out;
+}
+function listDescendants(id) {
+  const out = [], seen = new Set([id]); let frontier = [id];
+  while (frontier.length) { const next = []; for (const l of S.lists) if (l.parent && frontier.includes(l.parent) && !seen.has(l.id)) { seen.add(l.id); out.push(l.id); next.push(l.id); } frontier = next; }
+  return out;
+}
+function listPath(id) { const out = [], seen = new Set(); let l = S.lists.find(x => x.id === id); while (l && !seen.has(l.id)) { seen.add(l.id); out.unshift(l.name); l = l.parent ? S.lists.find(x => x.id === l.parent) : null; } return out; }
+const listLabel = id => listPath(id).join(' › ');
+const listIds = id => [id, ...listDescendants(id)];
+const projectOf = id => S.projects.find(p => p.id === id);
+const projectListIds = p => [...new Set((p.listIds || []).filter(id => S.lists.some(l => l.id === id)).flatMap(listIds))];
 function newTask(o = {}) {
   const top = Math.min(0, ...S.tasks.map(x => x.order || 0)) - 1000;
   return { id: uid(), title: '', notes: '', listId: 'inbox', due: null, time: null, priority: 0, tags: [], subtasks: [], repeat: null, reminder: null, status: 'open', section: null, created: Date.now(), order: top, ...o };
@@ -399,8 +428,11 @@ function newTask(o = {}) {
 function toggleDone(t) {
   if (t.status === 'open') {
     if (t.repeat && t.due) {
-      S.tasks.push({ ...t, id: uid(), status: 'done', doneAt: Date.now(), log: 1, repeat: null, reminder: null, subtasks: t.subtasks.map(s => ({ ...s })), tags: [...t.tags] });
+      // the finished occurrence is kept as a record with its own copy of the notes, links and files; the live task carries
+      // all of them into the next occurrence (ticked checklist items in its notes start again, like subtasks)
+      S.tasks.push({ ...t, id: uid(), status: 'done', doneAt: Date.now(), log: 1, repeat: null, reminder: null, subtasks: t.subtasks.map(s => ({ ...s })), tags: [...t.tags], links: [...(t.links || [])], files: (t.files || []).map(f => ({ ...f })) });
       t.due = nextDue(t); t.subtasks.forEach(s => { s.done = false; });
+      if (t.notes) t.notes = t.notes.replace(/^(\s*(?:[-*+]|\d{1,9}[.)])\s+\[)[xX](\])/gm, '$1 $2');
       toast('Done — next: ' + dueLabel(t)); sfx('done');
     } else { t.status = 'done'; t.doneAt = Date.now(); sfx('done'); }
   } else { t.status = 'open'; delete t.doneAt; sfx('undo'); }
@@ -409,7 +441,25 @@ function toggleDone(t) {
 
 /* ---------- standalone notes ---------- */
 const noteById = id => S.notes.find(n => n.id === id);
-const noteTitle = n => (n.title && n.title.trim()) || (String(n.body || '').split('\n').map(l => l.replace(/^[#>\-*\s]+/, '').trim()).find(Boolean) || 'Untitled note').slice(0, 80);
+// A note's title as it is written (markdown and all): the title field, else the first line of the text without its block marker.
+// Only the marker is removed (#, >, -, 1., [ ]), so **bold** or `code` at the start of a line survives and can be rendered.
+const NOTE_MARK = /^(?:#{1,6}\s+|>\s*|[-*+]\s+(?:\[[ xX]\]\s+)?|\d{1,9}[.)]\s+|\[[ xX]\]\s+)+/;
+const noteTitleSrc = n => (n.title && n.title.trim()) || (String(n.body || '').split('\n').map(l => l.trim().replace(NOTE_MARK, '').replace(/\s+#+\s*$/, '').trim()).find(Boolean) || 'Untitled note');
+// The same title as plain text (for menus, history, wiki links): the markup is rendered and then the tags are dropped.
+const mdPlain = s => String(mdInline(String(s || ''), true)).replace(/<[^>]*>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+const noteTitle = n => mdPlain(noteTitleSrc(n)).trim().slice(0, 80) || 'Untitled note';
+const noteTitleHtml = n => mdInline(noteTitleSrc(n), true) || esc(noteTitle(n));
 function newNote(o = {}) { const now = Date.now(); return { id: uid(), title: '', body: '', tags: [], pinned: false, created: now, updated: now, ...o }; }
-const noteByTitle = name => { const k = String(name || '').trim().toLowerCase(); return k ? S.notes.find(n => noteTitle(n).toLowerCase() === k) || null : null; };
+const noteByTitle = name => { const k = String(name || '').trim().toLowerCase(); return k ? S.notes.find(n => noteTitle(n).toLowerCase() === k || noteTitleSrc(n).toLowerCase() === k) || null : null; };
 const wordCount = txt => (String(txt || '').match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu) || []).length;
+
+/* ---------- links between tasks and notes ----------
+   A task keeps the ids of the notes it is linked to (task.links). The other direction is worked out, never stored, so a link
+   is one fact in one record: it syncs with the task, and cannot disagree with itself. A deleted note simply drops out. */
+const linkedNotes = t => (t.links || []).map(id => noteById(id)).filter(Boolean);
+const linkedTasks = n => S.tasks.filter(t => !t.deleted && !t.log && (t.links || []).includes(n.id));
+function setLink(t, noteId, on) {
+  const cur = t.links || [], has = cur.includes(noteId);
+  if (on && !has) t.links = [...cur, noteId]; else if (!on && has) t.links = cur.filter(x => x !== noteId);
+  save();
+}
