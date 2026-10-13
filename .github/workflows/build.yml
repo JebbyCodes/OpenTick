@@ -11,7 +11,7 @@ on:
         type: boolean
         default: true
       build_android:
-        description: Build an Android APK
+        description: Build a signed Android APK
         required: true
         type: boolean
         default: true
@@ -91,6 +91,8 @@ jobs:
       - name: Validate application icon
         shell: bash
         run: |
+          set -euo pipefail
+
           if [ ! -f src-tauri/icons/icon.png ]; then
             echo "::error::Missing src-tauri/icons/icon.png."
             exit 1
@@ -108,7 +110,7 @@ jobs:
           retention-days: 14
 
   android:
-    name: Android APK
+    name: Android Signed APK
     if: github.event_name == 'push' || inputs.build_android
     runs-on: ubuntu-22.04
 
@@ -182,7 +184,6 @@ jobs:
           fi
 
           echo "NDK_HOME=$NDK_PATH" >> "$GITHUB_ENV"
-          echo "NDK_HOME=$NDK_PATH"
 
       - name: Set up Rust for Android
         uses: dtolnay/rust-toolchain@stable
@@ -197,6 +198,8 @@ jobs:
       - name: Validate application icon
         shell: bash
         run: |
+          set -euo pipefail
+
           if [ ! -f src-tauri/icons/icon.png ]; then
             echo "::error::Missing src-tauri/icons/icon.png."
             exit 1
@@ -216,13 +219,177 @@ jobs:
             exit 1
           fi
 
+          if [ ! -f src-tauri/gen/android/app/build.gradle.kts ]; then
+            echo "::error::Expected app/build.gradle.kts was not generated."
+            exit 1
+          fi
+
           chmod +x src-tauri/gen/android/gradlew
+
+      # Decode the private key and configure signing only on the runner.
+      # No keystore or password is committed to the repository.
+      - name: Configure Android release signing
+        shell: bash
+        env:
+          ANDROID_KEY_BASE64: ${{ secrets.ANDROID_KEY_BASE64 }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+
+          : "${ANDROID_KEY_BASE64:?Missing ANDROID_KEY_BASE64 secret}"
+          : "${ANDROID_KEY_PASSWORD:?Missing ANDROID_KEY_PASSWORD secret}"
+          : "${ANDROID_KEY_ALIAS:?Missing ANDROID_KEY_ALIAS secret}"
+
+          ANDROID_DIR="src-tauri/gen/android"
+          KEYSTORE_PATH="$RUNNER_TEMP/opentick-release.jks"
+
+          printf '%s' "$ANDROID_KEY_BASE64" |
+            base64 --decode > "$KEYSTORE_PATH"
+
+          chmod 600 "$KEYSTORE_PATH"
+
+          # Check the keystore and alias before changing Gradle configuration.
+          keytool -list \
+            -keystore "$KEYSTORE_PATH" \
+            -storepass "$ANDROID_KEY_PASSWORD" \
+            -alias "$ANDROID_KEY_ALIAS" >/dev/null
+
+          # Write a runner-only properties file.
+          # The key password is assumed to equal the keystore password.
+          {
+            printf 'storePassword=%s\n' "$ANDROID_KEY_PASSWORD"
+            printf 'keyPassword=%s\n' "$ANDROID_KEY_PASSWORD"
+            printf 'keyAlias=%s\n' "$ANDROID_KEY_ALIAS"
+            printf 'storeFile=%s\n' "$KEYSTORE_PATH"
+          } > "$ANDROID_DIR/keystore.properties"
+
+          chmod 600 "$ANDROID_DIR/keystore.properties"
+
+          # Configure the generated Kotlin Gradle build file.
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path("src-tauri/gen/android/app/build.gradle.kts")
+          text = path.read_text(encoding="utf-8")
+
+          # Ensure the imports required for reading signing properties exist.
+          if "import java.util.Properties" not in text:
+              text = "import java.util.Properties\n" + text
+
+          if "import java.io.FileInputStream" not in text:
+              text = "import java.io.FileInputStream\n" + text
+
+          # Add the release signing configuration if it is not already present.
+          if 'create("release")' not in text:
+              match = re.search(r'(?m)^(\s*)buildTypes\s*\{', text)
+
+              if not match:
+                  raise SystemExit(
+                      "Could not find the Gradle buildTypes block; "
+                      "refusing to modify the generated file."
+                  )
+
+              indent = match.group(1)
+
+              block = (
+                  f'{indent}signingConfigs {{\n'
+                  f'{indent}    create("release") {{\n'
+                  f'{indent}        val propsFile = rootProject.file("keystore.properties")\n'
+                  f'{indent}        val props = Properties()\n'
+                  f'{indent}        props.load(FileInputStream(propsFile))\n'
+                  f'{indent}        storeFile = file(props["storeFile"] as String)\n'
+                  f'{indent}        storePassword = props["storePassword"] as String\n'
+                  f'{indent}        keyAlias = props["keyAlias"] as String\n'
+                  f'{indent}        keyPassword = props["keyPassword"] as String\n'
+                  f'{indent}    }\n'
+                  f'{indent}}}\n\n'
+              )
+
+              text = text[:match.start()] + block + text[match.start():]
+
+          # Find the release build type.
+          match = re.search(
+              r'(?m)^(\s*)getByName\("release"\)\s*\{',
+              text
+          )
+
+          if not match:
+              raise SystemExit(
+                  'Could not find getByName("release") in build.gradle.kts; '
+                  "refusing to guess where signing should be configured."
+              )
+
+          # Locate the end of the release block.
+          start = match.end()
+          depth = 1
+          i = start
+
+          while i < len(text) and depth:
+              if text[i] == "{":
+                  depth += 1
+              elif text[i] == "}":
+                  depth -= 1
+              i += 1
+
+          if depth:
+              raise SystemExit("Could not locate the end of the release block.")
+
+          release_block = text[match.start():i]
+
+          # Avoid adding the signing assignment twice.
+          if "signingConfig = signingConfigs.getByName" not in release_block:
+              indent = match.group(1) + "    "
+
+              assignment = (
+                  "\n"
+                  + indent
+                  + 'signingConfig = signingConfigs.getByName("release")'
+              )
+
+              text = text[:start] + assignment + text[start:]
+
+          path.write_text(text, encoding="utf-8")
+          print("Configured Android release signing.")
+          PY
 
       - name: Generate platform icons
         run: npx tauri icon src-tauri/icons/icon.png
 
       - name: Build Android APK
         run: npx tauri android build --apk
+
+      # Fail the job rather than upload an unsigned or invalid APK.
+      - name: Verify APK signatures
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -d '' apks < <(
+            find src-tauri/gen/android/app/build/outputs/apk \
+              -type f -name '*.apk' -print0
+          )
+
+          if [ "${#apks[@]}" -eq 0 ]; then
+            echo "::error::No APK files were generated."
+            exit 1
+          fi
+
+          APKSIGNER="$ANDROID_HOME/build-tools/$ANDROID_BUILD_TOOLS_VERSION/apksigner"
+
+          if [ ! -x "$APKSIGNER" ]; then
+            echo "::error::apksigner not found at $APKSIGNER"
+            exit 1
+          fi
+
+          for apk in "${apks[@]}"; do
+            echo "Verifying APK: $apk"
+
+            "$APKSIGNER" verify --verbose --print-certs "$apk"
+
+            echo "APK signature verified: $apk"
+          done
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v7
@@ -300,7 +467,7 @@ jobs:
           find release-files -maxdepth 1 -type f -printf '%f\n' | sort
           echo "Total files: ${#packages[@]}"
 
-      # Generate signed SLSA build-provenance attestations for all installers.
+      # Generate signed SLSA build-provenance attestations for installers.
       - name: Generate release artifact attestations
         uses: actions/attest@v4
         with:
