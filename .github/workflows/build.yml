@@ -1,4 +1,3 @@
-
 name: Build OpenTick
 
 on:
@@ -24,6 +23,12 @@ on:
 permissions:
   contents: read
 
+# A newer manual run replaces an older one on the same ref.
+# Tag builds are never cancelled, so a release cannot be half-built.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
 env:
   NODE_VERSION: '22'
   ANDROID_API: '35'
@@ -31,10 +36,56 @@ env:
   ANDROID_NDK_VERSION: '27.0.12077973'
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # Cheap gate: versions agree, tag matches the app version, tests pass.
+  # ---------------------------------------------------------------------------
+  checks:
+    name: Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Check all manifests share one version
+        run: npm run bump -- --check
+
+      - name: Check the tag matches the app version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          APP_VERSION="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+
+          if [ "$TAG_VERSION" != "$APP_VERSION" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match the app version ${APP_VERSION}. Run 'npm run bump -- ${TAG_VERSION}', commit, and re-tag."
+            exit 1
+          fi
+
+      - name: Run tests
+        run: npm test
+
+  # ---------------------------------------------------------------------------
+  # Desktop installers
+  # ---------------------------------------------------------------------------
   desktop:
     name: Desktop (${{ matrix.platform }})
+    needs: checks
     if: github.event_name == 'push' || inputs.build_desktop
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
 
     strategy:
       fail-fast: false
@@ -42,10 +93,17 @@ jobs:
         include:
           - platform: Windows
             os: windows-latest
+            rust_targets: ''
+            tauri_args: ''
           - platform: Linux
             os: ubuntu-22.04
+            rust_targets: ''
+            tauri_args: ''
+          # One universal build runs on both Apple Silicon and Intel Macs.
           - platform: macOS
             os: macos-latest
+            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
+            tauri_args: --target universal-apple-darwin
 
     steps:
       - name: Check out source
@@ -82,37 +140,54 @@ jobs:
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
 
       - name: Cache Rust build
         uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
 
-      - name: Validate application icon
+      - name: Validate application icons
         shell: bash
         run: |
           set -euo pipefail
 
-          if [ ! -f src-tauri/icons/icon.png ]; then
-            echo "::error::Missing src-tauri/icons/icon.png."
-            exit 1
-          fi
+          for icon in icon.png icon.ico icon.icns 32x32.png 128x128.png "128x128@2x.png"; do
+            if [ ! -f "src-tauri/icons/$icon" ]; then
+              echo "::error::Missing src-tauri/icons/$icon (run 'npx tauri icon src-tauri/icons/icon.png' and commit the result)."
+              exit 1
+            fi
+          done
 
       - name: Build desktop packages
-        run: npx tauri build
+        run: npx tauri build ${{ matrix.tauri_args }}
 
-      - name: Upload desktop build output
+      # Upload installers only, not bundle internals such as .app folders,
+      # copyright files and shared libraries.
+      - name: Upload desktop installers
         uses: actions/upload-artifact@v7
         with:
           name: OpenTick-${{ matrix.platform }}
-          path: src-tauri/target/release/bundle/**
+          path: |
+            src-tauri/target/**/release/bundle/**/*.exe
+            src-tauri/target/**/release/bundle/**/*.msi
+            src-tauri/target/**/release/bundle/**/*.deb
+            src-tauri/target/**/release/bundle/**/*.rpm
+            src-tauri/target/**/release/bundle/**/*.AppImage
+            src-tauri/target/**/release/bundle/**/*.dmg
           if-no-files-found: error
           retention-days: 14
 
+  # ---------------------------------------------------------------------------
+  # Signed Android APK
+  # ---------------------------------------------------------------------------
   android:
     name: Android Signed APK
+    needs: checks
     if: github.event_name == 'push' || inputs.build_android
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     steps:
       - name: Check out source
@@ -195,7 +270,7 @@ jobs:
         with:
           workspaces: src-tauri -> target
 
-      - name: Validate application icon
+      - name: Validate application icons
         shell: bash
         run: |
           set -euo pipefail
@@ -205,13 +280,18 @@ jobs:
             exit 1
           fi
 
+          if [ ! -d src-tauri/icons/android ]; then
+            echo "::error::Missing src-tauri/icons/android (run 'npx tauri icon src-tauri/icons/icon.png' and commit the result)."
+            exit 1
+          fi
+
       - name: Initialise Tauri Android project if needed
         shell: bash
         run: |
           set -euo pipefail
 
           if [ ! -d src-tauri/gen/android ]; then
-            npx tauri android init
+            npx tauri android init --ci
           fi
 
           if [ ! -f src-tauri/gen/android/gradlew ]; then
@@ -219,186 +299,237 @@ jobs:
             exit 1
           fi
 
-          if [ ! -f src-tauri/gen/android/app/build.gradle.kts ]; then
-            echo "::error::Expected app/build.gradle.kts was not generated."
-            exit 1
-          fi
-
           chmod +x src-tauri/gen/android/gradlew
 
-      # Decode the private key and configure signing only on the runner.
-      # No keystore or password is committed to the repository.
-      - name: Configure Android release signing
+      # The generated project may target a newer compileSdk than ANDROID_API.
+      # Install it up front instead of relying on Gradle to auto-download it.
+      - name: Install the platform the generated project compiles against
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          GRADLE_FILE="src-tauri/gen/android/app/build.gradle.kts"
+          COMPILE_SDK="$(grep -oP 'compileSdk(Version)?\s*=\s*\K[0-9]+' "$GRADLE_FILE" | head -n1 || true)"
+
+          if [ -z "$COMPILE_SDK" ]; then
+            echo "Could not detect compileSdk; using android-${ANDROID_API}."
+            exit 0
+          fi
+
+          echo "Generated project compiles against android-${COMPILE_SDK}."
+
+          if [ "$COMPILE_SDK" != "$ANDROID_API" ]; then
+            sdkmanager --sdk_root="$ANDROID_HOME" --install "platforms;android-${COMPILE_SDK}"
+          fi
+
+      # Signing is injected through a Gradle init script instead of editing the
+      # generated build.gradle.kts, so it cannot break when the Tauri template
+      # changes. Passwords reach Gradle through environment variables, never a
+      # .properties file, because that format mangles backslashes, '#' and ':'.
+      # Nothing sensitive is committed; the keystore lives in RUNNER_TEMP only.
+      - name: Prepare Android release signing
         shell: bash
         env:
           ANDROID_KEY_BASE64: ${{ secrets.ANDROID_KEY_BASE64 }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          # Password of the key itself.
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          # Password of the keystore file. Optional: defaults to the key password.
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
 
           : "${ANDROID_KEY_BASE64:?Missing ANDROID_KEY_BASE64 secret}"
-          : "${ANDROID_KEY_PASSWORD:?Missing ANDROID_KEY_PASSWORD secret}"
           : "${ANDROID_KEY_ALIAS:?Missing ANDROID_KEY_ALIAS secret}"
+          : "${ANDROID_KEY_PASSWORD:?Missing ANDROID_KEY_PASSWORD secret}"
 
-          ANDROID_DIR="src-tauri/gen/android"
           KEYSTORE_PATH="$RUNNER_TEMP/opentick-release.jks"
 
-          printf '%s' "$ANDROID_KEY_BASE64" |
-            base64 --decode > "$KEYSTORE_PATH"
-
+          # Strip any whitespace or line breaks that crept into the secret.
+          printf '%s' "$ANDROID_KEY_BASE64" | tr -d '[:space:]' | base64 --decode > "$KEYSTORE_PATH"
           chmod 600 "$KEYSTORE_PATH"
 
-          # Check the keystore and alias before changing Gradle configuration.
-          keytool -list \
-            -keystore "$KEYSTORE_PATH" \
-            -storepass "$ANDROID_KEY_PASSWORD" \
-            -alias "$ANDROID_KEY_ALIAS" >/dev/null
+          if [ ! -s "$KEYSTORE_PATH" ]; then
+            echo "::error::ANDROID_KEY_BASE64 decoded to an empty file. Re-create it with: base64 -w0 release.jks"
+            exit 1
+          fi
 
-          # Write a runner-only properties file.
-          # The key password is assumed to equal the keystore password.
-          {
-            printf 'storePassword=%s\n' "$ANDROID_KEY_PASSWORD"
-            printf 'keyPassword=%s\n' "$ANDROID_KEY_PASSWORD"
-            printf 'keyAlias=%s\n' "$ANDROID_KEY_ALIAS"
-            printf 'storeFile=%s\n' "$KEYSTORE_PATH"
-          } > "$ANDROID_DIR/keystore.properties"
+          # 1. Can the keystore be opened with the store password?
+          if ! keytool -list -keystore "$KEYSTORE_PATH" \
+                 -storepass:env ANDROID_KEYSTORE_PASSWORD > "$RUNNER_TEMP/keystore-list.txt" 2>&1; then
+            cat "$RUNNER_TEMP/keystore-list.txt"
+            echo "::error::Could not open the keystore. Either ANDROID_KEY_BASE64 is not a base64-encoded keystore file, or the keystore password is wrong. If the keystore and key passwords differ, set the ANDROID_KEYSTORE_PASSWORD secret."
+            exit 1
+          fi
 
-          chmod 600 "$ANDROID_DIR/keystore.properties"
+          # 2. Does the alias exist?
+          if ! keytool -list -keystore "$KEYSTORE_PATH" \
+                 -storepass:env ANDROID_KEYSTORE_PASSWORD \
+                 -alias "$ANDROID_KEY_ALIAS" >/dev/null 2>&1; then
+            echo "Aliases in this keystore:"
+            grep -E 'PrivateKeyEntry|trustedCertEntry' "$RUNNER_TEMP/keystore-list.txt" | cut -d, -f1 || true
+            echo "::error::Alias '$ANDROID_KEY_ALIAS' was not found in the keystore. Fix the ANDROID_KEY_ALIAS secret."
+            exit 1
+          fi
 
-          # Configure the generated Kotlin Gradle build file.
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
+          # 3. Does the key password unlock the key? Copying the key into a
+          #    scratch keystore needs it, and Gradle fails the same way if it is wrong.
+          rm -f "$RUNNER_TEMP/keycheck.p12"
+          if ! keytool -importkeystore -noprompt \
+                 -srckeystore "$KEYSTORE_PATH" \
+                 -srcstorepass:env ANDROID_KEYSTORE_PASSWORD \
+                 -srcalias "$ANDROID_KEY_ALIAS" \
+                 -srckeypass:env ANDROID_KEY_PASSWORD \
+                 -destkeystore "$RUNNER_TEMP/keycheck.p12" \
+                 -deststoretype PKCS12 \
+                 -deststorepass:env ANDROID_KEYSTORE_PASSWORD > "$RUNNER_TEMP/keycheck.txt" 2>&1; then
+            cat "$RUNNER_TEMP/keycheck.txt"
+            echo "::error::The key password does not unlock alias '$ANDROID_KEY_ALIAS'. Fix the ANDROID_KEY_PASSWORD secret."
+            exit 1
+          fi
+          rm -f "$RUNNER_TEMP/keycheck.p12"
 
-          path = Path("src-tauri/gen/android/app/build.gradle.kts")
-          text = path.read_text(encoding="utf-8")
+          # keytool ignores the key password for PKCS12 keystores, but Gradle does
+          # not: a PKCS12 key is always protected by the keystore password.
+          if grep -qi 'Keystore type: PKCS12' "$RUNNER_TEMP/keystore-list.txt" &&
+             [ "$ANDROID_KEY_PASSWORD" != "$ANDROID_KEYSTORE_PASSWORD" ]; then
+            echo "::error::This is a PKCS12 keystore, so the key password must equal the keystore password. Delete the ANDROID_KEYSTORE_PASSWORD secret and set ANDROID_KEY_PASSWORD to the keystore password."
+            exit 1
+          fi
 
-          # Ensure the imports required for reading signing properties exist.
-          if "import java.util.Properties" not in text:
-              text = "import java.util.Properties\n" + text
+          # Remember the certificate fingerprint to compare with the built APK later.
+          EXPECTED_SHA256="$(
+            keytool -list -v -keystore "$KEYSTORE_PATH" \
+              -storepass:env ANDROID_KEYSTORE_PASSWORD \
+              -alias "$ANDROID_KEY_ALIAS" 2>/dev/null |
+              sed -n 's/^[[:space:]]*SHA256:[[:space:]]*//p' |
+              head -n1 | tr -d ':[:space:]' | tr 'A-F' 'a-f'
+          )"
 
-          if "import java.io.FileInputStream" not in text:
-              text = "import java.io.FileInputStream\n" + text
+          echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+          echo "EXPECTED_CERT_SHA256=$EXPECTED_SHA256" >> "$GITHUB_ENV"
 
-          # Add the release signing configuration if it is not already present.
-          if 'create("release")' not in text:
-              match = re.search(r'(?m)^(\s*)buildTypes\s*\{', text)
+          # Gradle init script: applies to every build run with this Gradle user home.
+          INIT_DIR="${GRADLE_USER_HOME:-$HOME/.gradle}/init.d"
+          mkdir -p "$INIT_DIR"
 
-              if not match:
-                  raise SystemExit(
-                      "Could not find the Gradle buildTypes block; "
-                      "refusing to modify the generated file."
-                  )
+          cat > "$INIT_DIR/opentick-signing.gradle" <<'GRADLE'
+          // Written by CI. Signs the release build type of the Android app module.
+          allprojects {
+              pluginManager.withPlugin('com.android.application') {
+                  def android = project.extensions.getByName('android')
 
-              indent = match.group(1)
+                  android.signingConfigs {
+                      opentickRelease {
+                          storeFile = new File(System.getenv('ANDROID_KEYSTORE_PATH'))
+                          storePassword = System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                          keyAlias = System.getenv('ANDROID_KEY_ALIAS')
+                          keyPassword = System.getenv('ANDROID_KEY_PASSWORD')
+                      }
+                  }
 
-              block = (
-                  f'{indent}signingConfigs {{\n'
-                  f'{indent}    create("release") {{\n'
-                  f'{indent}        val propsFile = rootProject.file("keystore.properties")\n'
-                  f'{indent}        val props = Properties()\n'
-                  f'{indent}        props.load(FileInputStream(propsFile))\n'
-                  f'{indent}        storeFile = file(props["storeFile"] as String)\n'
-                  f'{indent}        storePassword = props["storePassword"] as String\n'
-                  f'{indent}        keyAlias = props["keyAlias"] as String\n'
-                  f'{indent}        keyPassword = props["keyPassword"] as String\n'
-                  f'{indent}    }\n'
-                  f'{indent}}}\n\n'
-              )
+                  android.buildTypes.getByName('release').signingConfig =
+                      android.signingConfigs.getByName('opentickRelease')
 
-              text = text[:match.start()] + block + text[match.start():]
+                  println "OpenTick CI: release signing enabled for ${project.path}"
+              }
+          }
+          GRADLE
 
-          # Find the release build type.
-          match = re.search(
-              r'(?m)^(\s*)getByName\("release"\)\s*\{',
-              text
-          )
-
-          if not match:
-              raise SystemExit(
-                  'Could not find getByName("release") in build.gradle.kts; '
-                  "refusing to guess where signing should be configured."
-              )
-
-          # Locate the end of the release block.
-          start = match.end()
-          depth = 1
-          i = start
-
-          while i < len(text) and depth:
-              if text[i] == "{":
-                  depth += 1
-              elif text[i] == "}":
-                  depth -= 1
-              i += 1
-
-          if depth:
-              raise SystemExit("Could not locate the end of the release block.")
-
-          release_block = text[match.start():i]
-
-          # Avoid adding the signing assignment twice.
-          if "signingConfig = signingConfigs.getByName" not in release_block:
-              indent = match.group(1) + "    "
-
-              assignment = (
-                  "\n"
-                  + indent
-                  + 'signingConfig = signingConfigs.getByName("release")'
-              )
-
-              text = text[:start] + assignment + text[start:]
-
-          path.write_text(text, encoding="utf-8")
-          print("Configured Android release signing.")
-          PY
-
-      - name: Generate platform icons
-        run: npx tauri icon src-tauri/icons/icon.png
+          echo "Signing prepared for alias '$ANDROID_KEY_ALIAS'."
 
       - name: Build Android APK
+        shell: bash
+        env:
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || secrets.ANDROID_KEY_PASSWORD }}
         run: npx tauri android build --apk
 
-      # Fail the job rather than upload an unsigned or invalid APK.
-      - name: Verify APK signatures
+      # Fail the job rather than upload an unsigned, debug-signed or wrong-key APK.
+      - name: Verify and collect signed APKs
         shell: bash
         run: |
           set -euo pipefail
 
-          mapfile -d '' apks < <(
-            find src-tauri/gen/android/app/build/outputs/apk \
-              -type f -name '*.apk' -print0
-          )
+          OUT_DIR="src-tauri/gen/android/app/build/outputs/apk"
 
-          if [ "${#apks[@]}" -eq 0 ]; then
-            echo "::error::No APK files were generated."
+          if find "$OUT_DIR" -type f -name '*-unsigned.apk' | grep -q .; then
+            echo "::error::An unsigned APK was produced, so Gradle did not apply the signing config. Check the 'OpenTick CI: release signing enabled' line in the build log."
+            find "$OUT_DIR" -type f -name '*.apk' -print
             exit 1
           fi
 
-          APKSIGNER="$ANDROID_HOME/build-tools/$ANDROID_BUILD_TOOLS_VERSION/apksigner"
+          mapfile -d '' apks < <(
+            find "$OUT_DIR" -type f -name '*.apk' -path '*/release/*' -print0
+          )
+
+          if [ "${#apks[@]}" -eq 0 ]; then
+            echo "::error::No release APK files were generated."
+            find "$OUT_DIR" -type f -print || true
+            exit 1
+          fi
+
+          # Use the newest installed build-tools rather than a hard-coded version,
+          # because Gradle may install a newer one than ANDROID_BUILD_TOOLS_VERSION.
+          BUILD_TOOLS="$(ls -1 "$ANDROID_HOME/build-tools" | sort -V | tail -n1)"
+          APKSIGNER="$ANDROID_HOME/build-tools/$BUILD_TOOLS/apksigner"
 
           if [ ! -x "$APKSIGNER" ]; then
             echo "::error::apksigner not found at $APKSIGNER"
             exit 1
           fi
 
+          VERSION="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+          mkdir -p apk-release
+
           for apk in "${apks[@]}"; do
             echo "Verifying APK: $apk"
 
-            "$APKSIGNER" verify --verbose --print-certs "$apk"
+            CERT_INFO="$("$APKSIGNER" verify --verbose --print-certs "$apk")"
+            echo "$CERT_INFO"
 
+            if echo "$CERT_INFO" | grep -qi 'CN=Android Debug'; then
+              echo "::error::$apk is signed with the Android debug key."
+              exit 1
+            fi
+
+            if [ -n "${EXPECTED_CERT_SHA256:-}" ]; then
+              ACTUAL_SHA256="$(echo "$CERT_INFO" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n1)"
+
+              if [ "$ACTUAL_SHA256" != "$EXPECTED_CERT_SHA256" ]; then
+                echo "::error::APK certificate ($ACTUAL_SHA256) does not match the release keystore ($EXPECTED_CERT_SHA256)."
+                exit 1
+              fi
+            fi
+
+            base="$(basename "$apk" .apk)"
+            base="${base#app-}"
+            cp -- "$apk" "apk-release/OpenTick_${VERSION}_android_${base}.apk"
             echo "APK signature verified: $apk"
           done
+
+          ls -l apk-release
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v7
         with:
           name: OpenTick-Android-APK
-          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          path: apk-release/*.apk
           if-no-files-found: error
           retention-days: 14
 
+      # Do not leave the key or the init script behind on the runner.
+      - name: Remove signing material
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$RUNNER_TEMP"/opentick-release.jks "$RUNNER_TEMP"/keystore-list.txt "$RUNNER_TEMP"/keycheck.*
+          rm -f "${GRADLE_USER_HOME:-$HOME/.gradle}/init.d/opentick-signing.gradle"
+
+  # ---------------------------------------------------------------------------
+  # Publish a GitHub Release (tag pushes only)
+  # ---------------------------------------------------------------------------
   release:
     name: Publish GitHub Release
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
@@ -406,6 +537,7 @@ jobs:
       - desktop
       - android
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     # Permissions required to publish the release and generate attestations.
     permissions:
@@ -420,8 +552,8 @@ jobs:
           path: release-assets
           merge-multiple: false
 
-      # Exclude bundle internals such as copyright files and shared libraries.
-      - name: Collect installer packages and APK only
+      # Only installer packages and the APK are published.
+      - name: Collect installer packages and APK
         shell: bash
         run: |
           set -euo pipefail
@@ -473,10 +605,19 @@ jobs:
         with:
           subject-path: 'release-files/*'
 
+      - name: Generate checksums
+        shell: bash
+        working-directory: release-files
+        run: |
+          set -euo pipefail
+          sha256sum -- * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
           files: release-files/*
           fail_on_unmatched_files: true
           preserve_order: true
