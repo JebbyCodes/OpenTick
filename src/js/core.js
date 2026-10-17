@@ -36,7 +36,7 @@ function fmtDate(s) {
   if (diff > 1 && diff < 7) return DAYS[d.getDay()];
   return `${MONTHS[d.getMonth()].slice(0, 3)} ${d.getDate()}` + (d.getFullYear() !== new Date().getFullYear() ? `, ${d.getFullYear()}` : '');
 }
-const dueLabel = t => (t.due ? fmtDate(t.due) + (t.time ? ' ' + t.time : '') : '');
+const dueLabel = t => (t.due ? fmtDate(t.due) + (validHM(t.time) ? ' ' + fmtTime(t.time) : '') : '');
 function isOverdue(t) {
   if (!t.due || t.status !== 'open') return false;
   const td = todayStr();
@@ -162,8 +162,12 @@ function migrate(r) {
   if (!THEMES.some(t => t[0] === r.settings.theme) && !r.settings.customThemes.some(c => c.id === r.settings.theme)) r.settings.theme = DEFAULT_THEME;
   r.settings.gantt = { scale: 'week', mode: 'both', zoom: 1, nameW: 290, cols: ['plan', 'actual'], hatch: true, progress: true, tray: true, trayW: 220, lanes: true, ...(r.settings.gantt || {}) };
   // layout is per device: panel widths, which panels are hidden, folded sidebar sections, sidebar views
-  r.settings.ui = { sideW: 300, detailW: 380, side: true, detail: true, trayW: 236, tray: true, fold: {}, hidePages: [], pageOrder: [], ...(r.settings.ui || {}) };
-  r.settings.tt = { from: 0, to: 24, view: 'week', weekends: true, ...(r.settings.tt || {}) };
+  r.settings.ui = { sideW: 300, detailW: 380, side: true, detail: true, trayW: 236, tray: true, fold: {}, hidePages: [], pageOrder: [], scale: 1, ...(r.settings.ui || {}) };
+  if (!r.settings.bg || typeof r.settings.bg !== 'object') r.settings.bg = { on: !/Android/i.test(typeof navigator !== 'undefined' ? navigator.userAgent || '' : ''), animate: true, style: 'accent', shape: 'blobs', intensity: 60, speed: 100 };
+  { const sc = r.settings.ui.scale == null || r.settings.ui.scale === '' ? NaN : Number(r.settings.ui.scale); r.settings.ui.scale = Number.isFinite(sc) ? Math.min(1.5, Math.max(0.8, Math.round(sc * 20) / 20)) : 1; }
+  { const t0 = r.settings.tt || {}; // `auto` hides the quiet hours; anyone who had already narrowed the range keeps their own hours
+    r.settings.tt = { from: 0, to: 24, view: 'week', weekends: true, fit: true, adOpen: true, ...t0 };
+    if (typeof t0.auto !== 'boolean') r.settings.tt.auto = !(t0.from > 0 || (t0.to != null && t0.to < 24)); }
   // the grid used to default to 07:00–21:00; the whole day is now shown unless the range was chosen deliberately after that change
   if (r.settings.tt.v !== 2) { if (r.settings.tt.from === 7 && r.settings.tt.to === 21) { r.settings.tt.from = 0; r.settings.tt.to = 24; } r.settings.tt.v = 2; }
   r.projects = Array.isArray(r.projects) ? r.projects : []; // projects link lists (and, with them, their sublists) together
@@ -171,7 +175,8 @@ function migrate(r) {
   r.settings.cal = { view: 'month', ...(r.settings.cal || {}) };
   r.settings.clock = { on: true, h24: false, sec: false, ...(r.settings.clock || {}) };
   r.settings.sound = { on: true, vol: 0.7, haptic: true, ...(r.settings.sound || {}) };
-  r.settings.notes = { view: 'auto', ...(r.settings.notes || {}) };
+  if (r.settings.banners == null) r.settings.banners = true;
+  r.settings.notes = { view: 'auto', scope: '', group: false, ...(r.settings.notes || {}) };
   r.settings.pomo = { focus: 25, short: 5, long: 15, faceDown: false, ...(r.settings.pomo || {}) };
   return r;
 }
@@ -240,7 +245,7 @@ const HIST_MAX = 2000, HIST_MERGE = 90000;
 const HIST_KIND = { tasks: 'task', lists: 'list', habits: 'habit', notes: 'note', slots: 'slot', projects: 'project' };
 const HIST_ACT = { add: 'Added', edit: 'Edited', done: 'Completed', reopen: 'Reopened', wontdo: "Won't do", delete: 'Deleted', restore: 'Restored', purge: 'Deleted forever', import: 'Imported' };
 const HIST_IGN = new Set(['u', 'id', 'order', 'updated', 'created', 'doneAt', 'logU', 'deleted', 'log', 'pinned']);
-const HIST_FLAG = new Set(['notes', 'body', 'subtasks', 'log']); // changes shown as "edited", without values
+const HIST_FLAG = new Set(['notes', 'body', 'subtasks', 'log', 'banner']); // changes shown as "edited", without values
 const histName = (k, o) => String((k === 'task' ? o.title : k === 'list' || k === 'habit' || k === 'project' ? o.name : k === 'note' ? noteTitle(o) : o.title) || '').trim().slice(0, 90) || 'Untitled';
 function histChange(k, o, n) {
   if (k === 'task') {
@@ -305,7 +310,7 @@ function flush() {
   clearTimeout(saveTimer);
   const changed = stamp();
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('Could not save — storage is full'); }
-  if (changed) { hooks.change(); if (typeof ogSchedule === 'function') ogSchedule(); if (typeof dockSaved === 'function') dockSaved(); if (typeof editedPaint === 'function') editedPaint(); }
+  if (changed) { hooks.change(); if (typeof ogSchedule === 'function') ogSchedule(); if (typeof dockSaved === 'function') dockSaved(); if (typeof editedPaint === 'function') editedPaint(); if (typeof widgetPush === 'function') widgetPush(); }
   else if (typeof dockSaved === 'function') dockSaved(true);
 }
 function save() { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 120); if (typeof savePending === 'function') savePending(); }
@@ -398,6 +403,26 @@ const toMin = s => { const [h, m] = String(s || '0:0').split(':').map(Number); r
 const fromMin = n => `${pad(Math.floor(n / 60))}:${pad(n % 60)}`;
 const slotById = id => S.slots.find(x => x.id === id);
 function nextSlotDate(s, from = new Date()) { for (let i = 0; i < 7; i++) { const d = addDays(from, i); if ((s.days || []).includes(d.getDay())) return d; } return from; }
+/* Times are stored as 24-hour "HH:MM" and drawn the way Settings -> Clock says (12-hour with AM / PM unless "24-hour" is on).
+   Anything that is not a real time shows as nothing rather than "NaN:NaN". */
+const validHM = x => /^([01]?\d|2[0-3]):[0-5]\d$/.test(String(x || ''));
+const clock24 = () => !!(S && S.settings && S.settings.clock && S.settings.clock.h24);
+function fmtMin(min, o) { // minutes after midnight (1440 = the end of the day)
+  if (!Number.isFinite(min)) return '';
+  const m = ((Math.round(min) % 1440) + 1440) % 1440, h = Math.floor(m / 60), mm = m % 60;
+  if (clock24()) return pad(h) + ':' + pad(mm);
+  return (h % 12 || 12) + ':' + pad(mm) + (o && o.noAp ? '' : '\u00a0' + (h < 12 ? 'AM' : 'PM'));
+}
+const fmtTime = hm => (validHM(hm) ? fmtMin(toMin(hm)) : '');
+// "9:00–10:30 AM" when both ends are on the same side of noon, "11:30 AM–1:00 PM" otherwise; a missing or backwards end shows just the start
+function fmtRange(a, b) {
+  a = typeof a === 'string' ? (validHM(a) ? toMin(a) : NaN) : a; b = typeof b === 'string' ? (validHM(b) ? toMin(b) : NaN) : b;
+  if (!Number.isFinite(a)) return '';
+  if (!Number.isFinite(b) || b <= a) return fmtMin(a);
+  const same = !clock24() && Math.floor((a % 1440) / 720) === Math.floor((b % 1440) / 720);
+  return fmtMin(a, { noAp: same }) + '–' + fmtMin(b);
+}
+const fmtHour = h => (clock24() ? pad(h % 24) + ':00' : ((h % 12) || 12) + '\u00a0' + (h % 24 < 12 ? 'AM' : 'PM'));
 const fmtDur = m => (m % 60 === 0 ? `${m / 60}h` : m > 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`);
 const listOf = id => S.lists.find(l => l.id === id) || S.lists[0];
 /* ---------- sublists and projects ----------
@@ -452,6 +477,36 @@ const noteTitleHtml = n => mdInline(noteTitleSrc(n), true) || esc(noteTitle(n));
 function newNote(o = {}) { const now = Date.now(); return { id: uid(), title: '', body: '', tags: [], pinned: false, created: now, updated: now, ...o }; }
 const noteByTitle = name => { const k = String(name || '').trim().toLowerCase(); return k ? S.notes.find(n => noteTitle(n).toLowerCase() === k || noteTitleSrc(n).toLowerCase() === k) || null : null; };
 const wordCount = txt => (String(txt || '').match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu) || []).length;
+
+/* ---------- where a note lives: a list or a project ----------
+   note.listId / note.projectId say where a note is filed (at most one of them; neither = unfiled). A list's notes include those of its
+   sublists, and a project's notes include those filed in any of its lists. A list or project that was deleted simply means "unfiled". */
+function noteHomeOf(n) {
+  if (n.projectId && S.projects.some(p => p.id === n.projectId)) return { kind: 'project', id: n.projectId };
+  if (n.listId && n.listId !== 'inbox' && S.lists.some(l => l.id === n.listId)) return { kind: 'list', id: n.listId };
+  return { kind: '', id: '' };
+}
+// scope: '' = every note, 'none' = unfiled, 'list:ID', 'project:ID'
+function noteInScope(n, scope) {
+  if (!scope) return true;
+  const h = noteHomeOf(n);
+  if (scope === 'none') return !h.kind;
+  if (scope.startsWith('list:')) return h.kind === 'list' && listIds(scope.slice(5)).includes(h.id);
+  if (scope.startsWith('project:')) { const p = projectOf(scope.slice(8)); return !!p && (h.kind === 'project' ? h.id === p.id : h.kind === 'list' && projectListIds(p).includes(h.id)); }
+  return true;
+}
+const noteScopeValid = scope => !scope || scope === 'none' || (scope.startsWith('list:') && S.lists.some(l => l.id === scope.slice(5))) || (scope.startsWith('project:') && !!projectOf(scope.slice(8)));
+const noteScope = () => { const sc = (S.settings.notes || {}).scope || ''; return noteScopeValid(sc) ? sc : ''; };
+const noteHomePatch = scope => (scope.startsWith('list:') ? { listId: scope.slice(5) } : scope.startsWith('project:') ? { projectId: scope.slice(8) } : {});
+// the dropdown value of a note's home: '', 'l:ID' or 'p:ID'
+const noteHomeValue = n => { const h = noteHomeOf(n); return h.kind === 'project' ? 'p:' + h.id : h.kind === 'list' ? 'l:' + h.id : ''; };
+function noteSetHome(n, v) {
+  delete n.listId; delete n.projectId;
+  if (v.startsWith('p:')) n.projectId = v.slice(2); else if (v.startsWith('l:')) n.listId = v.slice(2);
+  n.updated = Date.now();
+}
+// when a list or project goes away its notes become unfiled
+const notesDetach = (kind, id) => S.notes.forEach(n => { if (kind === 'list' && n.listId === id) { delete n.listId; } else if (kind === 'project' && n.projectId === id) { delete n.projectId; } });
 
 /* ---------- links between tasks and notes ----------
    A task keeps the ids of the notes it is linked to (task.links). The other direction is worked out, never stored, so a link

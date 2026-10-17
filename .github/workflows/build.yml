@@ -225,6 +225,10 @@ jobs:
 
           chmod +x src-tauri/gen/android/gradlew
 
+      # Home-screen widgets: copy the Kotlin/XML from src-tauri/android-widgets into the generated project and register them in the manifest.
+      - name: Add the OpenTick home-screen widgets
+        run: node scripts/android-widgets.mjs
+
       # Decode the private key and configure signing only on the runner.
       # No keystore or password is committed to the repository.
       - name: Configure Android release signing
@@ -358,6 +362,10 @@ jobs:
 
       - name: Build Android APK
         run: npx tauri android build --apk
+
+      # versionName / versionCode are generated from the version in tauri.conf.json: prove they still equal package.json's
+      - name: Check the Android version matches package.json
+        run: node scripts/check-android-version.mjs --generated
 
       # Fail the job rather than upload an unsigned or invalid APK.
       - name: Verify APK signatures

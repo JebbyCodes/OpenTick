@@ -10,6 +10,20 @@ const IC = {
   slash: '<circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>',
   grid: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>',
   activity: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
+  circle: '<circle cx="12" cy="12" r="9"/>',
+  bold: '<path d="M6 4h8a4 4 0 0 1 0 8H6z"/><path d="M6 12h9a4 4 0 0 1 0 8H6z"/>',
+  italic: '<line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/>',
+  strike: '<line x1="4" y1="12" x2="20" y2="12"/><path d="M16.5 7.2C16 5.5 14.3 4.5 12 4.5c-2.6 0-4.5 1.2-4.5 3.1 0 1.1.7 1.9 1.8 2.4"/><path d="M14.8 14.2c1 .5 1.7 1.3 1.7 2.3 0 2-2 3-4.5 3-2.4 0-4.2-1-4.7-2.8"/>',
+  heading: '<path d="M5 5v14"/><path d="M19 5v14"/><path d="M5 12h14"/>',
+  'list-ol': '<line x1="11" y1="6" x2="21" y2="6"/><line x1="11" y1="12" x2="21" y2="12"/><line x1="11" y1="18" x2="21" y2="18"/><path d="M4 5.5l1.5-1V9"/><path d="M4 14.5c0-1 1-1.5 1.7-1.5s1.4.5 1.4 1.3c0 1.2-2.2 1.6-3.1 3.2h3.2"/>',
+  quote: '<path d="M5 17v-5.5a3 3 0 0 1 3-3h1"/><path d="M5 12h4v5H5z"/><path d="M14 17v-5.5a3 3 0 0 1 3-3h1"/><path d="M14 12h4v5h-4z"/>',
+  highlight: '<path d="M14.5 5.5l4 4L10 18H6v-4z"/><path d="M4 21h8"/>',
+  printer: '<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
+  'book-open': '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
+  info: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
+  copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  sparkles: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
+  minus: '<line x1="5" y1="12" x2="19" y2="12"/>',
   clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
   search: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
   plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
@@ -81,6 +95,7 @@ const IC = {
   pause: '<rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor"/><rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor"/>',
   'cloud-check': '<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/><polyline points="9.5 14.5 11.5 16.5 15.5 12"/>',
   paperclip: '<path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',
+  image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
   notes: '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>',
 };
 const ic = (n, s = 18) => `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${IC[n] || ''}</svg>`;
@@ -230,6 +245,8 @@ const canDrag = () => S.settings.sort === 'manual' && sortDir() === 'asc' && S.s
 /* ---------- shell ---------- */
 const topHtml = (title, tools = '') => `<header class="top"><button class="ib burger" data-act="burger" aria-label="Menu">${ic('menu', 22)}</button><h1>${title}</h1><div class="tools">${tools}</div><button class="ib pt pt-det" data-act="uitoggle" data-k="detail" title="Show / hide task details  ]" aria-label="Show or hide the task details">${ic('panel-right', 20)}</button></header>`;
 function render() {
+  document.body.classList.toggle('on-help', U.page === 'help'); // the print rules for the Help page are keyed on this
+  if (typeof WIDGET !== 'undefined' && WIDGET) return renderWidget();
   if (U.gFull && U.page !== 'gantt') { U.gFull = false; document.body.classList.remove('gtfull'); try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) { /* not in full screen */ } }
   document.body.classList.toggle('pg-notes', U.page === 'notes' || U.page === 'history'); // the Notes page uses the whole width: no details panel
   renderSide(); renderMain(); renderDetail(); renderTabbar();
@@ -241,7 +258,7 @@ function renderTabbar() {
   const items = main.some(p => p[0] === U.page) || !cur ? main : [...main.slice(0, 3), cur];
   el.innerHTML = items.map(([k, n, i]) => `<button class="${U.page === k ? 'on' : ''}" data-act="page" data-page="${k}">${ic(i, 22)}<small>${n}</small></button>`).join('') + `<button data-act="burger">${ic('menu', 22)}<small>More</small></button>`;
 }
-function renderMain() { ({ tasks: renderTasks, notes: renderNotes, calendar: renderCal, timetable: renderTimetable, gantt: renderGantt, matrix: renderMatrix, habits: renderHabits, focus: renderFocus, history: renderHistory })[U.page](); fxFlush(); if (typeof batchPaint === 'function') batchPaint(); }
+function renderMain() { ({ tasks: renderTasks, notes: renderNotes, calendar: renderCal, timetable: renderTimetable, gantt: renderGantt, matrix: renderMatrix, habits: renderHabits, help: renderHelp, focus: renderFocus, history: renderHistory })[U.page](); fxFlush(); if (typeof batchPaint === 'function') batchPaint(); }
 
 function renderSide() {
   const q = $('#q'), keep = q ? q.value : '';
@@ -290,7 +307,7 @@ function tagBar(eff) {
 }
 function rowHtml(t, showList) {
   const l = listOf(t.listId), done = t.subtasks.filter(s => s.done).length, fin = t.status !== 'open';
-  return `<div class="task${fin ? ' fin' : ''}${U.sel === t.id ? ' sel' : ''}${U.bsel && U.bsel.has(t.id) ? ' picked' : ''}${editedCls(t.id)}" data-act="open" data-id="${t.id}"${canDrag() || U.page === 'matrix' ? ' draggable="true"' : ''}>
+  return `<div class="task${fin ? ' fin' : ''}${U.sel === t.id ? ' sel' : ''}${U.bsel && U.bsel.has(t.id) ? ' picked' : ''}${editedCls(t.id)}" data-act="open" data-id="${t.id}"${U.page === 'matrix' ? dragAttr() + ' tabindex="0" role="button"' : canDrag() ? ' draggable="true"' : ''}>
 <button class="chk p${t.priority}${t.status === 'done' ? ' on' : ''}" data-act="toggle" data-id="${t.id}" aria-label="Complete task">${t.status === 'done' ? ic('check', 13) : t.status === 'wontdo' ? ic('slash', 13) : ''}</button>
 <div class="tb"><div class="ttl">${titleHtml(t)}</div><div class="meta">${t.due ? `<span class="due${isOverdue(t) ? ' late' : ''}">${esc(dueLabel(t))}</span>` : ''}${t.repeat ? ic('repeat', 12) : ''}${metaX(t)}${t.reminder != null ? ic('bell', 12) : ''}${noteBadge(t)}${t.subtasks.length ? `<span>${ic('list', 12)} ${done}/${t.subtasks.length}</span>` : ''}${t.tags.map(tagChip).join('')}</div></div>
 ${showList ? `<span class="ln" title="${esc(listLabel(l.id))}"><i style="background:${l.color}"></i>${esc(l.name)}</span>` : ''}</div>`;
@@ -314,6 +331,7 @@ function renderTasks() {
   const open = all.filter(t => t.status === 'open'), fin = all.filter(t => t.status !== 'open');
   const kan = isList && list.view === 'kanban';
   let tools = '';
+  if (isList || proj) { const sc = isList ? 'list:' + list.id : 'project:' + proj.id, nn = noteScopeCount(sc); tools += `<button class="ib nbtn" data-act="scopenotes" data-scope="${esc(sc)}" title="Notes${nn ? ' (' + nn + ')' : ''} in this ${isList ? 'list' : 'project'}" aria-label="Notes in this ${isList ? 'list' : 'project'}">${ic('notes')}${nn ? `<i class="nbadge">${nn}</i>` : ''}</button>`; }
   if (isList) tools += `<button class="ib${OG.links[list.id] ? ' on' : ''}" data-act="ogopen" data-list="${esc(list.id)}" title="OpenGantt: link, import or export">${ic('link')}</button>`;
   if (isList) tools += `<button class="ib${!kan ? ' on' : ''}" data-act="view" data-v="list" title="List view">${ic('list')}</button><button class="ib${kan ? ' on' : ''}" data-act="view" data-v="kanban" title="Board view">${ic('columns')}</button>`;
   if (all.length && !(eff === 'trash')) tools += `<button class="ib${U.bsel ? ' on' : ''}" data-act="bstart" title="Select several tasks to edit them together" aria-label="Select several tasks">${ic('check-square')}</button>`;
@@ -333,7 +351,7 @@ function renderTasks() {
   }
   const pl = proj ? projectListIds(proj) : [], pTarget = proj ? (pl.includes(U.projList[proj.id]) ? U.projList[proj.id] : (proj.listIds || []).find(id => S.lists.some(l => l.id === id))) : null;
   const tgt = isList ? list.name : proj && pTarget ? listLabel(pTarget) : 'Inbox';
-  $('#main').innerHTML = topHtml(U.q ? `Search “${esc(U.q)}”` : (eff.startsWith('tag:') && tagColor(eff.slice(4)) ? `<span style="color:${tagColor(eff.slice(4))}">${esc(navTitle(eff))}</span>` : esc(navTitle(eff))), tools)
+  $('#main').innerHTML = (!U.q && isList ? bannerHtml('list', list) : !U.q && proj ? bannerHtml('project', proj) : '') + topHtml(U.q ? `Search “${esc(U.q)}”` : (eff.startsWith('tag:') && tagColor(eff.slice(4)) ? `<span style="color:${tagColor(eff.slice(4))}">${esc(navTitle(eff))}</span>` : esc(navTitle(eff))), tools)
     + (proj ? projHead(proj, all) : '') + tagBar(eff)
     + (proj && !pTarget ? `<div class="quick"><p class="hint">Link at least one list to this project to add tasks here. <button class="btn sm" data-act="projmenu" data-pid="${esc(proj.id)}">Choose lists</button></p></div>` : flat || kan ? '' : `<div class="quick${proj ? ' withsel' : ''}">${proj && pl.length > 1 ? `<select data-sel="projlist" data-pid="${esc(proj.id)}" title="Add new tasks to…">${opts(pl.map(id => [id, listLabel(id)]), pTarget)}</select>` : ''}<input id="add" autocomplete="off" placeholder="+ Add task to “${esc(tgt)}” — try “Pay rent every month !high #bills”"></div>`)
     + `<div class="body${kan ? ' kb' : ''}">${body}</div>`;
@@ -343,12 +361,13 @@ function renderTasks() {
 /* ---------- history page ---------- */
 const HIST_ICON = { add: 'plus', edit: 'notes', done: 'check-circle', reopen: 'refresh', wontdo: 'slash', delete: 'trash', restore: 'upload', purge: 'x', import: 'download' };
 const HIST_KIND_NAME = { task: 'Task', list: 'List', project: 'Project', habit: 'Habit', note: 'Note', slot: 'Slot', app: '' };
-const HIST_FIELD = { title: 'Title', due: 'Due date', time: 'Time', dur: 'Duration', priority: 'Priority', tags: 'Tags', listId: 'List', section: 'Section', repeat: 'Repeat', reminder: 'Reminder', notes: 'Notes', subtasks: 'Subtasks', start: 'Plan start', astart: 'Actual start', slotId: 'Timetable slot', name: 'Name', color: 'Colour', icon: 'Icon', goal: 'Goal', sections: 'Sections', view: 'View', days: 'Days', end: 'End', loc: 'Location', body: 'Text', pinned: 'Pin' };
+const HIST_FIELD = { title: 'Title', due: 'Due date', time: 'Time', dur: 'Duration', priority: 'Priority', tags: 'Tags', listId: 'List', section: 'Section', repeat: 'Repeat', reminder: 'Reminder', notes: 'Notes', subtasks: 'Subtasks', start: 'Plan start', astart: 'Actual start', slotId: 'Timetable slot', name: 'Name', color: 'Colour', icon: 'Icon', goal: 'Goal', sections: 'Sections', view: 'View', days: 'Days', end: 'End', loc: 'Location', body: 'Text', pinned: 'Pin', projectId: 'Project', banner: 'Banner' };
 function histVal(k, v) {
   if (v == null || v === '') return 'none';
   if (k === 'due' || k === 'start' || k === 'astart') return fmtDate(v);
   if (k === 'priority') return PRIO[v] || v;
   if (k === 'listId') { const l = S.lists.find(x => x.id === v); return l ? l.name : 'another list'; }
+  if (k === 'projectId') { const q = projectOf(v); return q ? q.name : 'another project'; }
   if (k === 'repeat') return repeatLabel(v) || 'none';
   if (k === 'dur') return fmtDur(v);
   if (k === 'reminder') return remLabel(v).toLowerCase();
@@ -367,6 +386,7 @@ function histDetail(e) {
     if (k === 'pinned') return b ? 'Pinned' : 'Unpinned';
     if (k === 'tags') { const A = a || [], B = b || [], add = B.filter(x => !A.includes(x)), rem = A.filter(x => !B.includes(x)); return 'Tags: ' + [...add.map(x => '+#' + x), ...rem.map(x => '−#' + x)].join(' '); }
     if (k === 'color') return 'Colour changed';
+    if (k === 'banner') return 'Banner changed';
     return `${lab}: ${esc(histVal(k, a))} → ${esc(histVal(k, b))}`;
   }).join(' · ');
 }
@@ -437,7 +457,7 @@ function calItems(from, to) {
 const calDayLabel = k => { const d = pYmd(k), f = fmtDate(k); return ['Today', 'Tomorrow', 'Yesterday'].includes(f) ? `${f} · ${DAYS[d.getDay()]} ${d.getDate()}` : `${FULLDAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)}`; };
 const calChip = it => {
   const t = it.t, rep = it.virt || t.repeat;
-  return `<div class="chip p${t.priority}${t.status !== 'open' ? ' fin' : ''}${it.virt ? ' virt' : ''}${U.sel === t.id ? ' sel' : ''}" data-act="open" data-id="${t.id}"${it.virt ? ` title="Repeats ${esc(repeatLabel(t.repeat).toLowerCase())}: ${esc(fmtDate(it.d))}"` : ''}>${t.time ? `<small>${t.time}</small> ` : ''}${rep && !t.status.startsWith('w') ? ic('repeat', 10) + ' ' : ''}${mdInline(t.title, true)}</div>`;
+  return `<div class="chip p${t.priority}${t.status !== 'open' ? ' fin' : ''}${it.virt ? ' virt' : ''}${U.sel === t.id ? ' sel' : ''}" data-act="open" data-id="${t.id}"${it.virt ? ` title="Repeats ${esc(repeatLabel(t.repeat).toLowerCase())}: ${esc(fmtDate(it.d))}"` : ''}>${validHM(t.time) ? `<small>${fmtTime(t.time)}</small> ` : ''}${rep && !t.status.startsWith('w') ? ic('repeat', 10) + ' ' : ''}${mdInline(t.title, true)}</div>`;
 };
 const calRow = (it, showList = true) => {
   if (!it.virt) return rowHtml(it.t, showList);
@@ -527,15 +547,6 @@ function streak(h) {
   while (met(d) && s < 5000) { s++; d = hPrev(d, per); }
   return s;
 }
-function renderHabits() {
-  const now = new Date(), days = Array.from({ length: 7 }, (_, i) => addDays(now, i - 6)), tk = ymd(now);
-  const cards = S.habits.map(h => {
-    const g = habitGoal(h), sk = streak(h), pr = habitProgress(h), full = g.per !== 'day' && pr.done >= g.n;
-    return `<div class="habit" data-id="${h.id}" style="--c:${h.color}"><div class="hh"><span class="hi" data-act="hmenu" data-id="${h.id}" title="Edit habit and icon">${esc(h.icon || '✓')}</span><div class="hn" data-act="hmenu" data-id="${h.id}"><b>${esc(h.name)}</b><small><span class="sk${sk >= FIRE_MIN ? ' hot' : ''}">${sk >= FIRE_MIN ? ic('flame', 12) : ''}${sk} ${g.per} streak</span> · ${esc(habitGoalLabel(g))} · ${Object.keys(h.log).length} check-ins</small></div><button class="hcheck${h.log[tk] ? ' on' : ''}" data-act="hday" data-id="${h.id}" data-d="${tk}" aria-label="Check in today">${ic('check', 20)}</button></div>${g.per === 'day' ? '' : `<div class="hprog${full ? ' full' : ''}" title="${pr.done} of ${g.n} this ${g.per}"><div><i style="width:${Math.min(100, Math.round(pr.done / g.n * 100))}%"></i></div><small>${pr.done}/${g.n} this ${g.per}${full ? ' ✓' : ''}</small></div>`}<div class="hstrip">${days.map(d => `<button class="hd${h.log[ymd(d)] ? ' on' : ''}" data-act="hday" data-id="${h.id}" data-d="${ymd(d)}"><small>${DAYS[d.getDay()]}</small>${d.getDate()}</button>`).join('')}</div></div>`;
-  }).join('');
-  $('#main').innerHTML = topHtml('Habit', `<button class="btn pri" data-act="haddlg">${ic('plus', 16)} New habit</button>`)
-    + `<div class="body habits">${cards || `<div class="empty">${ic('activity', 44)}<p>Build a streak — add your first habit</p></div>`}</div>`;
-}
 
 /* ---------- focus (pomodoro) ---------- */
 const fmtClock = s => { s = Math.max(0, Math.ceil(s - 1e-6)); const h = Math.floor(s / 3600); return (h ? h + ':' : '') + `${pad(Math.floor(s % 3600 / 60))}:${pad(s % 60)}`; };
@@ -577,7 +588,7 @@ function notesHtml(t) {
 // the notes box of a task grows with its text (never below a comfortable size, never taller than most of the screen)
 function fitTa(ta) {
   if (!ta || !ta.style) return; ta.style.height = 'auto';
-  const max = Math.round((typeof window !== 'undefined' && window.innerHeight ? window.innerHeight : 800) * 0.7), min = narrow(700) ? 220 : 280;
+  const max = Math.round((typeof window !== 'undefined' && window.innerHeight ? window.innerHeight / Z.z : 800) * 0.7), min = narrow(700) ? 220 : 280;
   ta.style.height = Math.min(max, Math.max(min, (ta.scrollHeight || 0) + 4)) + 'px';
 }
 function renderDetail() {
@@ -595,7 +606,7 @@ function renderDetail() {
 <div class="dbody">
 <div class="dr"><span>${ic('calendar', 16)}</span><input type="date" data-f="due" value="${t.due || ''}"><input type="time" data-f="time" value="${t.time || ''}"${t.due ? '' : ' disabled'}></div>
 <div class="chips"><button class="btn sm${t.due === td ? ' on' : ''}" data-act="qdate" data-w="today">Today</button><button class="btn sm${t.due === tm ? ' on' : ''}" data-act="qdate" data-w="tomorrow">Tomorrow</button><button class="btn sm${t.due === nw ? ' on' : ''}" data-act="qdate" data-w="next">Next week</button><button class="btn sm${!t.due ? ' on' : ''}" data-act="qdate" data-w="none">No date</button></div>
-<div class="dr top"><span>${ic('clock', 16)}</span>${durHtml('task', t.dur)}</div>${slots.length ? `<div class="dr"><span>${ic('table', 16)}</span><select data-f="slot" title="Timetable slot">${opts([['', 'No timetable slot'], ...slots.map(x => [x.id, `${x.title} · ${x.days.map(d => DAYS[d]).join('/')} ${x.start}`])], t.slotId && slotById(t.slotId) ? t.slotId : '')}</select></div>` : ''}
+<div class="dr top"><span>${ic('clock', 16)}</span>${durHtml('task', t.dur)}</div>${slots.length ? `<div class="dr"><span>${ic('table', 16)}</span><select data-f="slot" title="Timetable slot">${opts([['', 'No timetable slot'], ...slots.map(x => [x.id, `${x.title} · ${x.days.map(d => DAYS[d]).join('/')} ${fmtTime(x.start)}`])], t.slotId && slotById(t.slotId) ? t.slotId : '')}</select></div>` : ''}
 <div class="dr"><span>${ic('flag', 16)}</span><div class="pri">${[3, 2, 1, 0].map(p => `<button class="pf p${p}${t.priority === p ? ' on' : ''}" data-act="prio" data-p="${p}">${PRIO[p]}</button>`).join('')}</div></div>
 <div class="dr"><span>${ic('list', 16)}</span><select data-f="list">${opts(listOpts(), t.listId)}</select>${secs.length ? `<select data-f="section">${opts([['', 'Not sectioned'], ...secs.map(s => [s, s])], t.section || '')}</select>` : ''}</div>
 <div class="dr"><span>${ic('repeat', 16)}</span><select data-f="repeat">${opts([['none', 'Does not repeat'], ...Object.keys(RN).map(k => [k, RN[k]]), ...(rk === 'custom' ? [['custom', repeatLabel(t.repeat)]] : [])], rk)}</select></div>
@@ -620,7 +631,7 @@ ${filesHtml('task', t.id)}
    Adding: click (or tap) the grid, or drag across it to pick a time range, and a small form asks what to add.
    On a phone the grid shows one day at a time with a week strip on top; swipe sideways to change day. */
 let TT_HH = 64; // px per hour; taller on touch screens
-const TT_MINH = () => (narrow(600) ? 36 : 30); // the shortest a block is drawn, so a 15-minute task can still be tapped
+const TT_MINH = () => (narrow(600) ? 36 : 34); // the shortest a block is drawn, so a 15-minute task can still be tapped
 const coarse = () => !!(typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(pointer:coarse)').matches);
 const dragAttr = () => (coarse() ? '' : ' draggable="true"'); // touch screens drag with a long press instead (see main.js)
 const ttView = () => U.ttV || (narrow(600) ? 'day' : (S.settings.tt.view || 'week'));
@@ -645,27 +656,35 @@ function ttItems(d) {
   return { items, allday };
 }
 // side-by-side columns for overlapping blocks; marks slots that overlap another slot
-function ttLayout(items) {
-  items.sort((x, y) => x.a - y.a || y.b - x.b);
+function ttLayout(items, minMin = 0) {
+  // minMin: the shortest a block is drawn, in minutes. A block drawn taller than its time must still keep its neighbours clear,
+  // so for placing side by side it is treated as lasting that long ("eb"); `clash` (two slots really overlapping) uses the real times
+  for (const i of items) i.eb = Math.max(i.b, i.a + minMin);
+  items.sort((x, y) => x.a - y.a || y.eb - x.eb);
   let cluster = [], end = 0;
   const flush = () => { const n = Math.max(1, ...cluster.map(i => i.col + 1)); cluster.forEach(i => { i.n = n; }); cluster = []; };
   for (const it of items) {
     if (cluster.length && it.a >= end) { flush(); end = 0; }
-    const used = cluster.filter(c => c.b > it.a).map(c => c.col);
+    const used = cluster.filter(c => c.eb > it.a).map(c => c.col);
     let col = 0; while (used.includes(col)) col++;
-    it.col = col; cluster.push(it); end = Math.max(end, it.b);
+    it.col = col; cluster.push(it); end = Math.max(end, it.eb);
   }
   flush();
   const sl = items.filter(i => i.k === 'slot');
   sl.forEach(i => { i.clash = sl.some(o => o !== i && i.a < o.b && o.a < i.b); });
 }
+// px per hour so that the shown hours fill the space the grid has (never so tight a label or a block cannot be read)
+const TT_HH_MIN = 44, TT_HH_MAX = 92;
+const ttFitHH = (avail, spanMin) => Math.max(TT_HH_MIN, Math.min(TT_HH_MAX, Math.floor(avail / (spanMin / 60))));
+// the hours worth showing: with "hide quiet hours" on, 6:00–22:00 plus anything scheduled on the days in view
+const TT_AUTO = [6, 22];
 function ttRange(days) {
   const a = days[0], b = days[days.length - 1];
   if (days.length === 1) return `${FULLDAYS[a.getDay()]} ${a.getDate()} ${MONTHS[a.getMonth()]} ${a.getFullYear()}`;
   return a.getMonth() === b.getMonth() ? `${a.getDate()} – ${b.getDate()} ${MONTHS[b.getMonth()]} ${b.getFullYear()}` : `${a.getDate()} ${MONTHS[a.getMonth()].slice(0, 3)} – ${b.getDate()} ${MONTHS[b.getMonth()].slice(0, 3)} ${b.getFullYear()}`;
 }
 // the room the tray needs: on by default only when the window is wide enough to keep the grid readable
-const ttTrayOn = () => { if (narrow(820)) return false; const u = S.settings.ui; return U.ttTray == null ? window.innerWidth - (u.side ? u.sideW : 0) - (u.detail ? u.detailW : 0) >= 900 : U.ttTray; };
+const ttTrayOn = () => { if (narrow(820)) return false; const u = S.settings.ui; return U.ttTray == null ? zvw() - (u.side ? u.sideW : 0) - (u.detail ? u.detailW : 0) >= 900 : U.ttTray; };
 const ttUnscheduled = () => S.tasks.filter(t => !t.deleted && t.status === 'open' && !t.time).sort((a, b) => dueKey(a).localeCompare(dueKey(b)) || b.priority - a.priority);
 const ttTrayItem = t => `<div class="tri p${t.priority}${U.sel === t.id ? ' sel' : ''}"${dragAttr()} data-act="open" data-id="${t.id}"><div class="tri-b"><div class="ttl">${titleHtml(t)}</div><div class="meta">${t.due ? `<span class="due${isOverdue(t) ? ' late' : ''}">${esc(dueLabel(t))}</span>` : ''}${metaX(t)}</div></div><button class="ib sm" data-act="ttsched" data-id="${t.id}" title="Pick a day and time" aria-label="Schedule on the timetable">${ic('clock', 15)}</button></div>`;
 // a week strip for day / 3-day views: tap a day to jump to it (dots show how busy it is)
@@ -677,27 +696,32 @@ function ttStrip(base) {
   }).join('')}</div>`;
 }
 function renderTimetable() {
-  TT_HH = narrow(600) ? 72 : 64;
-  const tt = S.settings.tt, view = ttView(), days = ttDays(), ppm = TT_HH / 60, td = todayStr(), phone = narrow(600);
-  const data = days.map(d => { const r = ttItems(d); ttLayout(r.items); return { d, k: ymd(d), ...r }; });
-  let from = tt.from * 60, to = tt.to * 60, firstA = 1440;
+  const tt = S.settings.tt, view = ttView(), days = ttDays(), td = todayStr(), phone = narrow(600);
+  const data = days.map(d => ({ d, k: ymd(d), ...ttItems(d) }));
+  let from = (tt.auto ? TT_AUTO[0] : tt.from) * 60, to = (tt.auto ? TT_AUTO[1] : tt.to) * 60, firstA = 1440;
   for (const x of data) for (const it of x.items) { from = Math.min(from, Math.floor(it.a / 60) * 60); to = Math.max(to, Math.ceil(it.b / 60) * 60); firstA = Math.min(firstA, it.a); }
-  from = Math.max(0, from); to = Math.min(1440, Math.max(to, from + 60));
   const now = new Date(), nowM = now.getHours() * 60 + now.getMinutes(), showsToday = data.some(x => x.k === td);
+  if (tt.auto && showsToday) { from = Math.min(from, Math.floor(nowM / 60) * 60); to = Math.max(to, Math.ceil((nowM + 1) / 60) * 60); }
+  from = Math.max(0, from); to = Math.min(1440, Math.max(to, from + 60));
+  const prevHH = TT_HH;
+  TT_HH = tt.fit !== false && U.ttAvail ? ttFitHH(U.ttAvail, to - from) : (phone ? 72 : 64);
+  const ppm = TT_HH / 60;
+  data.forEach(x => ttLayout(x.items, TT_MINH() / ppm));
   const pos = it => `top:${(it.a - from) * ppm}px;height:${Math.max(TT_MINH(), (it.b - it.a) * ppm - 2)}px;left:calc(${(it.col / it.n) * 100}% + 1px);width:calc(${100 / it.n}% - 3px)`;
   const taskLine = t => `<div class="bl${t.status !== 'open' ? ' fin' : ''}" data-act="open" data-id="${t.id}"><button class="chk sm p${t.priority}${t.status === 'done' ? ' on' : ''}" data-act="toggle" data-id="${t.id}" aria-label="Complete task">${t.status === 'done' ? ic('check', 11) : ''}</button><span>${titleHtml(t)}</span></div>`;
   const block = (it, d) => it.k === 'slot'
-    ? `<div class="blk slot${it.clash ? ' clash' : ''}${editedCls(it.s.id)}" style="${pos(it)};--c:${it.s.color}" data-act="ttslot" data-sid="${it.s.id}" data-day="${d.getDay()}" data-a="${it.a}" data-b="${it.b}"${dragAttr()} title="${esc(it.s.title)} ${it.s.start}–${it.s.end}${it.clash ? ' (overlaps another slot)' : ''}"><div class="bt">${it.clash && it.n === 1 ? ic('alert', 12) + ' ' : ''}<span class="tt-t">${esc(it.s.title)}</span><span class="tt-tm">${it.s.start}</span></div><div class="bm">${it.s.start}–${it.s.end}${it.s.loc ? ` · ${ic('pin', 11)} ${esc(it.s.loc)}` : ''}</div>${it.tasks.map(taskLine).join('')}<i class="rz rz-t" data-e="top" data-k="slot" data-id="${it.s.id}"></i><i class="rz" data-k="slot" data-id="${it.s.id}"></i></div>`
-    : `<div class="blk tk p${it.t.priority}${it.t.status !== 'open' ? ' fin' : ''}${U.sel === it.t.id ? ' sel' : ''}${editedCls(it.t.id)}" style="${pos(it)}" data-act="open" data-id="${it.t.id}" data-a="${it.a}" data-b="${it.b}"${dragAttr()}><div class="bt"><button class="chk sm p${it.t.priority}${it.t.status === 'done' ? ' on' : ''}" data-act="toggle" data-id="${it.t.id}" aria-label="Complete task">${it.t.status === 'done' ? ic('check', 11) : ''}</button> <span class="tt-t">${titleHtml(it.t)}</span><span class="tt-tm">${it.t.time}</span></div><div class="bm">${it.t.time}${it.t.dur ? ' · ' + fmtDur(it.t.dur) : ''}</div><i class="rz rz-t" data-e="top" data-k="task" data-id="${it.t.id}"></i><i class="rz" data-k="task" data-id="${it.t.id}"></i></div>`;
+    ? `<div class="blk slot${it.clash ? ' clash' : ''}${editedCls(it.s.id)}" style="${pos(it)};--c:${it.s.color}" data-act="ttslot" data-sid="${it.s.id}" data-day="${d.getDay()}" data-a="${it.a}" data-b="${it.b}"${dragAttr()} title="${esc(it.s.title)} ${fmtRange(it.a, it.b)}${it.clash ? ' (overlaps another slot)' : ''}" tabindex="0" role="button" aria-label="${esc(it.s.title)}, ${fmtRange(it.a, it.b)}${it.clash ? ', overlaps another slot' : ''}"><div class="bt">${it.clash && it.n === 1 ? ic('alert', 12) + ' ' : ''}<span class="tt-t">${esc(it.s.title)}</span><span class="tt-tm">${fmtRange(it.a, it.b)}</span></div><div class="bm">${fmtRange(it.a, it.b)} · ${fmtDur(it.b - it.a)}${it.s.loc ? ` · ${ic('pin', 11)} ${esc(it.s.loc)}` : ''}</div>${it.tasks.map(taskLine).join('')}<i class="rz rz-t" data-e="top" data-k="slot" data-id="${it.s.id}"></i><i class="rz" data-k="slot" data-id="${it.s.id}"></i></div>`
+    : `<div class="blk tk p${it.t.priority}${it.t.status !== 'open' ? ' fin' : ''}${U.sel === it.t.id ? ' sel' : ''}${editedCls(it.t.id)}" style="${pos(it)}" data-act="open" data-id="${it.t.id}" data-a="${it.a}" data-b="${it.b}"${dragAttr()} title="${esc(it.t.title)} ${fmtRange(it.a, it.b)}" tabindex="0" role="button" aria-label="${esc(it.t.title)}, ${fmtRange(it.a, it.b)}"><div class="bt"><button class="chk sm p${it.t.priority}${it.t.status === 'done' ? ' on' : ''}" data-act="toggle" data-id="${it.t.id}" aria-label="Complete task">${it.t.status === 'done' ? ic('check', 11) : ''}</button> <span class="tt-t">${titleHtml(it.t)}</span><span class="tt-tm">${fmtRange(it.a, it.b)}</span></div><div class="bm">${fmtRange(it.a, it.b)} · ${fmtDur(it.b - it.a)}</div><i class="rz rz-t" data-e="top" data-k="task" data-id="${it.t.id}"></i><i class="rz" data-k="task" data-id="${it.t.id}"></i></div>`;
   const head = `<div class="tt-row"><div class="tt-cor"></div>${data.map(x => `<button class="tt-dh${x.k === td ? ' today' : ''}" data-act="ttday" data-d="${x.k}" title="Open this day"><small>${DAYS[x.d.getDay()]}</small><b>${x.d.getDate()}</b></button>`).join('')}</div>`;
-  const allday = `<div class="tt-row tt-adrow"><div class="tt-cor"><small>all day</small></div>${data.map(x => `<div class="tt-ad" data-d="${x.k}">${x.allday.map(t => `<div class="chip adc p${t.priority}${t.status !== 'open' ? ' fin' : ''}${U.sel === t.id ? ' sel' : ''}${editedCls(t.id)}" data-act="open" data-id="${t.id}"${dragAttr()}><button class="chk sm p${t.priority}${t.status === 'done' ? ' on' : ''}" data-act="toggle" data-id="${t.id}" aria-label="Complete task">${t.status === 'done' ? ic('check', 13) : ''}</button><span class="adt">${titleHtml(t)}</span></div>`).join('')}</div>`).join('')}</div>`;
-  const hours = Array.from({ length: (to - from) / 60 }, (_, i) => `<span style="top:${i * TT_HH}px">${pad(from / 60 + i)}:00</span>`).join('');
+  const adOpen = tt.adOpen !== false, adN = data.reduce((n, x) => n + x.allday.length, 0);
+  const allday = `<div class="tt-row tt-adrow${adOpen ? '' : ' closed'}"><div class="tt-cor"><button class="adtog" data-act="ttad" aria-expanded="${adOpen}" title="${adOpen ? 'Hide' : 'Show'} all-day tasks"><span>all day</span>${adN ? `<b>${adN}</b>` : ''}${ic(adOpen ? 'up' : 'down', 12)}</button></div>${data.map(x => `<div class="tt-ad" data-d="${x.k}">${x.allday.map(t => `<div class="chip adc p${t.priority}${t.status !== 'open' ? ' fin' : ''}${U.sel === t.id ? ' sel' : ''}${editedCls(t.id)}" data-act="open" data-id="${t.id}"${dragAttr()}><button class="chk sm p${t.priority}${t.status === 'done' ? ' on' : ''}" data-act="toggle" data-id="${t.id}" aria-label="Complete task">${t.status === 'done' ? ic('check', 13) : ''}</button><span class="adt">${titleHtml(t)}</span></div>`).join('')}</div>`).join('')}</div>`;
+  const hours = Array.from({ length: (to - from) / 60 }, (_, i) => `<span style="top:${i * TT_HH}px">${fmtHour(from / 60 + i)}</span>`).join('');
   const cols = data.map(x => `<div class="tt-col${x.k === td ? ' today' : ''}" data-act="ttcell" data-d="${x.k}" data-from="${from}">${x.items.map(it => block(it, x.d)).join('')}${x.k === td && nowM >= from && nowM <= to ? `<div class="tt-now" style="top:${(nowM - from) * ppm}px"></div>` : ''}</div>`).join('');
   const trayOn = ttTrayOn(), un = ttUnscheduled();
   const tray = trayOn ? `<aside class="tray"><div class="rs rs-l" data-rs="tray" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize · double-click to reset"></div><div class="trh"><b>Tasks</b><small>${un.length} without a time</small><button class="ib sm" data-act="tttray" title="Hide this panel">${ic('x', 14)}</button></div><input class="tradd" placeholder="+ New task  (try “Study 4pm for 90min”)" autocomplete="off"><div class="trl">${un.slice(0, 80).map(ttTrayItem).join('') || '<p class="hint">Nothing waiting — nice.</p>'}</div><p class="hint">Drag a task onto the grid, or press the clock to pick a time. Pull a block’s top or bottom edge to resize it.</p></aside>` : '';
   const seg = `<div class="seg">${[['day', 'Day'], ['3day', '3 days'], ['week', 'Week']].map(([v, n]) => `<button class="${view === v ? 'on' : ''}" data-act="ttview" data-v="${v}">${n}</button>`).join('')}</div>`;
   const tools = `<button class="ib" data-act="ttprev" title="Previous">${ic('left')}</button><button class="btn" data-act="tttoday">Today</button><button class="ib" data-act="ttnext" title="Next">${ic('right')}</button>${seg}<button class="btn pri" data-act="ttadd" title="Add a task or a weekly slot">${ic('plus', 16)}<span class="hide-m"> Add</span></button><button class="ib${trayOn ? ' on' : ''}" data-act="tttray" title="Unscheduled tasks">${ic('list')}</button><button class="ib" data-act="ttset" title="Timetable settings">${ic('sliders')}</button>`;
-  const old = $('.tt-scroll'), keep = old ? old.scrollTop : null;
+  const old = $('.tt-scroll'), keep = old && !U.ttRe ? old.scrollTop * (TT_HH / (prevHH || TT_HH)) : null;
   const draft = $('.tradd') ? $('.tradd').value : '';
   const hint = S.slots.length ? '' : `<p class="hint pad">${phone ? 'Tap' : 'Click, or drag across'} the grid to add a task or a weekly slot (a class, shift or routine). Tasks with a time appear here too.</p>`;
   const legend = phone ? '' : `<div class="tt-legend"><span><i class="lg slot"></i>Weekly slot</span><span><i class="lg task"></i>Task with a time</span><span class="hint">Click or drag on the grid to add · drag a block to move it · pull its top or bottom edge to resize</span></div>`;
@@ -708,4 +732,10 @@ function renderTimetable() {
   const sc = $('.tt-scroll');
   if (sc) sc.scrollTop = keep != null ? keep : Math.max(0, ((showsToday ? nowM - 60 : (firstA < 1440 ? firstA : 8 * 60) - 30) - from) * ppm);
   if (draft && $('.tradd')) $('.tradd').value = draft;
+  // measure what the grid really has (headers, strip and the all-day row differ by screen) and fit the hours to it, once
+  if (tt.fit !== false && !U.ttRe && sc && sc.clientHeight > 0) {
+    const top = $('.tt-top'), av = sc.clientHeight - (top ? top.offsetHeight : 0) - 4, want = ttFitHH(av, to - from);
+    U.ttAvail = av;
+    if (Math.abs(want - TT_HH) >= 2) { U.ttRe = true; try { renderTimetable(); } finally { U.ttRe = false; } }
+  }
 }

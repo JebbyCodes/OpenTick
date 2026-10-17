@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ot_widget_tasks_label">OpenTick · Today</string>
+    <string name="ot_widget_quick_label">OpenTick · Add a task</string>
+    <string name="ot_widget_tasks_desc">Today\'s and overdue tasks. Tick one to complete it.</string>
+    <string name="ot_widget_quick_desc">A quick \"Add a task\" bar.</string>
+</resources>

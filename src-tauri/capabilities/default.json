@@ -2,13 +2,17 @@
   "identifier": "default",
   "description": "Permissions for the main window on every platform",
   "windows": [
-    "main"
+    "main",
+    "widget"
   ],
   "permissions": [
     "core:default",
     "notification:default",
     "dialog:default",
     "fs:allow-read-text-file",
+    "fs:allow-write-file",
+    "fs:allow-stat",
+    "fs:allow-read-file",
     "fs:allow-write-text-file",
     "opener:default",
     {
@@ -25,6 +29,18 @@
         },
         {
           "url": "http://*:*"
+        }
+      ]
+    },
+    "fs:allow-mkdir",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        {
+          "path": "$APPDATA"
+        },
+        {
+          "path": "$APPDATA/**"
         }
       ]
     }

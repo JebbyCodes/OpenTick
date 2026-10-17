@@ -34,6 +34,43 @@ Plan, schedule and track your day on the web, your desktop and your phone — wi
   </p>
 -->
 
+## What's new in 0.2.4
+
+**Fixes**
+
+- **Attachments ("Could not read").** The app's permission file allowed only text reads, but attaching a file reads its bytes, so every pick was refused (saving a copy was refused for the same reason). `fs:allow-read-file`, `fs:allow-stat` and `fs:allow-write-file` are now granted. Files from the Android document picker arrive as `content://` addresses with no usable name, so the name and type are recovered from the address or the file's first bytes. Empty, oversized, duplicate, unreadable and unavailable files each give a message that says what happened and what to try; the files that did work are still attached, a second tap cannot open a second picker, and an attachment is only kept if its bytes were stored in full.
+- **Selection toolbar.** On phones the bar sat above the tab bar but was hidden by sliding down only a little, so after **×** about 40px stayed on screen over the tab bar and caught taps. It now leaves completely, cannot be tapped or focused while hidden, **×** is a 44px target, labels fit narrow screens, and focus returns to the button that started selecting.
+- **Matrix on touch screens.** Dragging only existed for the timetable. Press and hold a matrix task, slide to a box, let go; the grid scrolls at its edges, a scroll gesture does nothing, and a cancelled drag changes nothing. Keyboard: Tab to a task and use Alt + arrow keys.
+- **Times.** Every time follows the 12 / 24-hour setting (the timetable used to show raw 24-hour text). Each block shows its start *and* end; short blocks put the range beside the title (the title shortens, the time never does), narrow week columns put it underneath. The clock widget no longer hides the end of the day on phones.
+
+**New**
+
+- **Habits:** previous / next week, a date picker that reaches any day, month or year, and **Today**; and a **History** graph with a year of check-ins (see Help → The habit history graph for exactly how a day is shaded; nothing is added to your records to fill it).
+- **Help & user guide** (Settings → Help), written against the real app and printable. **About OpenTick** with version, links and copyable diagnostics, and **Open-source licences & credits** (`npm run licenses` regenerates the list from the lockfile and manifests).
+- **Interface size** slider (80–150 %) in Settings → Appearance, and **Background effects** (soft moving shapes, four styles, three shape families, strength and speed, still option; limited per theme so text keeps its contrast).
+- **Timetable** shows far more of the day without scrolling (hide quiet hours, fit to screen, collapsible all-day row, compact header). Blocks never overlap.
+- A proper small **Android notification icon**, and vector icons for the Markdown toolbars.
+- Android `versionName` / `versionCode` are checked against `package.json` in CI (`scripts/check-android-version.mjs`).
+
+## What's new in 0.2.3
+
+- **Notes edit like Anytype.** The Notes page (and the wide task-notes window) now opens in **Edit** mode: every block is shown rendered, and the one you are in becomes a text box. Type `/` for a menu of blocks (headings, bulleted / numbered lists, to-dos, quotes, code, divider, table, image, file, `[[note]]` link, link a task, today's date), or use the Markdown shortcuts: `# `, `- `, `1. `, `[] `, `> `, ` ``` ` and `---`. Select text for a small formatting bar (bold, italic, strikethrough, code, highlight, link, *Turn into…*). Each block has a handle on its left: click it to turn, duplicate, move, copy or delete the block, or drag it to reorder. Enter, Backspace, Tab / Shift+Tab, arrow keys, Ctrl+Z / Ctrl+Shift+Z and Ctrl+B / I / K all work the way you would expect. Pictures and files can still be pasted or dropped in. **Nothing was removed:** a note is still one Markdown text, and **Source**, **Split** and **Preview** are one tap away. Reading a note into blocks and putting it back gives the original text byte for byte (tested on thousands of random notes); anything the editor does not understand is kept as a raw block.
+- **Notes belong to a list or a project.** Pick where a note lives under its title. On the Notes page, the bar above the search chooses what to show: all notes, notes not in a list or project, one project (including all of its lists) or one list (including its sublists). *Group notes by list / project* adds a heading per place. New notes are filed in the current view, and every list and project header has a Notes button with the count.
+- **Banners for lists and projects.** A short, calm strip at the top: a colour, a gradient, a quiet pattern or a picture you upload (shrunk to a small file; slide to choose which part shows). Slim or standard height, dimmed into your theme and faded into the page. Add one in the list / project form or click the banner. *Settings → Show banners* hides them everywhere.
+- **Delete everything** (Settings → Danger zone) asks you to type DELETE, offers to also reset settings and remove attachments, warns when sync is on, and saves a restore point first (Settings → Automatic backups, or Undo in the toast that follows).
+- **Replace on import.** *Import from another app* has a **Replace everything** option (asks first; cancelling goes back to the import). *Import a backup* now asks whether to **merge** into your data (the most recently edited copy of an item wins) or **replace** everything.
+- **Widgets.** Android: *Today* (tick tasks off, tap + to add) and *Add a task* home-screen widgets in your theme's colours. Windows, macOS and Linux: a small always-on-top *mini widget* window (Settings → Widgets). Anywhere: `index.html?widget=1` is the same compact view. See [Widgets](#widgets).
+- **Fixed:** pressing and holding while editing a note could replace the whole note with a big rounded "Edited just now" bubble. The editor and the footer label shared one element id, so refreshing the label overwrote the editor.
+- All version numbers (`package.json`, `package-lock.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`) now agree on 0.2.3; before, `package.json` said 0.2.3 and the rest said 0.9.0.
+
+## Widgets
+
+**Android.** `src-tauri/gen/android` is generated by `tauri android init` and not kept in git, so the widget sources live in `src-tauri/android-widgets` (Kotlin, layouts, manifest entries) and `node scripts/android-widgets.mjs` copies them into the generated project and registers them. The release workflow runs it after `tauri android init`; run it yourself after `npx tauri android init` for local builds. The app writes today's tasks and your theme colours to `opentick-widget.json` in its app-data folder, and the widgets read it. Ticking a task or tapping + leaves a note in `opentick-widget-actions.json`, which the app applies the next time it opens. The widgets refresh when you leave the app, every 30 minutes, and when you resize them. Add them with a long press on the home screen → Widgets → OpenTick.
+
+**Desktop.** *Settings → Widgets → Mini widget window* opens a frameless, always-on-top window (drag by its header) with today's tasks and an add box. It shares the app's data and updates live.
+
+The Android widget code could not be compiled where this release was written, so build the APK in CI (or locally) and test it on a device or emulator before tagging a release. iOS and macOS WidgetKit widgets need an Xcode extension target and are not included.
+
 ## What's new in 0.9
 
 - **Notes page fixed**: the *Write / Split / Preview* buttons work, and note titles in the list render Markdown (a note that starts with `**bold**` or `- [ ]` no longer shows stray symbols).
@@ -287,6 +324,16 @@ Starts an in-memory WebDAV server on `http://127.0.0.1:8080/dav` with CORS enabl
 
 ---
 
+More suites cover this release: `test/v11.mjs` (attachments: content URIs, names and types, errors, duplicates), `test/v12.mjs` (time formats and timetable layout), `test/v13.mjs` (habit dates and the history graph, run under five time zones including DST and a 30-minute-DST zone), `test/v14.mjs` (background settings and a contrast check of every theme), `test/android.mjs` (the notification icon and the file permissions the app needs). `npm test` also checks that the licence list (`node scripts/licenses.mjs --check`) and every version number are up to date.
+
+### Browser tests
+
+`npm run test:browser` drives the built app in real Chromium (layout, touch, keyboard, print-to-PDF, rendered contrast) and covers the selection bar, matrix, timetable, habits, zoom, background, icons and Help / About. It needs `pip install playwright && playwright install chromium` and a built app (`node build-app.mjs`). It is separate from `npm test`, which has no dependencies. These tests exercise the web layer in Chromium; they cannot exercise Android or the Tauri shell.
+
+### Releases
+
+`npm run bump -- X.Y.Z` sets the version everywhere (and the README's "What's new" heading); `npm run licenses` regenerates the third-party licence list after dependency or asset changes; CI runs `node scripts/check-android-version.mjs --generated` after the APK build.
+
 ## Sync
 
 Sync keeps **tasks, lists, tag colours, timetable slots, habits and focus history** identical across devices. Theme, sort/group and other view settings deliberately stay per device.
@@ -402,10 +449,10 @@ OpenTick has one Gantt, drawn by OpenTick itself. It reads and writes the OpenGa
 Open the **Timetable** tab. Slots repeat weekly, so one slot like *"Maths · Mon + Wed 09:00–10:30"* appears every week.
 
 - **Add** — click an empty spot on the grid, or **+ Slot**. Pick days, times, colour, location, notes and an optional reminder.
-- **Move / resize** — drag a block to another day or time (15-minute steps); drag its bottom edge to change the end. Moving one day of a multi-day slot moves just that day. On touch screens, edit in the dialog.
+- **Move / resize** — drag a block to another day or time (15-minute steps); drag its bottom edge to change the end. Moving one day of a multi-day slot moves just that day. On touch screens, press and hold a block until it lifts, then drag; its bottom edge resizes by dragging too.
 - **Overlaps** are shown side by side with a red outline and a warning in the editor.
 - **Tasks on the grid** — a task due on a day with a time shows as a dashed block (duration from the task, default 30 min). Without a time it sits in the *all day* row. Drag a task from the *Tasks* tray onto the grid to schedule it, or onto *all day* to clear its time. In a task's details, **Timetable slot** links it to a slot, after which it is listed inside that slot on its due day.
-- **Views** — *Week* / *Day* (click a day header), arrows, and *Today*. The grid shows the whole day (00:00–24:00) by default (narrow it in the sliders menu) and grows automatically if something falls outside those hours.
+- **Views** — *Week* / *Day* (click a day header), arrows, and *Today*. By default the quiet hours are hidden (6:00–22:00 plus anything scheduled and the current time, fitted to the screen height); the sliders menu turns that off for the whole day (00:00–24:00) or lets you choose your own hours, and the grid grows automatically if something falls outside them. Times follow the 12 / 24-hour clock setting.
 - A red **"now" line** tracks the current time on today's column.
 
 ---

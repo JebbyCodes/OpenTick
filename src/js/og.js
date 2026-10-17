@@ -374,7 +374,8 @@ async function ogSync(listId, manual) {
   }
 }
 let ogTimer;
-function ogSchedule(ms = 2500) { if (!Object.keys(OG.links).length) return; clearTimeout(ogTimer); ogTimer = setTimeout(ogSyncAll, ms); }
+function ogSchedule(ms = 2500) {
+  if (typeof WIDGET !== 'undefined' && WIDGET) return; if (!Object.keys(OG.links).length) return; clearTimeout(ogTimer); ogTimer = setTimeout(ogSyncAll, ms); }
 async function ogSyncAll() { for (const id of Object.keys(OG.links)) if (OG.links[id].auto !== false) await ogSync(id, false); }
 const ogPaint = () => { const el = $('#ogstate'); if (el) el.innerHTML = ogStateHtml(U.ogList); };
 

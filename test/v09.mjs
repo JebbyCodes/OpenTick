@@ -60,9 +60,18 @@ const mkN = (o = {}) => { const n = A.newNote(o); S.notes.push(n); return n; };
   const kept = A.migrate({ tasks: [], lists: [], settings: { tt: { from: 9, to: 17, v: 2 } } }); assert.deepEqual([kept.settings.tt.from, kept.settings.tt.to], [9, 17], 'a range chosen afterwards is respected');
   assert.deepEqual([S.settings.tt.from, S.settings.tt.to], [0, 24]);
   const t = mkT('All day thing', { due: A.todayStr ? A.todayStr() : '2026-10-08' }); A.U.page = 'timetable'; A.renderTimetable();
-  const h = A.els['#main'].innerHTML; assert.ok(h.includes('00:00') && h.includes('23:00'), 'every hour is drawn'); assert.ok(h.includes('class="chip adc'), 'all-day tasks are real, tappable rows');
+  S.settings.tt.auto = false; A.renderTimetable(); // "hide quiet hours" off = the whole day
+  const h = A.els['#main'].innerHTML; assert.ok(h.includes(A.fmtHour(0)) && h.includes(A.fmtHour(23)), 'every hour is drawn'); assert.ok(h.includes('class="chip adc'), 'all-day tasks are real, tappable rows');
   assert.ok(/class="chk sm[^"]*" data-act="toggle"/.test(h), 'with a checkbox');
   assert.ok(A.TT_MINH() >= 30, 'blocks have a minimum height');
+  // new default: the quiet hours are hidden, but the day still grows to fit anything scheduled
+  const kept2 = A.migrate({ tasks: [], lists: [], settings: { tt: { from: 9, to: 17, v: 2 } } }); assert.equal(kept2.settings.tt.auto, false, 'a range someone chose is kept, not replaced');
+  assert.equal(A.migrate({ tasks: [], lists: [], settings: {} }).settings.tt.auto, true, 'a fresh install hides quiet hours');
+  S.settings.tt.auto = true; A.U.ttDate = new Date(2030, 0, 15); A.renderTimetable(); const q = A.els['#main'].innerHTML;
+  assert.ok(q.includes(A.fmtHour(6)) && q.includes(A.fmtHour(21)), '6:00–22:00 is shown'); assert.ok(!q.includes('>' + A.fmtHour(2) + '<') && !q.includes('>' + A.fmtHour(23) + '<'), 'the small hours are not');
+  const early = mkT('Night shift', { due: '2030-01-15', time: '02:00', dur: 60 }); A.renderTimetable();
+  assert.ok(A.els['#main'].innerHTML.includes('>' + A.fmtHour(2) + '<'), 'a task outside the shown hours pulls its hour in'); early.deleted = true;
+  A.U.ttDate = null; S.settings.tt.auto = false;
 }
 
 /* ---- custom themes ---- */

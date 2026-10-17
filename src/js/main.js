@@ -11,6 +11,7 @@ function applyTheme() {
   const th = THEMES.some(t => t[0] === S.settings.theme) || customTheme(S.settings.theme) ? S.settings.theme : DEFAULT_THEME;
   document.documentElement.dataset.theme = THEMES.some(t => t[0] === th) ? th : DEFAULT_THEME;
   themeApplyCustom(); // an imported theme sits on top of its base theme
+  if (typeof bgApply === 'function') bgApply();
   try { const c = getComputedStyle(document.documentElement).getPropertyValue('--side').trim(), m = document.querySelector('meta[name=theme-color]'); if (c && m) m.setAttribute('content', c); } catch (e) { /* cosmetic only */ }
 }
 const refresh = () => { renderSide(); renderMain(); renderDetail(); };
@@ -123,15 +124,6 @@ async function pickText(exts = ['json'], label = 'JSON', named = false) {
   return new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = exts.map(x => '.' + x).join(','); i.onchange = async () => res(i.files[0] ? (named ? { text: await i.files[0].text(), name: i.files[0].name } : await i.files[0].text()) : null); i.click(); });
 }
 async function exportData() { try { if (await saveText(`opentick-${todayStr()}.json`, JSON.stringify({ ...S, _app: { name: 'OpenTick', version: APP_VERSION, exported: new Date().toISOString() } }, null, 1))) toast('Exported'); } catch (e) { toast('Export failed: ' + (e.message || e)); } }
-async function importData() {
-  try {
-    const txt = await pickText(); if (!txt) return;
-    const d = JSON.parse(txt); if (d) delete d._app;
-    if (!d || !Array.isArray(d.tasks) || !Array.isArray(d.lists)) throw new Error('not an OpenTick backup');
-    if (!await askConfirm(`Replace everything with this backup (${d.tasks.length} tasks)?`, 'Replace')) return;
-    replaceAll(d); histNote('import', `Backup imported (${d.tasks.length} tasks)`); save(); applyTheme(); U.nav = 'today'; U.page = 'tasks'; U.sel = null; render(); toast('Imported');
-  } catch (e) { toast('Import failed: ' + (e.message || e)); }
-}
 
 /* ---------- notifications, sound, reminders ---------- */
 async function ensureNotify() {
@@ -145,13 +137,19 @@ async function ensureNotify() {
 function notify(title, body) {
   try {
     const T = TAURI();
-    if (T && T.notification) { T.notification.sendNotification({ title, body }); return; }
+    if (T && T.notification) {
+      // Android draws the small notification icon from a monochrome drawable of its own (src-tauri/android-widgets/res/drawable/ic_stat_opentick.xml);
+      // without this it falls back to the launcher icon, which Android flattens into a white square. Desktop systems ignore / don't have this.
+      const o = { title, body }; if (/Android/i.test(navigator.userAgent || '')) { o.icon = 'ic_stat_opentick'; o.iconColor = '#E09B00'; }
+      T.notification.sendNotification(o); return;
+    }
     if ('Notification' in window && Notification.permission === 'granted') { new Notification(title, { body, icon: APP_LOGO }); return; }
   } catch (e) { /* fall through */ }
   toast(`${title}${body ? ' — ' + body : ''}`);
 }
 const beep = () => sfx('chime');
 function checkReminders() {
+  if (WIDGET) return;
   const now = Date.now(); let changed = false;
   for (const t of S.tasks) {
     if (t.deleted || t.status !== 'open' || !t.due || t.reminder == null) continue;
@@ -166,7 +164,7 @@ function checkReminders() {
     for (const off of [0, 1]) {
       const d = addDays(today, off), k = ymd(d); if (!sl.days.includes(d.getDay())) continue;
       const at = new Date(`${k}T${sl.start}`).getTime() - sl.remind * 60000, endAt = new Date(`${k}T${sl.end}`).getTime(), key = `s|${sl.id}|${k}|${sl.start}|${sl.remind}`;
-      if (now >= at && now < endAt && !S.fired[key]) { S.fired[key] = 1; changed = true; notify(sl.title, `${sl.start}–${sl.end}${sl.loc ? ' · ' + sl.loc : ''}`); sfx('chime'); }
+      if (now >= at && now < endAt && !S.fired[key]) { S.fired[key] = 1; changed = true; notify(sl.title, `${fmtRange(sl.start, sl.end)}${sl.loc ? ' · ' + sl.loc : ''}`); sfx('chime'); }
     }
   }
   const old = ymd(addDays(today, -2));
@@ -273,32 +271,37 @@ function playBtn(b) {
 async function loadSnaps(m) {
   const box = $('#snaps', m); if (!box) return;
   const list = await snapList(), fmt = t => new Date(t).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-  box.innerHTML = (list.length ? list.map(x => `<div class="snap"><span><b>${esc(fmt(x.at))}</b><small>${x.tasks} task${x.tasks === 1 ? '' : 's'}</small></span><button data-snaprs="${esc(x.key)}">Restore</button><button class="ib" data-snapdl="${esc(x.key)}" title="Download this backup" aria-label="Download this backup">${ic('download', 15)}</button></div>`).join('') : '<p class="hint">The first automatic backup is made a few seconds after you open the app.</p>')
+  box.innerHTML = (list.length ? list.map(x => `<div class="snap"><span><b>${esc(fmt(x.at))}</b><small>${x.tag ? 'Before deleting everything · ' : ''}${x.tasks} task${x.tasks === 1 ? '' : 's'}</small></span><button data-snaprs="${esc(x.key)}">Restore</button><button class="ib" data-snapdl="${esc(x.key)}" title="Download this backup" aria-label="Download this backup">${ic('download', 15)}</button></div>`).join('') : '<p class="hint">The first automatic backup is made a few seconds after you open the app.</p>')
     + `<div class="snapfoot"><button data-m="snapnow">${ic('refresh', 14)} Back up now</button><span class="hint">One copy a day, the last ${SNAP_KEEP} kept, on this device only.</span></div>`;
 }
 function openSettings() {
   const s = S.settings;
-  openModal(`<h3>Settings</h3><h4 class="mh first">Appearance</h4><div id="thsec">${themeSectionHtml()}</div><h4 class="mh">General &amp; focus timer</h4><div class="form">
+  openModal(`<h3>Settings</h3><h4 class="mh first">Appearance</h4><div id="thsec">${themeSectionHtml()}</div>${scaleSetting()}<div class="dgrid" style="margin-top:10px"><button data-m="bgfx">${ic('sparkles', 18)}<span><b>Background effects</b><small>${bgNorm(s.bg).on ? 'On · ' + (BG_STYLES.find(x => x[0] === bgNorm(s.bg).style) || [])[1] : 'Off'} — soft moving shapes behind the app</small></span></button></div><h4 class="mh">General &amp; focus timer</h4><div class="form">
 <label>Week starts on<select data-s="weekStart">${opts([[1, 'Monday'], [0, 'Sunday'], [6, 'Saturday']], s.weekStart)}</select></label>
 <label>Focus (min)<input type="number" min="1" max="180" data-p="focus" value="${s.pomo.focus}"></label>
 <label>Short break (min)<input type="number" min="1" max="60" data-p="short" value="${s.pomo.short}"></label>
 <label>Long break (min)<input type="number" min="1" max="120" data-p="long" value="${s.pomo.long}"></label></div>
 <h4 class="mh">Sound</h4><div class="snd"><div class="mrow tight"><label class="chkl"><input type="checkbox" data-snd="on"${s.sound.on !== false ? ' checked' : ''}> Sound effects</label><label class="chkl"><input type="checkbox" data-snd="haptic"${s.sound.haptic !== false ? ' checked' : ''}> Vibrate on phones</label></div><label class="vol">${ic('volume', 16)}<input type="range" min="0" max="1" step="0.05" data-snd="vol" value="${s.sound.vol}" aria-label="Volume"></label><div class="mrow tight">${Object.entries(SOUNDS).map(([k, v]) => `<button class="sbtn" data-play="${k}" title="Play this sound"><span class="pi">${ic('play', 13)}</span>${esc(v.label)}</button>`).join('')}</div></div>
 <h4 class="mh">Clock</h4><div class="mrow tight"><label class="chkl"><input type="checkbox" data-ck="on"${s.clock.on !== false ? ' checked' : ''}> Show date &amp; time</label><label class="chkl"><input type="checkbox" data-ck="h24"${s.clock.h24 ? ' checked' : ''}> 24-hour clock</label><label class="chkl"><input type="checkbox" data-ck="sec"${s.clock.sec ? ' checked' : ''}> Seconds</label></div><p class="hint">At the foot of the sidebar, or a small corner label when the sidebar is hidden.</p>
+<div class="mrow tight" style="margin-top:10px"><label class="chkl"><input type="checkbox" data-bnr="on"${s.banners !== false ? ' checked' : ''}> Show banners on lists and projects</label></div>
 <details class="gtd" style="margin-top:12px"><summary>Sidebar views</summary><div id="sbv">${uiSidebarSettings()}</div></details>
 <h4 class="mh">Data, sync &amp; backup</h4><div class="dgrid">
 <button data-m="sync">${ic('cloud', 18)}<span><b>Sync</b><small>${Sync.on ? 'On · ' + esc((PROVIDERS[Sync.cfg.provider] || {}).label || '') : 'Off — WebDAV, Git, S3 or a file'}</small></span></button>
 <button data-m="export">${ic('download', 18)}<span><b>Export backup</b><small>Everything as one JSON file</small></span></button>
 <button data-m="impapps">${ic('upload', 18)}<span><b>Import from another app</b><small>TickTick, Todoist, Anytype, Trello…</small></span></button>
-<button data-m="import">${ic('upload', 18)}<span><b>Import a backup</b><small>An OpenTick JSON file</small></span></button>
+<button data-m="import">${ic('upload', 18)}<span><b>Import a backup</b><small>Merge or replace · OpenTick JSON file</small></span></button>
 <button data-m="oginport">${ic('calendar', 18)}<span><b>Import an OpenGantt chart</b><small>.opengantt file</small></span></button>
 <button data-m="notif">${ic('bell', 18)}<span><b>Notifications</b><small>Allow reminders</small></span></button></div>
+<h4 class="mh">Widgets</h4><div class="dgrid"><button data-m="widget">${ic('layers', 18)}<span><b>${isAndroidApp() ? 'Home-screen widgets' : 'Mini widget window'}</b><small>${isAndroidApp() ? 'Long-press the home screen → Widgets → OpenTick' : 'Today\'s tasks in a small window that stays on top'}</small></span></button></div>
+<h4 class="mh">Danger zone</h4><div class="dgrid"><button class="dz" data-m="wipe">${ic('trash', 18)}<span><b>Delete everything…</b><small>Tasks, lists, notes, habits and more · asks first</small></span></button></div>
 <h4 class="mh">Automatic backups</h4><div id="snaps" class="snaps"><p class="hint">Loading…</p></div>
-<div class="about">${logoHtml(40)}<div><b>OpenTick</b> <span class="ver">v${esc(APP_VERSION)}</span><br><span class="hint">${OTMETA.built ? 'Built ' + esc(OTMETA.built) + ' · ' : ''}Your data lives on this device. Turn on Sync to share it between devices, or export a JSON backup. Theme, sound and view settings stay per device.</span></div><button data-m="about" title="Copy version details for a bug report">Copy info</button></div>
+<h4 class="mh">Help &amp; about</h4><div class="dgrid"><button data-m="help">${ic('book-open', 18)}<span><b>Help &amp; user guide</b><small>How everything works · printable</small></span></button><button data-m="aboutdlg">${ic('info', 18)}<span><b>About OpenTick</b><small>v${esc(APP_VERSION)} · source, licences &amp; credits</small></span></button></div>
+<div class="about">${logoHtml(40)}<div><b>OpenTick</b> <span class="ver">v${esc(APP_VERSION)}</span><br><span class="hint">${OTMETA.built ? 'Built ' + esc(OTMETA.built) + ' · ' : ''}Your data lives on this device. Turn on Sync to share it between devices, or export a JSON backup. Theme, sound and view settings stay per device.</span></div></div>
 <div class="mact"><button class="pri" data-m="ok">Done</button></div>`, m => {
-    loadSnaps(m);
+    loadSnaps(m); scaleBind(m);
     m.onchange = e => {
       const el = e.target;
+      if (el.dataset.bnr) { S.settings.banners = el.checked; save(); return; }
       if (el.dataset.ck) { S.settings.clock[el.dataset.ck] = el.checked; save(); clockPaint(); return; }
       if (el.dataset.snd) { const k = el.dataset.snd; S.settings.sound[k] = el.type === 'checkbox' ? el.checked : +el.value; save(); if (k === 'vol' || (k === 'on' && el.checked)) sfx('done', true); return; }
       if (el.dataset.pg) { const h = S.settings.ui.hidePages; if (el.checked) S.settings.ui.hidePages = h.filter(k => k !== el.dataset.pg); else if (!h.includes(el.dataset.pg)) h.push(el.dataset.pg); save(); const b = $('#sbv', m); if (b) b.innerHTML = uiSidebarSettings(); return; }
@@ -321,6 +324,11 @@ function openSettings() {
       if (a === 'ok') { closeModal(); render(); }
       else if (a === 'export') exportData();
       else if (a === 'import') { closeModal(); importData(); }
+      else if (a === 'widget') { if (isAndroidApp()) { widgetPush(true); toast('Long-press the home screen, choose Widgets, then OpenTick'); } else openMiniWidget(); }
+      else if (a === 'bgfx') { closeModal(); openBgSettings(); }
+      else if (a === 'help') { closeModal(); openHelp(); }
+      else if (a === 'aboutdlg') { closeModal(); openAbout(); }
+      else if (a === 'wipe') { closeModal(); if (!(await deleteEverything())) openSettings(); }
       else if (a === 'impapps') { closeModal(); openImport(); }
       else if (a === 'sync') { closeModal(); openSync(); }
       else if (a === 'oginport') { closeModal(); ogImport(null); }
@@ -428,11 +436,12 @@ ${isNew ? '<p class="hint">Save the slot first, then you can attach tasks to it.
   }, 'wide');
 }
 function openTTSettings() {
-  const tt = S.settings.tt, hrs = n => Array.from({ length: n }, (_, i) => [i, `${pad(i)}:00`]);
-  openModal(`<h3>Timetable settings</h3><div class="form"><label>Day starts at<select data-t="from">${opts(hrs(23), tt.from)}</select></label><label>Day ends at<select data-t="to">${opts(hrs(25).slice(1), tt.to)}</select></label><label class="inl"><input type="checkbox" data-t="weekends"${tt.weekends ? ' checked' : ''}> Show weekends</label></div><p class="hint">The grid grows by itself if something is scheduled outside these hours.</p><div class="mact"><button class="pri" data-m="ok">Done</button></div>`, m => {
+  const tt = S.settings.tt, hrs = n => Array.from({ length: n }, (_, i) => [i, fmtMin(i * 60)]);
+  openModal(`<h3>Timetable settings</h3><div class="form"><label class="inl"><input type="checkbox" data-t="auto"${tt.auto ? ' checked' : ''}> Hide the quiet hours (shows 6:00–22:00 and anything scheduled outside them)</label><label>Day starts at<select data-t="from"${tt.auto ? ' disabled' : ''}>${opts(hrs(23), tt.from)}</select></label><label>Day ends at<select data-t="to"${tt.auto ? ' disabled' : ''}>${opts(hrs(25).slice(1), tt.to)}</select></label><label class="inl"><input type="checkbox" data-t="fit"${tt.fit !== false ? ' checked' : ''}> Fit the day to the screen (more of the day without scrolling)</label><label class="inl"><input type="checkbox" data-t="weekends"${tt.weekends ? ' checked' : ''}> Show weekends</label></div><p class="hint">The grid grows by itself if something is scheduled outside the shown hours. Times follow the 12 / 24-hour choice in Settings → Clock.</p><div class="mact"><button class="pri" data-m="ok">Done</button></div>`, m => {
     m.onchange = e => {
       const k = e.target.dataset.t; if (!k) return;
-      if (k === 'weekends') tt.weekends = e.target.checked; else tt[k] = +e.target.value;
+      if (k === 'weekends' || k === 'fit' || k === 'auto') tt[k] = e.target.checked; else tt[k] = +e.target.value;
+      if (k === 'auto' || k === 'fit') { U.ttAvail = null; save(); closeModal(); openTTSettings(); return; }
       let fix = false;
       if (tt.to <= tt.from) { if (k === 'from') tt.to = Math.min(24, tt.from + 1); else tt.from = Math.max(0, tt.to - 1); fix = true; }
       save(); if (fix) { closeModal(); openTTSettings(); }
@@ -451,7 +460,7 @@ const ttShift = n => { U.ttDate = addDays(U.ttDate || new Date(), n * ttStep());
 function ttDrop(e, el) {
   const date = el.dataset.d, isAd = el.classList.contains('tt-ad');
   let m = 0;
-  if (!isAd) m = Math.max(0, Math.min(1439, +el.dataset.from + Math.round((e.clientY - el.getBoundingClientRect().top - (U.dragOff || 0)) / (TT_HH / 60) / 15) * 15));
+  if (!isAd) m = Math.max(0, Math.min(1439, +el.dataset.from + Math.round((zy(e.clientY, el.getBoundingClientRect().top) - (U.dragOff || 0)) / (TT_HH / 60) / 15) * 15));
   if (String(U.drag).startsWith('slot:')) {
     if (isAd) return;
     const [, sid, day] = U.drag.split(':'), sl = slotById(sid); if (!sl) return;
@@ -582,7 +591,7 @@ function openHabit(h) {
         d.name = $('#hb-name', m).value.trim(); d.icon = ($('#hb-icon', m).value.trim() || d.icon || '✓');
         if (!d.name) { toast('Give the habit a name'); $('#hb-name', m).focus(); return; }
         const goal = { per: d.goal.per, n: d.goal.per === 'day' ? 1 : d.goal.n };
-        if (isNew) S.habits.push({ id: uid(), name: d.name, icon: d.icon, color: d.color, goal, log: {} });
+        if (isNew) S.habits.push({ id: uid(), name: d.name, icon: d.icon, color: d.color, goal, created: todayStr(), log: {} });
         else Object.assign(h, { name: d.name, icon: d.icon, color: d.color, goal });
         save(); closeModal(); sfx('add'); renderMain();
       } else if (b.dataset.m === 'del') {
@@ -620,19 +629,21 @@ function iconColourWire(m, d) {
   paint(); return click;
 }
 function openListForm(l, parent = '') {
-  const isNew = !l, d = l ? { name: l.name, icon: l.icon || '', color: l.color, parent: l.parent || '' } : { name: '', icon: '', color: COLORS[S.lists.length % COLORS.length][0], parent };
+  const isNew = !l, d = l ? { name: l.name, icon: l.icon || '', color: l.color, parent: l.parent || '', banner: bannerDraft(l.banner) } : { name: '', icon: '', color: COLORS[S.lists.length % COLORS.length][0], parent, banner: bannerDraft(null) };
   const bad = l ? new Set([l.id, ...listDescendants(l.id)]) : new Set();
   const parents = () => '<option value="">— Top level —</option>' + listTree().filter(x => !bad.has(x.l.id)).map(x => `<option value="${esc(x.l.id)}"${x.l.id === d.parent ? ' selected' : ''}>${'\u2003'.repeat(x.depth)}${x.depth ? '↳ ' : ''}${esc(x.l.name)}</option>`).join('');
   openModal(`<h3>${isNew ? (parent ? 'New sublist' : 'New list') : 'Edit list'}</h3><div class="pk-prev" id="pk-prev"></div><div class="form one">
 <label>Name<input id="pk-name" value="${esc(d.name)}" placeholder="e.g. Groceries" autocomplete="off"></label>
 ${iconColourFields(d)}
-<label>Inside<select id="pk-parent">${parents()}</select></label></div>
+<label>Inside<select id="pk-parent">${parents()}</select></label>
+${bannerFields(d, d.color)}</div>
 <div class="mact">${isNew ? '' : '<button class="danger" data-m="del">Delete</button>'}<span class="sp"></span><button data-m="no">Cancel</button><button class="pri" data-m="save">Save</button></div>`, m => {
     const click = iconColourWire(m, d); $('#pk-name', m).focus();
-    const oi = m.oninput; m.oninput = e => oi(e);
-    m.onchange = e => { if (e.target.id === 'pk-parent') d.parent = e.target.value; else if (e.target.id === 'pk-cust') { d.color = e.target.value; oi({ target: { id: '' } }); } };
+    const bw = bannerWire(m, d, () => d.color), oi = m.oninput; m.oninput = e => { if (!bw.input(e)) oi(e); };
+    m.onchange = e => { if (bw.change(e)) return; if (e.target.id === 'pk-parent') d.parent = e.target.value; else if (e.target.id === 'pk-cust') { d.color = e.target.value; oi({ target: { id: '' } }); } };
     m.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing && e.target.id === 'pk-name') { e.preventDefault(); $('[data-m=save]', m).click(); } };
     m.onclick = async e => {
+      if (bw.click(e)) return;
       if (click(e)) return;
       const b = e.target.closest('button');
       if (!b) { if (e.target.classList.contains('mback')) closeModal(); return; }
@@ -640,25 +651,27 @@ ${iconColourFields(d)}
       else if (b.dataset.m === 'save') {
         d.name = $('#pk-name', m).value.trim(); if (!d.name) { toast('Give the list a name'); $('#pk-name', m).focus(); return; }
         const em = $('#pk-emoji', m).value.trim(); if (em) d.icon = em;
-        if (isNew) { const nl = { id: uid(), name: d.name, color: d.color, sections: [], created: Date.now(), parent: d.parent || null }; if (d.icon) nl.icon = d.icon; S.lists.push(nl); if (d.parent) S.settings.ui.fold['l:' + d.parent] = false; save(); closeModal(); sfx('add'); setNav('list:' + nl.id); }
-        else { l.name = d.name; l.color = d.color; l.parent = d.parent || null; if (d.icon) l.icon = d.icon; else delete l.icon; save(); closeModal(); refresh(); }
+        if (isNew) { const nl = { id: uid(), name: d.name, color: d.color, sections: [], created: Date.now(), parent: d.parent || null }; if (d.icon) nl.icon = d.icon; bannerSet(nl, d.banner); S.lists.push(nl); if (d.parent) S.settings.ui.fold['l:' + d.parent] = false; save(); closeModal(); sfx('add'); setNav('list:' + nl.id); }
+        else { l.name = d.name; l.color = d.color; l.parent = d.parent || null; if (d.icon) l.icon = d.icon; else delete l.icon; bannerSet(l, d.banner); save(); closeModal(); refresh(); }
       } else if (b.dataset.m === 'del') { closeModal(); U.nav = 'list:' + l.id; ACT.listmenu({ dataset: { lid: l.id } }); }
     };
   }, 'wide');
 }
 // projects: a named set of lists (each brings its sublists), viewed together
 function openProjectForm(p) {
-  const isNew = !p, d = p ? { name: p.name, icon: p.icon || '', color: p.color, ids: new Set(p.listIds || []) } : { name: '', icon: 'layers', color: COLORS[(S.projects.length + 3) % COLORS.length][0], ids: new Set() };
+  const isNew = !p, d = p ? { name: p.name, icon: p.icon || '', color: p.color, ids: new Set(p.listIds || []), banner: bannerDraft(p.banner) } : { name: '', icon: 'layers', color: COLORS[(S.projects.length + 3) % COLORS.length][0], ids: new Set(), banner: bannerDraft(null) };
   if (d.icon === 'layers') d.icon = '';
   const tree = listTree(), pickers = () => tree.length ? tree.map(({ l, depth }) => `<label class="pk-l" style="--d:${depth}"><input type="checkbox" data-lid="${esc(l.id)}"${d.ids.has(l.id) ? ' checked' : ''}><span class="ni" style="color:${l.color}">${listIcon(l, 16)}</span><span>${esc(l.name)}</span></label>`).join('') : '<p class="hint">Create a list first, then link it here.</p>';
   openModal(`<h3>${isNew ? 'New project' : 'Edit project'}</h3><div class="pk-prev" id="pk-prev"></div><div class="form one">
 <label>Name<input id="pk-name" value="${esc(d.name)}" placeholder="e.g. Website relaunch" autocomplete="off"></label>
 <div class="lbl">Lists in this project<div class="pk-lists">${pickers()}</div><p class="hint">Ticking a list brings its sublists along. A list can belong to several projects.</p></div>
-${iconColourFields(d)}</div>
+${iconColourFields(d)}
+${bannerFields(d, d.color)}</div>
 <div class="mact">${isNew ? '' : '<button class="danger" data-m="del">Delete</button>'}<span class="sp"></span><button data-m="no">Cancel</button><button class="pri" data-m="save">Save</button></div>`, m => {
-    const click = iconColourWire(m, d); $('#pk-name', m).focus(); const oi = m.oninput;
-    m.onchange = e => { if (e.target.id === 'pk-cust') { d.color = e.target.value; oi({ target: { id: '' } }); } else if (e.target.dataset.lid) { if (e.target.checked) d.ids.add(e.target.dataset.lid); else d.ids.delete(e.target.dataset.lid); } };
+    const click = iconColourWire(m, d); $('#pk-name', m).focus(); const bw = bannerWire(m, d, () => d.color), oi = m.oninput; m.oninput = e => { if (!bw.input(e)) oi(e); };
+    m.onchange = e => { if (bw.change(e)) return; if (e.target.id === 'pk-cust') { d.color = e.target.value; oi({ target: { id: '' } }); } else if (e.target.dataset.lid) { if (e.target.checked) d.ids.add(e.target.dataset.lid); else d.ids.delete(e.target.dataset.lid); } };
     m.onclick = async e => {
+      if (bw.click(e)) return;
       if (click(e)) return;
       const b = e.target.closest('button');
       if (!b) { if (e.target.classList.contains('mback')) closeModal(); return; }
@@ -667,11 +680,11 @@ ${iconColourFields(d)}</div>
         d.name = $('#pk-name', m).value.trim(); if (!d.name) { toast('Give the project a name'); $('#pk-name', m).focus(); return; }
         const em = $('#pk-emoji', m).value.trim(); if (em) d.icon = em;
         const ids = tree.map(x => x.l.id).filter(id => d.ids.has(id));
-        if (isNew) { const np = { id: uid(), name: d.name, color: d.color, listIds: ids, created: Date.now() }; if (d.icon) np.icon = d.icon; S.projects.push(np); save(); closeModal(); sfx('add'); setNav('project:' + np.id); }
-        else { Object.assign(p, { name: d.name, color: d.color, listIds: ids }); if (d.icon) p.icon = d.icon; else delete p.icon; save(); closeModal(); refresh(); }
+        if (isNew) { const np = { id: uid(), name: d.name, color: d.color, listIds: ids, created: Date.now() }; if (d.icon) np.icon = d.icon; bannerSet(np, d.banner); S.projects.push(np); save(); closeModal(); sfx('add'); setNav('project:' + np.id); }
+        else { Object.assign(p, { name: d.name, color: d.color, listIds: ids }); if (d.icon) p.icon = d.icon; else delete p.icon; bannerSet(p, d.banner); save(); closeModal(); refresh(); }
       } else if (b.dataset.m === 'del') {
         closeModal();
-        if (await askConfirm(`Delete the project “${p.name}”? Its lists and tasks are not affected.`)) { S.projects = S.projects.filter(x => x !== p); save(); if (U.nav === 'project:' + p.id) setNav('today'); else refresh(); } else openProjectForm(p);
+        if (await askConfirm(`Delete the project “${p.name}”? Its lists, tasks and notes are not affected.`)) { notesDetach('project', p.id); S.projects = S.projects.filter(x => x !== p); save(); if (U.nav === 'project:' + p.id) setNav('today'); else refresh(); } else openProjectForm(p);
       }
     };
   }, 'wide');
@@ -709,20 +722,23 @@ const ACT = {
   addlist: () => openListForm(null, ''),
   async listmenu(el) {
     const l = S.lists.find(x => x.id === ((el && el.dataset && el.dataset.lid) || U.nav.slice(5))); if (!l || l.id === 'inbox') return;
-    const i = await askMenu(l.name, [{ label: 'Edit list (name, icon, colour, parent)…' }, { label: 'Add a sublist…' }, { label: 'Delete list', danger: true }]);
+    const i = await askMenu(l.name, [{ label: 'Edit list (name, icon, colour, parent)…' }, { label: 'Add a sublist…' }, { label: 'Banner…' }, { label: 'Delete list', danger: true }]);
     if (i === 0) openListForm(l);
     else if (i === 1) openListForm(null, l.id);
-    else if (i === 2) {
+    else if (i === 2) openBannerDialog('list', l.id);
+    else if (i === 3) {
       const kids = S.lists.filter(x => x.parent === l.id).length;
       if (!await askConfirm(`Delete “${l.name}” and move its tasks to Trash?${kids ? ` Its ${kids === 1 ? 'sublist moves' : kids + ' sublists move'} up a level.` : ''}`)) return;
       S.tasks.filter(t => t.listId === l.id).forEach(t => { t.deleted = Date.now(); });
       S.lists.forEach(x => { if (x.parent === l.id) x.parent = l.parent || null; });
       S.projects.forEach(p => { p.listIds = (p.listIds || []).filter(id => id !== l.id); });
+      notesDetach('list', l.id);
       S.lists = S.lists.filter(x => x.id !== l.id); save();
       if (U.nav === 'list:' + l.id) setNav('today'); else refresh();
     }
   },
   addproject: () => openProjectForm(null),
+  bannedit: el => openBannerDialog(el.dataset.kind, el.dataset.id),
   projmenu: el => { const p = projectOf(el.dataset.pid); if (p) openProjectForm(p); },
   view: el => { listOf(U.nav.slice(5)).view = el.dataset.v; save(); renderMain(); },
   async secadd() { const n = await askText('New section'); if (!n) return; const l = listOf(U.nav.slice(5)); if (!l.sections.includes(n)) l.sections.push(n); save(); renderMain(); },
@@ -766,6 +782,7 @@ const ACT = {
   haddlg: () => openHabit(null),
   hday(el) {
     const h = S.habits.find(x => x.id === el.dataset.id), d = el.dataset.d; if (!h) return;
+    if (!validKey(d) || d > todayStr()) { toast("You can check in on today or an earlier day — not on a future date."); return; }
     const before = streak(h), on = !h.log[d];
     if (on) h.log[d] = 1; else delete h.log[d];
     (h.logU = h.logU || {})[d] = Date.now(); save(); // logU lets sync merge check-ins day by day
@@ -782,9 +799,11 @@ const ACT = {
     if (e.target.closest('a,input')) return; // links and checkboxes act on their own
     U.nMode = 'write'; renderDetail(); const ta = $('textarea[data-f="notes"]'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
   },
-  nfmt: el => mdFormat(el.dataset.k, el.dataset.for ? $(el.dataset.for) : null),
+  nfmt: el => { const f = el.dataset.for; if (f && /^#[nx]-ta$/.test(f) && BE.cur && BE.cur.o.pre === f[1] && $(`#${f[1]}-ed`) && $(`#${f[1]}-ed`).classList.contains('ed-blocks') && bedFormat(el.dataset.k)) return; mdFormat(el.dataset.k, f ? $(f) : null); },
   ...NOTE_ACT,
   ...BATCH_ACT,
+  ...HABIT_ACT,
+  ...HELP_ACT,
   ...GT_ACT,
   // Gantt dates in the task panel
   gxstart: () => { const t = getT(U.sel); if (!t) return; t.astart = todayStr(); sfx('tick'); save(); refresh(); },
@@ -820,10 +839,11 @@ const ACT = {
   tttray: () => { if (narrow(820)) openTTTasks(); else { U.ttTray = !ttTrayOn(); renderMain(); } },
   ttsched: (el, e) => { e.stopPropagation(); openTTSchedule(el.dataset.id); },
   ttset: openTTSettings,
+  ttad() { S.settings.tt.adOpen = S.settings.tt.adOpen === false; save(); U.ttAvail = null; renderMain(); },
   ttadd: () => { const n = new Date(), m = Math.min(1380, Math.max(S.settings.tt.from * 60, n.getMinutes() > 30 ? (n.getHours() + 1) * 60 : n.getHours() * 60)); openTTCreate({ date: ymd(U.ttDate || n), start: fromMin(m), end: fromMin(m + 60) }); },
   ttslot: el => openSlot(slotById(el.dataset.sid)),
   ttcell: (el, e) => {
-    const y = e.clientY - el.getBoundingClientRect().top, m = Math.min(1380, +el.dataset.from + Math.floor(y / (TT_HH / 60) / 30) * 30);
+    const y = zy(e.clientY, el.getBoundingClientRect().top), m = Math.min(1380, +el.dataset.from + Math.floor(y / (TT_HH / 60) / 30) * 30);
     openTTCreate({ date: el.dataset.d, start: fromMin(m), end: fromMin(Math.min(1439, m + 60)) });
   },
   // gantt / OpenGantt
@@ -889,6 +909,7 @@ document.addEventListener('change', async e => {
     n.body = mdToggleLine(n.body, +el.dataset.mdl); n.updated = Date.now(); const ta = $('#n-ta'); if (ta) ta.value = n.body; save(); sfx(el.checked ? 'done' : 'undo'); notePaint(); return;
   }
   if (el.dataset.f === 'ntags') { noteInput('tags', el.value); return; }
+  if (el.dataset.f === 'nhome') { const n = noteById(U.noteSel); if (!n) return; noteSetHome(n, el.value); save(); renderNoteList(); const sc = noteScope(); if (sc && !noteInScope(n, sc)) toast('Filed under another list — it moved out of this view'); return; }
   if (el.classList && el.classList.contains('mdchk')) {
     const t = getT(U.sel); if (!t) return;
     t.notes = mdToggleLine(t.notes, +el.dataset.mdl); sfx(el.checked ? 'tick' : 'undo'); save();
@@ -981,6 +1002,7 @@ function mdFormat(kind, ta) {
   if (kind === 'bold') wrap('**', '**', 'bold');
   else if (kind === 'italic') wrap('*', '*', 'italic');
   else if (kind === 'strike') wrap('~~', '~~', 'text');
+  else if (kind === 'mark') wrap('==', '==', 'text');
   else if (kind === 'code') { if (sel.includes('\n')) wrap('```\n', '\n```', ''); else wrap('`', '`', 'code'); }
   else if (kind === 'link') { const txt = sel || 'link'; v = v.slice(0, a) + '[' + txt + '](https://)' + v.slice(b); a += txt.length + 3; b = a + 8; }
   else if (kind === 'img') { const txt = sel || 'alt text'; v = v.slice(0, a) + '![' + txt + '](https://)' + v.slice(b); a += txt.length + 4; b = a + 8; }
@@ -1038,7 +1060,7 @@ document.addEventListener('dragstart', e => {
   const r = e.target.closest('[data-id][draggable],[data-sid][draggable]'); if (!r) return;
   if (e.target.closest('.rz')) { e.preventDefault(); return; }
   U.drag = r.dataset.sid ? `slot:${r.dataset.sid}:${r.dataset.day}` : r.dataset.id;
-  U.dragOff = r.classList.contains('blk') ? e.clientY - r.getBoundingClientRect().top : 0; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', U.drag); r.classList.add('drag');
+  U.dragOff = r.classList.contains('blk') ? zy(e.clientY, r.getBoundingClientRect().top) : 0; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', U.drag); r.classList.add('drag');
 });
 document.addEventListener('dragend', () => { U.drag = null; $$('.drag,.over').forEach(x => x.classList.remove('drag', 'over')); });
 document.addEventListener('dragover', e => {
@@ -1072,7 +1094,7 @@ document.addEventListener('pointerdown', e => {
   let na = a, nb = b;
   if (h.setPointerCapture) h.setPointerCapture(e.pointerId);
   const mv = ev => {
-    const dm = Math.round((ev.clientY - y0) / ppm / 15) * 15;
+    const dm = Math.round(zd(ev.clientY - y0) / ppm / 15) * 15;
     if (top) na = Math.max(from, Math.min(b - 15, a + dm)); else nb = Math.max(a + 15, Math.min(1439, b + dm));
     blk.style.top = (na - from) * ppm + 'px'; blk.style.height = Math.max(TT_MINH(), (nb - na) * ppm - 2) + 'px';
   };
@@ -1091,7 +1113,7 @@ document.addEventListener('pointerdown', e => {
   if (e.pointerType !== 'mouse' || e.button > 0 || U.page !== 'timetable') return;
   const col = e.target.closest && e.target.closest('.tt-col'); if (!col || e.target.closest('.blk')) return;
   const rect = col.getBoundingClientRect(), ppm = TT_HH / 60, from = +col.dataset.from, y0 = e.clientY;
-  const at = y => Math.max(0, Math.min(1439, from + Math.round((y - rect.top) / ppm / 15) * 15)), a0 = at(y0);
+  const at = y => Math.max(0, Math.min(1439, from + Math.round(zy(y, rect.top) / ppm / 15) * 15)), a0 = at(y0);
   let on = false, box = null, a = a0, b = a0;
   const mv = ev => {
     if (!on && Math.abs(ev.clientY - y0) < 6) return;
@@ -1129,7 +1151,7 @@ document.addEventListener('touchend', e => { if (!swipe) return; const t = e.cha
     g = null;
   };
   const place = (x, y) => {
-    const gh = g.ghost; gh.style.left = Math.round(x - g.gw / 2) + 'px'; gh.style.top = Math.round(y - (U.dragOff || g.gh / 2)) + 'px';
+    const gh = g.ghost; gh.style.left = Math.round(x / Z.z - g.gw / 2) + 'px'; gh.style.top = Math.round(y / Z.z - (U.dragOff || g.gh / 2)) + 'px'; // the ghost lives in the scaled page
     gh.style.display = 'none'; const z = zoneAt(x, y); gh.style.display = '';
     $$('.over').forEach(el => { if (el !== z) el.classList.remove('over'); }); if (z) z.classList.add('over');
   };
@@ -1141,8 +1163,8 @@ document.addEventListener('touchend', e => { if (!swipe) return; const t = e.cha
       if (!g) return;
       const r = g.el.getBoundingClientRect(); g.on = true; swipe = null;
       U.drag = g.el.dataset.sid ? `slot:${g.el.dataset.sid}:${g.el.dataset.day}` : g.el.dataset.id; U.tdrag = true;
-      U.dragOff = g.el.classList.contains('blk') ? g.y0 - r.top : 0;
-      g.gw = Math.min(r.width, 230); g.gh = Math.min(r.height, 90);
+      U.dragOff = g.el.classList.contains('blk') ? zy(g.y0, r.top) : 0;
+      g.gw = Math.min(r.width / Z.r, 230); g.gh = Math.min(r.height / Z.r, 90);
       const gh = g.ghost = g.el.cloneNode(true); gh.classList.add('tghost'); gh.removeAttribute('data-act'); gh.removeAttribute('draggable');
       for (const [k, v] of Object.entries({ position: 'fixed', margin: '0', width: g.gw + 'px', height: g.gh + 'px', zIndex: '300', pointerEvents: 'none', right: 'auto', bottom: 'auto' })) gh.style[k] = v;
       document.body.appendChild(gh); g.el.classList.add('drag'); document.body.classList.add('tdrag');
@@ -1150,8 +1172,9 @@ document.addEventListener('touchend', e => { if (!swipe) return; const t = e.cha
       place(g.x, g.y);
       g.tick = setInterval(() => { // scroll the grid while the finger sits near an edge
         const sc = $('.tt-scroll'); if (!sc || !g) return; const b = sc.getBoundingClientRect();
-        if (g.y < b.top + 80) sc.scrollTop -= 12; else if (g.y > b.bottom - 80) sc.scrollTop += 12;
-        if (g.x < b.left + 36) sc.scrollLeft -= 10; else if (g.x > b.right - 36) sc.scrollLeft += 10;
+        const gy = zc(g.y), gx = zc(g.x), k = Z.r;
+        if (gy < b.top + 80 * k) sc.scrollTop -= 12; else if (gy > b.bottom - 80 * k) sc.scrollTop += 12;
+        if (gx < b.left + 36 * k) sc.scrollLeft -= 10; else if (gx > b.right - 36 * k) sc.scrollLeft += 10;
         place(g.x, g.y);
       }, 16);
     }, 480);
@@ -1171,6 +1194,8 @@ document.addEventListener('touchend', e => { if (!swipe) return; const t = e.cha
 
 /* ---------- startup ---------- */
 applyTheme();
+applyScale(null, { quiet: true });
+bgApply();
 uiInit();
 render();
 checkReminders();
@@ -1184,5 +1209,17 @@ window.addEventListener('storage', e => { if (e.key === KEY) { S = load(); initS
 window.addEventListener('pagehide', flush);
 if (S.settings.pomo.faceDown) { try { if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission !== 'function') fdEnable(); else if (typeof DeviceOrientationEvent !== 'undefined') { window.addEventListener('deviceorientation', fdHandler); FD.on = true; } } catch (e) { /* no sensor */ } }
 startSync();
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { wlSync(); checkReminders(); ogSchedule(300); if (!document.activeElement || !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) render(); } });
+widgetWire(); if (!WIDGET) { setTimeout(widgetPull, 900); window.addEventListener('focus', widgetPull); widgetPush(); }
+document.addEventListener('visibilitychange', () => { if (document.hidden) widgetPush(true); else widgetPull(); if (!document.hidden) { wlSync(); checkReminders(); ogSchedule(300); if (!document.activeElement || !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) render(); } });
 if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !window.__TAURI__) navigator.serviceWorker.register('sw.js').catch(() => {});
+
+/* timetable blocks are real controls: Enter / Space opens one, and a changed window (rotation, split screen, resizing) refits the hours */
+document.addEventListener('keydown', e => {
+  const b = e.target && e.target.classList && e.target.classList.contains('blk') ? e.target : null;
+  if (b && (e.key === 'Enter' || e.key === ' ') && !$('#modal.on')) { e.preventDefault(); b.click(); }
+});
+{
+  let rt = 0, lastW = window.innerWidth, lastH = window.innerHeight;
+  const refit = () => { clearTimeout(rt); rt = setTimeout(() => { if (window.innerWidth === lastW && window.innerHeight === lastH) return; lastW = window.innerWidth; lastH = window.innerHeight; if (U.page === 'timetable' && !$('#modal.on')) { U.ttAvail = null; renderMain(); } }, 160); };
+  window.addEventListener('resize', refit); window.addEventListener('orientationchange', refit);
+}

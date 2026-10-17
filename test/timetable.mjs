@@ -94,7 +94,7 @@ const eq = (a, b, m) => assert.equal(JSON.stringify(a), JSON.stringify(b), m);
   assert.ok(!A.els['#main'].innerHTML.includes('Dentist') || true);
 
   // the grid now shows the whole day, so an early slot is simply inside it
-  mk('Early run', [dow], '05:30', '06:30'); A.renderTimetable(); assert.ok(A.els['#main'].innerHTML.includes('05:00'));
+  mk('Early run', [dow], '05:30', '06:30'); A.renderTimetable(); assert.ok(A.els['#main'].innerHTML.includes(A.fmtHour(5)), 'the 5 o\'clock row is drawn, in the clock format the settings choose');
 
   // drag & drop
   const col = d => ({ dataset: { d, from: '300' }, classList: { contains: () => false }, getBoundingClientRect: () => ({ top: 0 }) });

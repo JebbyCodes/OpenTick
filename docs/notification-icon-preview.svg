@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="96" height="96">
+  <title>OpenTick small notification icon (preview of res/drawable/ic_stat_opentick.xml, drawn in black here; Android uses white)</title>
+  <path d="M2.824,9.541A9.5,9.5 0 1 1 2.824,14.459" fill="none" stroke="#000" stroke-width="2.2" stroke-linecap="butt"/>
+  <path d="M7.2,12.5L10.6,15.9L17,8.7" fill="none" stroke="#000" stroke-width="2.8" stroke-linecap="square" stroke-linejoin="miter"/>
+</svg>

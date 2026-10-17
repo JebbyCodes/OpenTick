@@ -1,5 +1,5 @@
 /* OpenTick batch editing: select several tasks and change them together.
-   Enter selection with the checkbox button in the Tasks header, by pressing and holding a task (phones), or with Ctrl / Cmd /
+   Enter selection with the checkbox button in the Tasks header, by pressing and holding a task (phones; not on the matrix, where a press picks the task up to move it), or with Ctrl / Cmd /
    Shift + click (desktop). Taps then pick and unpick tasks (Shift + click picks a range). A bar at the bottom offers Complete,
    Delete and Edit…; the edit sheet changes only the fields you touch and leaves every other field of every task alone.
    After applying, Undo is offered in the message. */
@@ -14,7 +14,10 @@ function batchStart(id) {
   if (U.sel) closeDetail();
   sfx('tick'); renderMain();
 }
-function batchExit() { if (!U.bsel) return; U.bsel = null; document.body.classList.remove('batch'); renderMain(); }
+function batchExit() {
+  if (!U.bsel) return; U.bsel = null; document.body.classList.remove('batch'); renderMain();
+  const b = $('[data-act="bstart"]'); if (b && b.focus) b.focus(); // keyboard users land back on the button that started selecting
+}
 function batchToggle(id, e) {
   if (!U.bsel) return;
   const vis = bVisible();
@@ -29,13 +32,13 @@ function batchToggle(id, e) {
 function batchPaint() {
   if (typeof document.getElementById !== 'function') return;
   let bar = document.getElementById('bbar');
-  if (!U.bsel) { if (bar) bar.classList.remove('on'); return; }
+  if (!U.bsel) { if (bar) { bar.classList.remove('on'); bar.setAttribute('aria-hidden', 'true'); } return; }
   if (!bar) { bar = document.createElement('div'); bar.id = 'bbar'; bar.setAttribute('role', 'toolbar'); bar.setAttribute('aria-label', 'Batch actions'); document.body.appendChild(bar); }
   const n = bIds().length, off = n ? '' : ' disabled';
   const html = `<button class="ib" data-act="bx" title="Leave selection (Esc)" aria-label="Leave selection">${ic('x', 20)}</button><b class="bc">${n ? `${n} selected` : 'Tap tasks to select'}</b><span class="sp"></span>`
     + `<button class="bb" data-act="ball" title="Select every task shown">${ic('check-square', 20)}<span>All</span></button><button class="bb" data-act="bdone"${off}>${ic('check-circle', 20)}<span>Complete</span></button><button class="bb pri" data-act="bedit"${off}>${ic('sliders', 20)}<span>Edit</span></button><button class="bb danger" data-act="bdel"${off}>${ic('trash', 20)}<span>Delete</span></button>`;
   if (bar._h !== html) { bar._h = html; bar.innerHTML = html; }
-  bar.classList.add('on');
+  bar.classList.add('on'); bar.removeAttribute('aria-hidden');
 }
 
 /* ---------- applying changes, with undo ---------- */
@@ -151,12 +154,12 @@ const BATCH_ACT = {
   },
 };
 
-// press and hold a task to start selecting (touch); Ctrl / Cmd / Shift + click does the same with a mouse
+// press and hold a task to start selecting (touch; the matrix is excluded: there a press means "move this task", see mxdrag.js); Ctrl / Cmd / Shift + click does the same with a mouse
 (() => {
   let h = null, fired = false;
   const rowOf = el => el && el.closest && el.closest('#main .task[data-id],#main .card[data-id]');
   document.addEventListener('touchstart', e => {
-    if (!BATCH_PAGES.includes(U.page) || U.bsel || e.touches.length !== 1 || (e.target.closest && e.target.closest('input,select,textarea,.chk'))) return;
+    if (!BATCH_PAGES.includes(U.page) || U.page === 'matrix' || U.bsel || e.touches.length !== 1 || (e.target.closest && e.target.closest('input,select,textarea,.chk'))) return;
     const r = rowOf(e.target); if (!r) return; const t = e.touches[0];
     const src = e.target; // the list is redrawn when selecting starts, which detaches this element: its own touchend still arrives, the document's does not
     h = { x: t.clientX, y: t.clientY, timer: setTimeout(() => {

@@ -1,0 +1,16 @@
+        <!-- OpenTick home-screen widgets (added by scripts/android-widgets.mjs) -->
+        <receiver android:name="__PACKAGE__.OpenTickTasksWidget" android:exported="true" android:label="@string/ot_widget_tasks_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/ot_widget_tasks_info" />
+        </receiver>
+        <receiver android:name="__PACKAGE__.OpenTickQuickWidget" android:exported="true" android:label="@string/ot_widget_quick_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/ot_widget_quick_info" />
+        </receiver>
+        <activity android:name="__PACKAGE__.OpenTickWidgetActivity" android:exported="false" android:theme="@android:style/Theme.Translucent.NoTitleBar" android:excludeFromRecents="true" android:noHistory="true" android:taskAffinity="" />
+        <provider android:name="__PACKAGE__.OpenTickWidgetBoot" android:authorities="${applicationId}.widgetboot" android:exported="false" />
+        <!-- /OpenTick home-screen widgets -->

@@ -1,5 +1,6 @@
 // One version number for the whole project.
-//   npm run bump -- 0.7.0     set package.json, package-lock.json, src-tauri/tauri.conf.json and src-tauri/Cargo.toml
+//   npm run bump -- 0.7.0     set package.json, package-lock.json, src-tauri/tauri.conf.json and src-tauri/Cargo.toml (and the README's "What's new in" heading)
+//                             Android versionName / versionCode follow tauri.conf.json automatically; scripts/check-android-version.mjs proves it
 //   npm run bump -- --check   exit 1 if they disagree (the test suite runs this)
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -17,6 +18,7 @@ export function versions() {
     'package-lock.json (root package)': lock.packages && lock.packages[''] ? lock.packages[''].version : undefined,
     'src-tauri/tauri.conf.json': JSON.parse(rd('src-tauri/tauri.conf.json')).version,
     'src-tauri/Cargo.toml': cargoVersion(rd('src-tauri/Cargo.toml')),
+    'README.md ("What\'s new in …")': (rd('README.md').match(/^## What's new in (\S+)/m) || [])[1], // the release notes must describe this version
   };
 }
 export function setVersion(v) {
@@ -26,6 +28,7 @@ export function setVersion(v) {
   sub('package-lock.json', t => { const j = JSON.parse(t); j.version = v; if (j.packages && j.packages['']) j.packages[''].version = v; return JSON.stringify(j, null, 2) + '\n'; });
   sub('src-tauri/tauri.conf.json', t => t.replace(/("version"\s*:\s*")[^"]+(")/, `$1${v}$2`));
   sub('src-tauri/Cargo.toml', t => t.replace(/(^\[package\][\s\S]*?^version\s*=\s*")[^"]+(")/m, `$1${v}$2`));
+  sub('README.md', t => t.replace(/^(## What's new in )\S+/m, `$1${v}`));
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const arg = process.argv[2];

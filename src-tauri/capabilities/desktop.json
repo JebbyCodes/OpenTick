@@ -1,0 +1,20 @@
+{
+  "identifier": "desktop-widget",
+  "description": "The always-on-top mini widget window (desktop only)",
+  "windows": [
+    "main",
+    "widget"
+  ],
+  "platforms": [
+    "linux",
+    "windows",
+    "macOS"
+  ],
+  "permissions": [
+    "core:webview:allow-create-webview-window",
+    "core:window:allow-start-dragging",
+    "core:window:allow-close",
+    "core:window:allow-set-focus",
+    "core:window:allow-show"
+  ]
+}

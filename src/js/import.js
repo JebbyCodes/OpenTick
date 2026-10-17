@@ -450,7 +450,7 @@ function importApply(D, o = {}) {
 
 /* ---------- dialog ---------- */
 async function openImport(preset) {
-  const st = { provider: '', files: [], res: null, err: '', skip: new Set(), merge: true, dedupe: true, project: false, pname: '', busy: false };
+  const st = { provider: '', files: [], res: null, err: '', skip: new Set(), merge: true, dedupe: true, project: false, pname: '', busy: false, replace: false };
   const prov = () => (st.provider ? IMPORTERS.find(p => p.id === st.provider) : null);
   const draw = () => {
     const D = st.res && st.res.draft, c = D ? draftCounts(D) : null, p = prov();
@@ -462,9 +462,9 @@ async function openImport(preset) {
 ${st.busy ? '<p class="hint">Reading…</p>' : ''}${st.err ? `<p class="imp-err">${esc(st.err)}</p>` : ''}
 ${c ? `<div class="imp-sum"><b>${esc(st.res.provider.name)}</b><span>${c.tasks} task${c.tasks === 1 ? '' : 's'}</span><span>${c.lists} list${c.lists === 1 ? '' : 's'}</span>${c.subs ? `<span>${c.subs} subtask${c.subs === 1 ? '' : 's'}</span>` : ''}${c.notes ? `<span>${c.notes} note${c.notes === 1 ? '' : 's'}</span>` : ''}</div>
 <div class="imp-lists">${lists.map(([k, l]) => `<label class="imp-l" style="--d:${l.path.length - 1}"><input type="checkbox" data-k="${esc(k)}"${st.skip.has(k) ? '' : ' checked'}><span>${esc(l.path[l.path.length - 1])}${l.path.length > 1 ? `<small>${esc(l.path.slice(0, -1).join(' › '))}</small>` : ''}</span><em>${l.tasks.length}</em></label>`).join('') || '<p class="hint">No tasks were found in these files.</p>'}</div>
-<div class="imp-opts"><label class="chkl"><input type="checkbox" data-o="merge"${st.merge ? ' checked' : ''}> Add to lists that already have the same name</label><label class="chkl"><input type="checkbox" data-o="dedupe"${st.dedupe ? ' checked' : ''}> Skip tasks that are already there</label><label class="chkl"><input type="checkbox" data-o="project"${st.project ? ' checked' : ''}> Group the imported lists in a new project</label>${st.project ? `<input id="imp-pname" value="${esc(st.pname)}" placeholder="Project name">` : ''}</div>
+<div class="imp-opts"><label class="chkl rep${st.replace ? ' on' : ''}"><input type="checkbox" data-o="replace"${st.replace ? ' checked' : ''}> <span><b>Replace everything</b> — delete all my current data first, then import${st.replace ? `<small>You will be asked to confirm. ${esc(dataCountsText())} will be deleted.</small>` : ''}</span></label>${st.replace ? '' : `<label class="chkl"><input type="checkbox" data-o="merge"${st.merge ? ' checked' : ''}> Add to lists that already have the same name</label><label class="chkl"><input type="checkbox" data-o="dedupe"${st.dedupe ? ' checked' : ''}> Skip tasks that are already there</label>`}<label class="chkl"><input type="checkbox" data-o="project"${st.project ? ' checked' : ''}> Group the imported lists in a new project</label>${st.project ? `<input id="imp-pname" value="${esc(st.pname)}" placeholder="Project name">` : ''}</div>
 ${D.warn.length ? `<p class="hint">${esc(D.warn.join(' '))}</p>` : ''}` : ''}
-<div class="mact"><span class="sp"></span><button data-m="no">Cancel</button><button class="pri" data-m="go"${c && (c.tasks || c.notes) ? '' : ' disabled'}>${c ? `Import ${c.tasks}${c.notes ? ' + ' + c.notes + ' notes' : ''}` : 'Import'}</button></div>`, m => {
+<div class="mact"><span class="sp"></span><button data-m="no">Cancel</button><button class="${st.replace ? 'danger' : 'pri'}" data-m="go"${c && (c.tasks || c.notes) ? '' : ' disabled'}>${c ? `${st.replace ? 'Replace and import' : 'Import'} ${c.tasks}${c.notes ? ' + ' + c.notes + ' notes' : ''}` : 'Import'}</button></div>`, m => {
       const load = async list => {
         st.busy = true; st.err = ''; st.res = null; draw();
         try { st.files = await readImportFiles(list); if (!st.files.length) throw new Error('Nothing readable in those files (supported: CSV, JSON, ZIP, Markdown, ICS, OPML, TXT).'); st.res = importParse(st.files, st.provider); st.skip = new Set(); if (!st.pname) st.pname = st.res.provider.name + ' import'; }
@@ -476,18 +476,24 @@ ${D.warn.length ? `<p class="hint">${esc(D.warn.join(' '))}</p>` : ''}` : ''}
       m.onchange = e => {
         const el = e.target; if (el.id === 'imp-file') return;
         if (el.dataset.k !== undefined) { if (el.checked) st.skip.delete(el.dataset.k); else st.skip.add(el.dataset.k); }
-        else if (el.dataset.o) { st[el.dataset.o] = el.checked; if (el.dataset.o === 'project') draw(); }
+        else if (el.dataset.o) { st[el.dataset.o] = el.checked; if (el.dataset.o === 'project' || el.dataset.o === 'replace') draw(); }
       };
       m.oninput = e => { if (e.target.id === 'imp-pname') st.pname = e.target.value; };
       m.onclick = e => {
         const b = e.target.closest('button'); if (!b) { if (e.target.classList.contains('mback')) closeModal(); return; }
         if (b.dataset.m === 'prov') { st.provider = b.dataset.p; if (st.files.length) { st.res = null; st.err = ''; try { st.res = importParse(st.files, st.provider); st.skip = new Set(); } catch (x) { st.err = x.message; } } draw(); }
         else if (b.dataset.m === 'no') closeModal();
-        else if (b.dataset.m === 'go' && st.res) {
-          const r = importApply(st.res.draft, { merge: st.merge, dedupe: st.dedupe, skip: st.skip, project: st.project ? (st.pname.trim() || 'Imported') : '', source: st.res.provider.name });
-          closeModal(); sfx('done'); toast(`Imported ${r.added} task${r.added === 1 ? '' : 's'}${r.notes ? ` and ${r.notes} note${r.notes === 1 ? '' : 's'}` : ''}${r.skipped ? ` (${r.skipped} already there)` : ''}`);
+        else if (b.dataset.m === 'go' && st.res) (async () => {
+          let key = '';
+          if (st.replace) { // delete everything first, after a clear confirmation (cancelling returns to this dialog with its choices)
+            const D = st.res.draft, c = draftCounts(D), o = await askWipe({ title: 'Replace everything with this import?', lead: `All of your current data is deleted first. Then ${esc(plural(c.tasks, 'task'))}${c.notes ? ` and ${esc(plural(c.notes, 'note'))}` : ''} from ${esc(st.res.provider.name)} are imported, so you end up with only what is in the file.`, ok: 'Replace and import' });
+            if (!o) { draw(); return; }
+            key = await wipeAll({ settings: false, files: o.files });
+          }
+          const r = importApply(st.res.draft, { merge: st.replace ? false : st.merge, dedupe: st.replace ? false : st.dedupe, skip: st.skip, project: st.project ? (st.pname.trim() || 'Imported') : '', source: st.res.provider.name });
+          closeModal(); sfx('done'); toast(`Imported ${r.added} task${r.added === 1 ? '' : 's'}${r.notes ? ` and ${r.notes} note${r.notes === 1 ? '' : 's'}` : ''}${r.skipped ? ` (${r.skipped} already there)` : ''}`, st.replace && key ? { label: 'Undo', fn: async () => { try { await snapRestore(key); U.nav = 'today'; U.page = 'tasks'; render(); toast('Restored'); } catch (e) { toast('Could not undo: ' + (e.message || e)); } } } : undefined);
           if (r.project) setNav('project:' + r.project.id); else if (r.first) setNav('list:' + r.first); else { refresh(); }
-        }
+        })();
       };
     }, 'wide');
     if (st.drawn) $$('#modal .mback,#modal .mbox').forEach(x => x.classList.add('again')); // redrawing: no pop-in animation

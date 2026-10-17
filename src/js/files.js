@@ -31,6 +31,8 @@ const fileSize = n => (n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(n 
 const FILE_URL = new Map(); // id -> blob URL (kept while the page is open)
 async function filePut(file) {
   const id = uid(); await idb('readwrite', s => s.put({ blob: file, name: file.name, type: file.type || '', size: file.size, at: Date.now() }, 'file:' + id));
+  const back = await fileGet(id); // never keep a record whose bytes did not make it into storage
+  if (!back || back.size !== file.size) { try { await idb('readwrite', s => s.delete('file:' + id)); } catch (e) { /* nothing to clean */ } throw new Error('the file was not saved completely'); }
   return { id, name: file.name || 'file', type: file.type || '', size: file.size, added: Date.now() };
 }
 async function fileGet(id) { try { const v = await idb('readonly', s => s.get('file:' + id)); return v ? v.blob : null; } catch (e) { return null; } }
@@ -51,28 +53,121 @@ async function saveBlob(name, blob) {
   if (T && T.dialog && T.fs) { const p = pathOf(await T.dialog.save({ defaultPath: name })); if (!p) return false; await T.fs.writeFile(p, new Uint8Array(await blob.arrayBuffer())); return true; }
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 800); return true;
 }
-// choose one or more files of any type (browser input, or the native dialog in the desktop / mobile app)
+/* ---------- choosing files ----------
+   Desktop: the native dialog + the fs plugin (a path). Android: the system document picker returns content:// URIs, not paths
+   (there is no filesystem path to open); the fs plugin can read them, but only with the `fs:allow-read-file` permission (see
+   src-tauri/capabilities/default.json), and the file's real name and type are not part of the URI, so both are recovered here.
+   Browser: a hidden <input type="file">. Every failure is turned into a message that says what happened and what to try. */
+const EXT_MIME = {
+  pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp', avif: 'image/avif', heic: 'image/heic',
+  mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', m4a: 'audio/mp4', flac: 'audio/flac', aac: 'audio/aac', mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime', mkv: 'video/x-matroska',
+  txt: 'text/plain', md: 'text/markdown', markdown: 'text/markdown', csv: 'text/csv', tsv: 'text/tab-separated-values', json: 'application/json', xml: 'application/xml', html: 'text/html', htm: 'text/html',
+  zip: 'application/zip', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', odt: 'application/vnd.oasis.opendocument.text', rtf: 'application/rtf',
+};
+const mimeFromName = n => EXT_MIME[FILE_EXT(n)] || '';
+// the first bytes of a file say what it is, for providers that hand over a name with no extension
+function sniffFile(b) {
+  const u = b && b.length ? b : new Uint8Array(0), at = (i, ...v) => v.every((x, k) => u[i + k] === x);
+  if (at(0, 0x25, 0x50, 0x44, 0x46)) return ['pdf', 'application/pdf'];
+  if (at(0, 0x89, 0x50, 0x4e, 0x47)) return ['png', 'image/png'];
+  if (at(0, 0xff, 0xd8, 0xff)) return ['jpg', 'image/jpeg'];
+  if (at(0, 0x47, 0x49, 0x46, 0x38)) return ['gif', 'image/gif'];
+  if (at(0, 0x52, 0x49, 0x46, 0x46) && at(8, 0x57, 0x45, 0x42, 0x50)) return ['webp', 'image/webp'];
+  if (at(0, 0x49, 0x44, 0x33)) return ['mp3', 'audio/mpeg'];
+  if (at(4, 0x66, 0x74, 0x79, 0x70)) return ['mp4', 'video/mp4'];
+  if (at(0, 0x50, 0x4b, 0x03, 0x04)) return ['zip', 'application/zip']; // also .docx / .xlsx / .pptx: those keep the name they came with
+  return null;
+}
+// "content://…/document/primary%3ADocuments%2Freport.pdf" -> "report.pdf"; "…/msf%3A1042" (a provider id, not a name) -> "" ; "C:\\a\\b.txt" -> "b.txt"
+function nameFromPath(p) {
+  let s = String(p == null ? '' : p).split(/[?#]/)[0];
+  try { s = decodeURIComponent(s); } catch (e) { /* keep it as it is */ }
+  const last = s.split(/[\\/]/).pop().split(':').pop().trim();
+  return /^(msf|raw|image|video|audio|document)?\d+$/i.test(last) || !last ? '' : last;
+}
+function fileReadError(kind, name, detail) {
+  const e = new Error(({
+    permission: `OpenTick is not allowed to read “${name}”. Choose it again from the file picker (for example from Downloads or Documents). If this keeps happening, copy the file to your device's internal storage first.`,
+    missing: `“${name}” could not be found. It may have been moved or deleted — pick it again.`,
+    provider: `“${name}” could not be opened from its storage provider. If it is in a cloud drive, open the drive app and make it available offline, then try again.`,
+    empty: `“${name}” is empty (0 bytes), so nothing was attached.`,
+    big: `“${name}” is larger than ${FILE_MAX / 1048576} MB, so it was not attached.`,
+    read: `“${name}” could not be read${detail ? ' (' + detail + ')' : ''}. Try picking it again.`,
+  })[kind] || `“${name}” could not be read.`);
+  e.kind = kind; e.file = name; return e;
+}
+// what a thrown value from the dialog / fs plugin means for the person
+function classifyReadError(err, name) {
+  const m = String((err && (err.message || err)) || '');
+  if (err && err.kind) return err;
+  if (/not allowed|forbidden|denied|permission|scope|securityexception|acl|EACCES|os error 13/i.test(m)) return fileReadError('permission', name);
+  if (/not found|no such file|enoent|os error 2\b|does not exist|FileNotFound/i.test(m)) return fileReadError('missing', name);
+  if (/provider|offline|network|timeout|timed out|unavailable|EIO|os error 5\b|DeadObject|remote/i.test(m)) return fileReadError('provider', name);
+  return fileReadError('read', name, m.slice(0, 120));
+}
+const toBytes = r => { const t = Object.prototype.toString.call(r); return t === '[object Uint8Array]' ? r : t === '[object ArrayBuffer]' ? new Uint8Array(r) : Array.isArray(r) ? Uint8Array.from(r) : null; };
+let PICK_BUSY = false, PICK_N = 0;
+// read one path / content URI picked in the native dialog into a File, with a real name and type
+async function readPicked(T, p) {
+  let name = nameFromPath(p), label = name || 'the selected file';
+  try { if (T.fs.stat) { const st = await T.fs.stat(p); if (st && st.size > FILE_MAX) throw fileReadError('big', label); } } catch (e) { if (e && e.kind) throw e; /* a content:// URI may not support stat */ }
+  let bytes; try { bytes = toBytes(await T.fs.readFile(p)); } catch (e) { throw classifyReadError(e, label); }
+  if (!bytes) throw fileReadError('read', label, 'unexpected data');
+  if (!bytes.length) throw fileReadError('empty', label);
+  if (bytes.length > FILE_MAX) throw fileReadError('big', label);
+  let type = mimeFromName(name); const sn = sniffFile(bytes);
+  if (!name) { name = `attachment-${++PICK_N}${sn ? '.' + sn[0] : ''}`; type = sn ? sn[1] : ''; }
+  else if (!type && sn) type = sn[1];
+  return new File([bytes], name, { type });
+}
+const pickMsg = (n, fails) => `${fails.length === 1 ? fails[0].message : `${fails.length} of ${n} files could not be attached. ${fails[0].message}`}`;
 async function pickFiles(accept = '', multiple = true) {
   const T = TAURI();
   if (T && T.dialog && T.fs) {
-    const r = await T.dialog.open({ multiple }); if (!r) return []; const out = [];
-    for (const p of [].concat(r).map(pathOf)) { try { out.push(new File([await T.fs.readFile(p)], String(p).split(/[\\/]/).pop())); } catch (e) { toast('Could not read ' + p); } }
-    return out;
+    if (PICK_BUSY) return []; // a second tap while the picker is open must not open another one (the native dialog always settles, so the flag cannot stick)
+    PICK_BUSY = true;
+    try {
+      let r; try { r = await T.dialog.open({ multiple }); } catch (e) { toast('The file picker could not be opened: ' + String((e && e.message) || e).slice(0, 120), { label: 'OK', fn() {} }); return []; }
+      const paths = [...new Set([].concat(r || []).map(pathOf).filter(Boolean))]; // the same file picked twice counts once
+      const out = [], fails = [];
+      for (const p of paths) { try { out.push(await readPicked(T, p)); } catch (e) { fails.push(classifyReadError(e, nameFromPath(p) || 'the selected file')); } }
+      if (fails.length) toast(pickMsg(paths.length, fails), { label: 'OK', fn() {} });
+      return out;
+    } finally { PICK_BUSY = false; }
   }
-  return new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.multiple = multiple; if (accept) i.accept = accept; i.onchange = () => res([...i.files]); i.oncancel = () => res([]); i.click(); });
+  return new Promise(res => {
+    const i = document.createElement('input'); i.type = 'file'; i.multiple = multiple; i.hidden = true; if (accept) i.accept = accept;
+    let done = false; const end = v => { if (done) return; done = true; i.remove(); res(v); };
+    i.onchange = () => end([...(i.files || [])]); i.oncancel = () => end([]);
+    (document.body || document.documentElement).append(i); i.click(); // in the page: some WebViews drop the change event of a detached input
+  });
 }
 
 /* ---------- owners: task | note | slot ---------- */
 const fileOwner = (k, id) => (k === 'task' ? getT(id) : k === 'note' ? noteById(id) : k === 'slot' ? slotById(id) : null);
 const filesOf = o => (o && Array.isArray(o.files) ? o.files : []);
+// the same bytes under the same name and size are already attached to this record
+async function fileDuplicate(o, f) {
+  for (const x of filesOf(o)) {
+    if (x.name !== f.name || x.size !== f.size) continue;
+    const b = await fileGet(x.id); if (!b) continue;
+    try { const [p, q] = await Promise.all([b.arrayBuffer(), f.arrayBuffer()]), u = new Uint8Array(p), v = new Uint8Array(q); let same = u.length === v.length; for (let i = 0; same && i < u.length; i++) if (u[i] !== v[i]) same = false; if (same) return true; } catch (e) { /* compare failed: treat it as new */ }
+  }
+  return false;
+}
 async function filesAdd(k, id, list) {
   const o = fileOwner(k, id); if (!o) return [];
-  const added = [];
+  const added = [], skipped = [];
   for (const f of list) {
-    if (f.size > FILE_MAX) { toast(`“${f.name}” is larger than ${FILE_MAX / 1048576} MB`); continue; }
-    try { const rec = await filePut(f); (o.files = filesOf(o)).push(rec); added.push(rec); } catch (e) { toast('Could not store “' + f.name + '”: ' + (e.message || 'storage error')); }
+    if (!f || !f.name) continue;
+    if (!f.size) { skipped.push(`“${f.name}” is empty`); continue; }
+    if (f.size > FILE_MAX) { skipped.push(`“${f.name}” is larger than ${FILE_MAX / 1048576} MB`); continue; }
+    if (await fileDuplicate(o, f)) { skipped.push(`“${f.name}” is already attached`); continue; }
+    try { const rec = await filePut(f); (o.files = filesOf(o)).push(rec); added.push(rec); } catch (e) { skipped.push('“' + f.name + '” could not be stored: ' + (e.message || 'storage error')); }
   }
   if (added.length) { if (k === 'note') o.updated = Date.now(); save(); sfx('add'); toast(added.length === 1 ? `Attached “${added[0].name}”` : `Attached ${added.length} files`); filesRefresh(k, id); }
+  if (skipped.length) toast((added.length ? 'Not attached: ' : '') + skipped.join('; '), { label: 'OK', fn() {} });
   return added;
 }
 const fileMd = f => `${fileKind(f) === 'image' ? '!' : ''}[${f.name.replace(/[\[\]]/g, '')}](ot-file:${f.id})`;
@@ -134,7 +229,7 @@ async function fileView(k, o, id) {
 /* ---------- inserting a link into the text ---------- */
 function fileInsert(k, o, id) {
   const own = fileOwner(k, o), f = filesOf(own).find(x => x.id === id); if (!own || !f) return;
-  const txt = fileMd(f), ta = k === 'note' ? $('#n-ta') : $('#x-ta') || $('textarea[data-f="notes"]');
+  const txt = fileMd(f), live = BE.cur && ((k === 'note' && BE.cur.o.pre === 'n') || (k === 'task' && BE.cur.o.pre === 'x')) ? $('textarea.bk-t', BE.cur.host) : null, ta = live || (k === 'note' ? $('#n-ta') : $('#x-ta') || $('textarea[data-f="notes"]'));
   if (ta && ta.setRangeText) {
     const a = ta.selectionStart == null ? ta.value.length : ta.selectionStart, pre = a > 0 && ta.value[a - 1] !== '\n' ? '\n\n' : '';
     ta.setRangeText(pre + txt + '\n', a, ta.selectionEnd == null ? a : ta.selectionEnd, 'end'); ta.dispatchEvent(new Event('input', { bubbles: true })); ta.focus(); toast('Link inserted'); return;
@@ -157,7 +252,7 @@ async function fileAction(el) {
   }
 }
 // which record a text box belongs to (for pasting or dropping a file into it)
-const fileTarget = ta => (ta.id === 'n-ta' ? ['note', U.noteSel] : ta.id === 'x-ta' ? ['task', U.xTask] : ta.dataset && ta.dataset.f === 'notes' ? ['task', U.sel] : null);
+const fileTarget = ta => (ta.dataset && ta.dataset.bk === 'n' ? ['note', U.noteSel] : ta.dataset && ta.dataset.bk === 'x' ? ['task', U.xTask] : ta.id === 'n-ta' ? ['note', U.noteSel] : ta.id === 'x-ta' ? ['task', U.xTask] : ta.dataset && ta.dataset.f === 'notes' ? ['task', U.sel] : null);
 async function filesIntoText(ta, list) {
   const t = fileTarget(ta); if (!t || !t[1] || !list.length) return;
   const added = await filesAdd(t[0], t[1], list);
@@ -165,14 +260,14 @@ async function filesIntoText(ta, list) {
 }
 if (typeof document !== 'undefined' && document.addEventListener) {
   document.addEventListener('paste', e => {
-    const ta = e.target && e.target.closest && e.target.closest('textarea[data-md]'), fs = e.clipboardData && e.clipboardData.files && [...e.clipboardData.files];
+    const ta = e.target && e.target.closest && e.target.closest('textarea[data-md],textarea[data-bk]'), fs = e.clipboardData && e.clipboardData.files && [...e.clipboardData.files];
     if (ta && fs && fs.length) { e.preventDefault(); filesIntoText(ta, fs.map((f, i) => (f.name && f.name !== 'image.png' ? f : new File([f], `pasted-${todayStr()}-${i + 1}.${(f.type.split('/')[1] || 'png').replace('jpeg', 'jpg')}`, { type: f.type })))); }
   });
-  document.addEventListener('dragover', e => { if (e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files') && e.target.closest && e.target.closest('textarea[data-md],.fsec')) { e.preventDefault(); const z = e.target.closest('.fsec'); $$('.fsec.over').forEach(x => { if (x !== z) x.classList.remove('over'); }); if (z) z.classList.add('over'); } });
+  document.addEventListener('dragover', e => { if (e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files') && e.target.closest && e.target.closest('textarea[data-md],textarea[data-bk],.fsec')) { e.preventDefault(); const z = e.target.closest('.fsec'); $$('.fsec.over').forEach(x => { if (x !== z) x.classList.remove('over'); }); if (z) z.classList.add('over'); } });
   document.addEventListener('dragleave', e => { const z = e.target.closest && e.target.closest('.fsec'); if (z && !z.contains(e.relatedTarget)) z.classList.remove('over'); });
   document.addEventListener('drop', e => {
     if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
-    const ta = e.target.closest && e.target.closest('textarea[data-md]'), z = e.target.closest && e.target.closest('.fsec');
+    const ta = e.target.closest && e.target.closest('textarea[data-md],textarea[data-bk]'), z = e.target.closest && e.target.closest('.fsec');
     if (ta) { e.preventDefault(); filesIntoText(ta, [...e.dataTransfer.files]); }
     else if (z) { e.preventDefault(); z.classList.remove('over'); filesAdd(z.dataset.k, z.dataset.o, [...e.dataTransfer.files]); }
   });

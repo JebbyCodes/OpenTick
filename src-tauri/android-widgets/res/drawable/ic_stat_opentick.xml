@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- OpenTick's small notification icon (status bar, notification shade, heads-up popups).
+     Android draws this icon from its transparency alone and tints it itself, so it is a single flat shape in plain white:
+     the app icon's ring (with the same gap on the left) and its heavy tick. 24dp artboard, about 2dp of margin, no text,
+     no gradient, nothing thinner than 2dp. Referenced by name from src/js/main.js (icon: 'ic_stat_opentick').
+     Preview: docs/notification-icon-preview.svg. Do not reuse the launcher icon here: Android would turn its whole
+     background into a solid white blob. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M2.824,9.541A9.5,9.5 0 1 1 2.824,14.459"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="butt" />
+    <path
+        android:pathData="M7.2,12.5L10.6,15.9L17,8.7"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.8"
+        android:strokeLineCap="square"
+        android:strokeLineJoin="miter" />
+</vector>

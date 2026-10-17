@@ -194,20 +194,22 @@ const SNAP_KEEP = 7;
 async function snapKeys() { try { return ((await idb('readonly', s => s.getAllKeys())) || []).filter(k => /^snap:/.test(k)).sort(); } catch (e) { return []; } }
 async function snapList() {
   const out = [];
-  for (const k of await snapKeys()) { try { const v = await idb('readonly', s => s.get(k)); if (v) out.push({ key: k, at: v.at, tasks: v.tasks, fp: v.fp }); } catch (e) { /* skip */ } }
+  for (const k of await snapKeys()) { try { const v = await idb('readonly', s => s.get(k)); if (v) out.push({ key: k, at: v.at, tasks: v.tasks, fp: v.fp, tag: v.tag || '' }); } catch (e) { /* skip */ } }
   return out.reverse();
 }
-async function snapSave(force) {
+// `tag` makes a separate restore point ("Before deleting everything") that the daily copy cannot overwrite; returns the key, or false
+async function snapSave(force, tag) {
+  if (typeof WIDGET !== 'undefined' && WIDGET) return false;
   try {
-    flush(); const key = 'snap:' + todayStr(), fp = fingerprint(snapshot()), cur = await idb('readonly', s => s.get(key));
+    flush(); const key = 'snap:' + todayStr() + (tag ? '~' + tag + '-' + Date.now().toString(36) : ''), fp = fingerprint(snapshot()), cur = tag ? null : await idb('readonly', s => s.get(key));
     if (cur && cur.fp === fp && !force) return false;
-    await idb('readwrite', s => s.put({ at: Date.now(), tasks: S.tasks.filter(t => !t.deleted).length, fp, data: JSON.stringify({ ...S, history: [] }) }, key));
+    await idb('readwrite', s => s.put({ at: Date.now(), tasks: S.tasks.filter(t => !t.deleted).length, fp, tag: tag || '', data: JSON.stringify({ ...S, history: [] }) }, key));
     const keys = await snapKeys(); for (const k of keys.slice(0, Math.max(0, keys.length - SNAP_KEEP))) await idb('readwrite', s => s.delete(k));
-    return true;
+    return key;
   } catch (e) { return false; }
 }
-async function snapRestore(key) { const v = await idb('readonly', s => s.get(key)); if (!v) throw new Error('That backup is gone'); await snapSave(true); replaceAll(JSON.parse(v.data)); histNote('import', 'Restored the automatic backup from ' + key.slice(5)); save(); }
-async function snapDownload(key) { const v = await idb('readonly', s => s.get(key)); if (!v) return; const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([v.data], { type: 'application/json' })); a.download = `opentick-backup-${key.slice(5)}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); }
+async function snapRestore(key) { const v = await idb('readonly', s => s.get(key)); if (!v) throw new Error('That backup is gone'); await snapSave(true); replaceAll(JSON.parse(v.data)); histNote('import', 'Restored the automatic backup from ' + key.slice(5, 15)); save(); }
+async function snapDownload(key) { const v = await idb('readonly', s => s.get(key)); if (!v) return; const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([v.data], { type: 'application/json' })); a.download = `opentick-backup-${key.slice(5).replace(/[^\w-]+/g, '-')}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); }
 
 /* ---------- engine ---------- */
 const Sync = { cfg: loadSyncCfg(), state: 'off', msg: '', busy: false, queued: false, timer: 0, get on() { return !!(this.cfg.provider && PROVIDERS[this.cfg.provider]); } };
@@ -277,6 +279,7 @@ function afterRemote() {
   refresh();
 }
 function startSync() {
+  if (typeof WIDGET !== 'undefined' && WIDGET) return;
   hooks.change = () => scheduleSync(5000); // 5 s after the last local edit
   setInterval(() => { if (Sync.cfg.auto && !document.hidden) syncNow(); }, 180000);
   window.addEventListener('online', () => syncNow());

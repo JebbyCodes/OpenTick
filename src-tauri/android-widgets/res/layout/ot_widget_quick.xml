@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ot_q_root" android:layout_width="match_parent" android:layout_height="match_parent">
+
+    <ImageView android:id="@+id/ot_q_bg" android:layout_width="match_parent" android:layout_height="match_parent"
+        android:scaleType="fitXY" android:src="@drawable/ot_widget_bg_small" android:importantForAccessibility="no" />
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal" android:gravity="center_vertical" android:paddingStart="12dp" android:paddingEnd="14dp">
+        <ImageView android:id="@+id/ot_q_plus" android:layout_width="36dp" android:layout_height="36dp" android:padding="8dp" android:src="@drawable/ot_widget_plus" android:importantForAccessibility="no" />
+        <TextView android:id="@+id/ot_q_text" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="6dp" android:singleLine="true" android:ellipsize="end" android:textSize="14sp" android:text="Add a task" />
+    </LinearLayout>
+</FrameLayout>

@@ -248,7 +248,7 @@ document.addEventListener('pointerdown', e => {
   const mv = ev => {
     if (!on && Math.abs(ev.clientX - x0) < 4) return;
     if (!on) { on = true; document.body.classList.add('gtdrag'); bar.classList.add('dragging'); tip = document.createElement('div'); tip.className = 'gt-tip'; document.body.appendChild(tip); }
-    dd = Math.round((ev.clientX - x0) / ppd);
+    dd = Math.round(zd(ev.clientX - x0) / ppd);
     const lim = d.single || (p === 'act' && mode === 'l') ? Infinity : Math.round(w0 / ppd) - 1;
     if (!d.single && mode === 'l') dd = Math.min(dd, lim); if (!d.single && mode === 'r') dd = Math.max(dd, -lim);
     if (d.single) bar.style.left = (left0 + dd * ppd) + 'px';
@@ -257,7 +257,7 @@ document.addEventListener('pointerdown', e => {
     else if (mode === 'move') bar.style.left = (left0 + dd * ppd) + 'px';
     else if (mode === 'l') { bar.style.left = (left0 + dd * ppd) + 'px'; bar.style.width = (w0 - dd * ppd) + 'px'; }
     else bar.style.width = (w0 + dd * ppd) + 'px';
-    tip.textContent = label(); tip.style.left = ev.clientX + 14 + 'px'; tip.style.top = ev.clientY + 16 + 'px';
+    tip.textContent = label(); tip.style.left = ev.clientX / Z.z + 14 + 'px'; tip.style.top = ev.clientY / Z.z + 16 + 'px';
   };
   const up = () => {
     bar.removeEventListener('pointermove', mv); bar.removeEventListener('pointerup', up); bar.removeEventListener('pointercancel', up);
@@ -292,7 +292,7 @@ document.addEventListener('dragend', () => { U.gcdrag = null; });
 // drop an unscheduled task on the timeline: it gets a one-day bar on that date
 function gtDrop(e, el) {
   const t = getT(U.drag), m = U.gMeta; if (!t || !m) return false;
-  const day = Math.max(0, Math.floor((e.clientX - el.getBoundingClientRect().left) / m.ppd)), d = gtShift(m.min, day);
+  const day = Math.max(0, Math.floor(zy(e.clientX, el.getBoundingClientRect().left) / m.ppd)), d = gtShift(m.min, day);
   t.start = d; t.due = d; save(); refresh(); toast(`Scheduled “${t.title}” on ${gtMD(d)}`); return true;
 }
 
@@ -521,7 +521,7 @@ async function gtMore() {
     const i = +r.dataset.i; if (!tip) { tip = document.createElement('div'); tip.className = 'gtp'; tip.setAttribute('role', 'tooltip'); document.body.appendChild(tip); }
     if (i !== cur) { const h = html(i); if (!h) { hide(); return; } tip.innerHTML = h; cur = i; }
     tip.hidden = false; const w = tip.offsetWidth || 260, h = tip.offsetHeight || 120;
-    tip.style.left = Math.max(8, Math.min(e.clientX + 16, window.innerWidth - w - 8)) + 'px'; tip.style.top = Math.max(8, Math.min(e.clientY + 16, window.innerHeight - h - 8)) + 'px';
+    tip.style.left = Math.max(8, Math.min(e.clientX / Z.z + 16, zvw() - w - 8)) + 'px'; tip.style.top = Math.max(8, Math.min(e.clientY / Z.z + 16, window.innerHeight / Z.z - h - 8)) + 'px';
   });
   document.addEventListener('pointerleave', hide, true); document.addEventListener('scroll', hide, true); document.addEventListener('pointerdown', hide, true);
 })();

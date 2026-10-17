@@ -3,13 +3,13 @@
 
 // One entry per drag handle (`data-rs="<key>"`). `dir` is +1 when the handle sits on the right edge of the thing it resizes.
 const UIC = {
-  side: { store: () => S.settings.ui, key: 'sideW', cssv: '--sw-u', min: 220, max: 520, dir: 1, def: 300, target: () => document.documentElement, limit: () => window.innerWidth - (S.settings.ui.detail ? S.settings.ui.detailW : 0) - 360 },
-  detail: { store: () => S.settings.ui, key: 'detailW', cssv: '--dw-u', min: 300, max: 760, dir: -1, def: 380, target: () => document.documentElement, limit: () => window.innerWidth - (S.settings.ui.side ? S.settings.ui.sideW : 0) - 360 },
+  side: { store: () => S.settings.ui, key: 'sideW', cssv: '--sw-u', min: 220, max: 520, dir: 1, def: 300, target: () => document.documentElement, limit: () => zvw() - (S.settings.ui.detail ? S.settings.ui.detailW : 0) - 360 },
+  detail: { store: () => S.settings.ui, key: 'detailW', cssv: '--dw-u', min: 300, max: 760, dir: -1, def: 380, target: () => document.documentElement, limit: () => zvw() - (S.settings.ui.side ? S.settings.ui.sideW : 0) - 360 },
   tray: { store: () => S.settings.ui, key: 'trayW', cssv: '--trw', min: 170, max: 460, dir: -1, def: 236, target: () => document.documentElement },
   gtray: { store: () => S.settings.gantt, key: 'trayW', cssv: '--gtw', min: 170, max: 460, dir: -1, def: 220, target: () => document.documentElement },
   gname: { store: () => S.settings.gantt, key: 'nameW', cssv: '--gn', min: 170, max: 760, dir: 1, def: 290, target: () => $('.gt-wrap') || document.documentElement, live: w => { const i = $('.gt-in'); if (i && i.dataset.w) i.style.width = `calc(${w}px + ${i.dataset.w}px)`; } },
 };
-const narrow = n => (typeof window !== 'undefined' ? window.innerWidth : 1800) <= n;
+const narrow = n => (typeof window !== 'undefined' ? window.innerWidth / (typeof Z !== 'undefined' ? Z.z : 1) : 1800) <= n;
 
 function uiApply() {
   const u = S.settings.ui, g = S.settings.gantt, st = document.documentElement.style, b = document.body.classList;
@@ -54,7 +54,7 @@ function editedPaint() {
 function editedSweep() { for (const [id, ts] of EDITED) if (Date.now() - ts >= EDIT_SHOW) { EDITED.delete(id); $$(`[data-id="${id}"].edited,[data-sid="${id}"].edited`).forEach(el => el.classList.remove('edited')); } editedLabels(); }
 function editedLabels() {
   const t = getT(U.sel), el = $('#d-ed'); if (el && t) el.innerHTML = editedText(t);
-  const n = noteById(U.noteSel), ne = $('#n-ed'); if (ne && n) ne.innerHTML = editedText(n, true);
+  const n = noteById(U.noteSel), ne = $('#n-when'); if (ne && n) ne.innerHTML = editedText(n, true);
 }
 const editedText = (o, note) => { const mine = EDITED.has(o.id) && Date.now() - EDITED.get(o.id) < EDIT_SHOW, at = note ? o.updated : o.u; return at ? `<span class="edtag${mine ? ' now' : ''}">${mine ? ic('check', 11) + ' ' : ''}Edited ${esc(ago(at))}</span>` : ''; };
 function paintDock() {
@@ -123,7 +123,7 @@ document.addEventListener('pointerdown', e => {
   const st = c.store(), x0 = e.clientX, w0 = st[c.key] || c.def; let w = w0;
   h.classList.add('on'); document.body.classList.add('rsing');
   if (h.setPointerCapture) { try { h.setPointerCapture(e.pointerId); } catch (_) { /* synthetic event */ } }
-  const mv = ev => { w = uiSetWidth(c, w0 + c.dir * (ev.clientX - x0)); };
+  const mv = ev => { w = uiSetWidth(c, w0 + c.dir * zd(ev.clientX - x0)); };
   const up = () => {
     h.removeEventListener('pointermove', mv); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up);
     h.classList.remove('on'); document.body.classList.remove('rsing');
@@ -173,7 +173,7 @@ document.addEventListener('dragover', e => {
   if (U.ldrag && t && (t.dataset.lid || t.dataset.k)) { // a list over a list: top / bottom edge = reorder next to it, middle = move inside it
     const bad = new Set([U.ldrag, ...listDescendants(U.ldrag)]); if (t.dataset.lid && bad.has(t.dataset.lid)) return;
     e.preventDefault(); $$('.over,.dz-b,.dz-a,.dz-in').forEach(x => x.classList.remove('over', 'dz-b', 'dz-a', 'dz-in'));
-    if (t.dataset.lid) { const r = t.getBoundingClientRect(), y = (e.clientY - r.top) / r.height; t.classList.add(y < 0.28 ? 'dz-b' : y > 0.72 ? 'dz-a' : 'dz-in'); } else t.classList.add('over');
+    if (t.dataset.lid) { const r = t.getBoundingClientRect(), y = (zc(e.clientY) - r.top) / r.height; t.classList.add(y < 0.28 ? 'dz-b' : y > 0.72 ? 'dz-a' : 'dz-in'); } else t.classList.add('over');
   } else if (t && U.pdrag && t.dataset.page) { e.preventDefault(); $$('.over').forEach(x => x.classList.remove('over')); t.classList.add('over'); }
 });
 document.addEventListener('drop', e => {
@@ -184,7 +184,7 @@ document.addEventListener('drop', e => {
       const bad = new Set([src.id, ...listDescendants(src.id)]);
       if (t.dataset.lid) {
         if (bad.has(t.dataset.lid)) return;
-        const dst = S.lists.find(l => l.id === t.dataset.lid), r = t.getBoundingClientRect(), y = (e.clientY - r.top) / r.height;
+        const dst = S.lists.find(l => l.id === t.dataset.lid), r = t.getBoundingClientRect(), y = (zc(e.clientY) - r.top) / r.height;
         S.lists.splice(S.lists.indexOf(src), 1);
         if (y >= 0.28 && y <= 0.72) { src.parent = dst.id; S.lists.push(src); S.settings.ui.fold['l:' + dst.id] = false; } // inside: last sublist
         else { src.parent = dst.parent || null; S.lists.splice(S.lists.indexOf(dst) + (y > 0.72 ? 1 : 0), 0, src); } // next to it, sharing its parent
@@ -232,7 +232,8 @@ function paletteItems(q) {
     go('Focus mode: hide both panels', '\\', uiFocus),
     go('Toggle compact density', 'Layout', () => { uiCompact(); render(); }),
     go('New list…', 'Action', () => ACT.addlist()), go('New note', 'Action', () => { U.page = 'notes'; U.sel = null; render(); ACT.noteadd(); }), go('Settings…', 'Action', openSettings),
-    go('Keyboard shortcuts', '?', openShortcuts),
+    go('Keyboard shortcuts', '?', openShortcuts), go('Help & user guide', 'Help', () => openHelp()), go('About OpenTick: version, licences, credits', 'Help', () => openAbout()),
+    go('Interface size…', 'Appearance', openSettings), go('Background effects…', 'Appearance', openBgSettings),
     go('Gantt: zoom in', 'Gantt', () => { U.page = 'gantt'; render(); gtZoom(1); }), go('Gantt: zoom out', 'Gantt', () => { U.page = 'gantt'; render(); gtZoom(-1); }),
     go('Gantt: choose table columns…', 'Gantt', () => { U.page = 'gantt'; render(); openGtCols(); }),
     go('Gantt: print / save as PDF', 'Gantt', () => { U.page = 'gantt'; render(); setTimeout(gtPrint, 100); }), go('Gantt: export…', 'Gantt', () => { U.page = 'gantt'; render(); openGtExport(); }), go('Gantt: show / hide the YAML editor', 'Gantt', () => { U.page = 'gantt'; U.gYaml = !U.gYaml; render(); }),
@@ -261,7 +262,7 @@ function openPalette() {
   }, 'pal');
 }
 function openShortcuts() {
-  const rows = [['Ctrl/Cmd + Shift + P', 'Command palette'], ['Ctrl/Cmd + K  or  /', 'Search'], ['N', 'New task'], ['[', 'Show / hide sidebar'], [']', 'Show / hide task details'], ['\\', 'Focus mode (hide both panels)'], ['Esc', 'Close dialog / details'], ['?', 'This help'], ['Ctrl/Cmd + B / I / K', 'Bold / italic / link in notes'], ['Tab / Shift+Tab', 'Indent / outdent list items in notes'], ['Ctrl + scroll (Gantt)', 'Zoom the timeline'], ['Drag a handle', 'Resize a panel · double-click to reset']];
+  const rows = [['Ctrl/Cmd + Shift + P', 'Command palette'], ['Ctrl/Cmd + K  or  /', 'Search'], ['N', 'New task'], ['[', 'Show / hide sidebar'], [']', 'Show / hide task details'], ['\\', 'Focus mode (hide both panels)'], ['Esc', 'Close dialog / details'], ['?', 'This list of shortcuts'], ['Alt + arrow keys', 'Move the focused matrix task to another box'], ['Arrow keys (habit history)', 'Move between days'], ['Settings → Help & user guide', 'The full, printable guide'], ['Ctrl/Cmd + B / I / K', 'Bold / italic / link in notes'], ['Tab / Shift+Tab', 'Indent / outdent list items in notes'], ['Ctrl + scroll (Gantt)', 'Zoom the timeline'], ['Drag a handle', 'Resize a panel · double-click to reset']];
   openModal(`<h3>Keyboard shortcuts</h3><div class="vlist">${rows.map(([k, d]) => `<div class="vrow"><span><kbd>${esc(k)}</kbd></span><span>${esc(d)}</span></div>`).join('')}</div><div class="mact"><button class="pri" data-m="ok">Done</button></div>`, m => { m.onclick = e => { if (e.target.closest('[data-m=ok]') || e.target.classList.contains('mback')) closeModal(); }; });
 }
 document.addEventListener('keydown', e => {
