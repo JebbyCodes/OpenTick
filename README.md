@@ -2,20 +2,19 @@
 # OpenTick
 
 <p align="center">
-  <img src="src/logo.png" alt="OpenTick logo" width="160">
+  <img src="src/logo.png" alt="OpenTick" width="90">
 </p>
 
-<p align="center">
-  <strong>Open-source productivity, task management, and project planning.</strong>
-  <br>
-  Organise tasks, manage your time, and plan projects with OpenTick.
-</p>
+<h3 align="center">OpenTick</h3>
+
+<p align="center">Open-source productivity and project planning.</p>
 
 <p align="center">
   <a href="https://rookieenough.github.io/Orion-Data/redirect.html?id=opentick">
-    <img src="https://raw.githubusercontent.com/RookieEnough/Orion-Store/refs/heads/main/assets/orion-badge.png" alt="Get it on Orion Store">
+    <img src="https://raw.githubusercontent.com/RookieEnough/Orion-Store/refs/heads/main/assets/orion-badge.png" alt="Get it on Orion Store" height="36">
   </a>
 </p>
+
 
 <p align="center">
   <a href="https://github.com/JebbyCodes/OpenTick/releases">
@@ -121,7 +120,7 @@ Get OpenTick through its Orion Store listing.
 
 <p align="center">
   <a href="https://rookieenough.github.io/Orion-Data/redirect.html?id=opentick">
-    <img src="https://raw.githubusercontent.com/RookieEnough/Orion-Store/refs/heads/main/assets/orion-badge.png" alt="Get it on Orion Store">
+    <img src="https://raw.githubusercontent.com/RookieEnough/Orion-Store/refs/heads/main/assets/orion-badge.png" alt="Get it on Orion Store" height="36">
   </a>
 </p>
 
