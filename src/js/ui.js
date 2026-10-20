@@ -236,7 +236,7 @@ function paletteItems(q) {
     go('Interface size…', 'Appearance', openSettings), go('Background effects…', 'Appearance', openBgSettings),
     go('Gantt: zoom in', 'Gantt', () => { U.page = 'gantt'; render(); gtZoom(1); }), go('Gantt: zoom out', 'Gantt', () => { U.page = 'gantt'; render(); gtZoom(-1); }),
     go('Gantt: choose table columns…', 'Gantt', () => { U.page = 'gantt'; render(); openGtCols(); }),
-    go('Gantt: print / save as PDF', 'Gantt', () => { U.page = 'gantt'; render(); setTimeout(gtPrint, 100); }), go('Gantt: export…', 'Gantt', () => { U.page = 'gantt'; render(); openGtExport(); }), go('Gantt: show / hide the YAML editor', 'Gantt', () => { U.page = 'gantt'; U.gYaml = !U.gYaml; render(); }),
+    go('Gantt: print / save as PDF', 'Gantt', () => { U.page = 'gantt'; render(); setTimeout(gtPrint, 100); }), go('Gantt: export…', 'Gantt', () => { U.page = 'gantt'; render(); openGtExport(); }),
     ...themeList().map(t => go('Theme: ' + t[1], 'Theme', () => { S.settings.theme = t[0]; applyTheme(); save(); })),
   ];
   q = q.toLowerCase().trim();

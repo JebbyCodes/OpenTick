@@ -296,7 +296,6 @@ function openSettings() {
 <button data-m="export">${ic('download', 18)}<span><b>Export backup</b><small>Everything as one JSON file</small></span></button>
 <button data-m="impapps">${ic('upload', 18)}<span><b>Import from another app</b><small>TickTick, Todoist, Anytype, Trello…</small></span></button>
 <button data-m="import">${ic('upload', 18)}<span><b>Import a backup</b><small>Merge or replace · OpenTick JSON file</small></span></button>
-<button data-m="oginport">${ic('calendar', 18)}<span><b>Import an OpenGantt chart</b><small>.opengantt file</small></span></button>
 <button data-m="notif">${ic('bell', 18)}<span><b>Notifications</b><small>Allow reminders</small></span></button></div>
 <h4 class="mh">Widgets</h4>${isAndroidApp() ? `<div class="dgrid"><button data-m="widget">${ic('layers', 18)}<span><b>Home-screen widgets</b><small>Long-press the home screen → Widgets → OpenTick. There is one for tasks, lists, projects, notes, calendar, timetable, matrix, habits and focus.</small></span></button></div>` : `<div class="dgrid">${WG_KINDS.map(k => `<button data-m="widget" data-w="${k[0]}">${ic(k[2], 18)}<span><b>${k[1]}</b><small>${esc(k[3])}</small></span></button>`).join('')}</div><p class="hint">Small windows that stay on top and look like the app. They update as you work.</p>`}
 <h4 class="mh">Danger zone</h4><div class="dgrid"><button class="dz" data-m="wipe">${ic('trash', 18)}<span><b>Delete everything…</b><small>Tasks, lists, notes, habits and more · asks first</small></span></button></div>
@@ -338,7 +337,6 @@ function openSettings() {
       else if (a === 'wipe') { closeModal(); if (!(await deleteEverything())) openSettings(); }
       else if (a === 'impapps') { closeModal(); openImport(); }
       else if (a === 'sync') { closeModal(); openSync(); }
-      else if (a === 'oginport') { closeModal(); ogImport(null); }
       else if (a === 'about') { try { await navigator.clipboard.writeText(`OpenTick v${APP_VERSION}${OTMETA.built ? ' (built ' + OTMETA.built + ')' : ''} · ${navigator.userAgent}`); toast('Version info copied'); } catch (err) { toast('OpenTick v' + APP_VERSION); } }
       else if (a === 'snapnow') { await snapSave(true); loadSnaps(m); toast('Backup saved'); }
       else if (a === 'notif') toast((await ensureNotify()) ? 'Notifications enabled' : 'Notifications are blocked');
@@ -859,8 +857,6 @@ const ACT = {
     const y = zy(e.clientY, el.getBoundingClientRect().top), m = Math.min(1380, +el.dataset.from + Math.floor(y / (TT_HH / 60) / 30) * 30);
     openTTCreate({ date: el.dataset.d, start: fromMin(m), end: fromMin(Math.min(1439, m + 60)) });
   },
-  // gantt / OpenGantt
-  ogopen: el => openOG(el.dataset.list),
   gtog: (el, e) => { e.stopPropagation(); const k = el.dataset.key; if (U.gcol.has(k)) U.gcol.delete(k); else U.gcol.add(k); renderMain(); },
   gfold: el => { const k = el.dataset.k, f = S.settings.ui.fold; f[k] = !f[k]; save(); el.classList.toggle('closed', !!f[k]); el.setAttribute('aria-expanded', String(!f[k])); const b = el.nextElementSibling; if (b && b.classList.contains('gbody')) b.classList.toggle('closed', !!f[k]); },
   gfoldall: () => { const hs = $$('#main .gtog'); if (!hs.length) return; const shut = hs.some(h => !h.classList.contains('closed')), f = S.settings.ui.fold; hs.forEach(h => { f[h.dataset.k] = shut; h.classList.toggle('closed', shut); h.setAttribute('aria-expanded', String(!shut)); const b = h.nextElementSibling; if (b && b.classList.contains('gbody')) b.classList.toggle('closed', shut); }); save(); },
@@ -963,9 +959,9 @@ document.addEventListener('change', async e => {
   else if (f === 'section') t.section = v || null;
   else if (f === 'repeat') { if (v === 'none') t.repeat = null; else if (REPS[v]) { t.repeat = JSON.parse(JSON.stringify(REPS[v])); if (!t.due) t.due = todayStr(); } }
   else if (f === 'start') { t.start = v || null; if (t.start && t.due && t.start > t.due) t.due = t.start; }
-  else if (f === 'astart') { t.astart = v || null; if (t.astart && t.status === 'done' && t.doneAt && ymd(new Date(t.doneAt)) < t.astart) t.doneAt = ogNoon(t.astart); }
+  else if (f === 'astart') { t.astart = v || null; if (t.astart && t.status === 'done' && t.doneAt && ymd(new Date(t.doneAt)) < t.astart) t.doneAt = gtNoon(t.astart); }
   else if (f === 'aend') { // an actual end date means the task finished that day; clearing it reopens the task
-    if (v) { if (t.status !== 'done') { t.status = 'done'; sfx('done'); } t.doneAt = ogNoon(v); if (t.astart && t.astart > v) t.astart = v; }
+    if (v) { if (t.status !== 'done') { t.status = 'done'; sfx('done'); } t.doneAt = gtNoon(v); if (t.astart && t.astart > v) t.astart = v; }
     else if (t.status === 'done') { t.status = 'open'; delete t.doneAt; sfx('undo'); }
   }
   else if (f === 'slot') { t.slotId = v || null; const sl = v && slotById(v); if (sl && !t.due) t.due = ymd(nextSlotDate(sl)); }
@@ -1223,7 +1219,6 @@ checkReminders();
 setInterval(checkReminders, 20000);
 setInterval(clockPaint, 1000); setInterval(editedSweep, 20000); setTimeout(filesGC, 25000);
 setTimeout(() => snapSave(), 8000); setInterval(() => snapSave(), 30 * 60000); // one automatic local backup a day
-ogSchedule(1500); setInterval(() => ogSchedule(10), 180000);
 // keep the timetable's "now" line moving (not while typing, in a dialog, or mid-drag)
 setInterval(() => { if (U.page === 'timetable' && !U.drag && !$('#modal.on') && !/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '')) renderMain(); }, 60000);
 window.addEventListener('storage', e => { if (e.key === WCMD && e.newValue) { wgRunCommand(e.newValue); return; } if (e.key === KEY) { S = load(); initSeen(); applyTheme(); render(); } });
@@ -1231,7 +1226,7 @@ window.addEventListener('pagehide', flush);
 if (S.settings.pomo.faceDown) { try { if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission !== 'function') fdEnable(); else if (typeof DeviceOrientationEvent !== 'undefined') { window.addEventListener('deviceorientation', fdHandler); FD.on = true; } } catch (e) { /* no sensor */ } }
 startSync();
 widgetWire(); if (!WIDGET) { setTimeout(widgetPull, 900); window.addEventListener('focus', widgetPull); widgetPush(); }
-document.addEventListener('visibilitychange', () => { if (document.hidden) widgetPush(true); else widgetPull(); if (!document.hidden) { wlSync(); checkReminders(); ogSchedule(300); if (!document.activeElement || !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) render(); } });
+document.addEventListener('visibilitychange', () => { if (document.hidden) widgetPush(true); else widgetPull(); if (!document.hidden) { wlSync(); checkReminders(); if (!document.activeElement || !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) render(); } });
 if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !window.__TAURI__) navigator.serviceWorker.register('sw.js').catch(() => {});
 
 /* timetable blocks are real controls: Enter / Space opens one, and a changed window (rotation, split screen, resizing) refits the hours */

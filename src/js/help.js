@@ -95,7 +95,7 @@ const HELP = [
   ['data', 'Your data, backups and sync', `
 <p>Data is saved on your device automatically: tasks, notes, slots and habits in the app’s storage, and attachments in the browser’s file database. Clearing the app’s or browser’s data deletes it, so keep a backup.</p>
 <ul><li><b>Backups:</b> Settings → Data has <b>Export</b> (a JSON file with everything) and <b>Import</b> (merge into, or replace, what you have). Automatic restore points are kept on the device and can be restored from the same place.</li>
-<li><b>Other apps:</b> you can import lists from other task apps, and the Gantt chart reads and writes OpenGantt files.</li>
+<li><b>Other apps:</b> you can import lists from other task apps.</li>
 <li><b>Sync:</b> optional. Choose a provider in Settings → Sync (WebDAV, a Git repository, S3-compatible storage, or a file in a folder you already sync). OpenTick merges changes from several devices; nothing leaves your device unless you set this up.</li>
 <li><b>Printing:</b> only this Help is formatted for paper. Other pages are not.</li></ul>`],
   ['trouble', 'Common problems', `

@@ -310,7 +310,7 @@ function flush() {
   clearTimeout(saveTimer);
   const changed = stamp();
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('Could not save — storage is full'); }
-  if (changed) { hooks.change(); if (typeof ogSchedule === 'function') ogSchedule(); if (typeof dockSaved === 'function') dockSaved(); if (typeof editedPaint === 'function') editedPaint(); if (typeof widgetPush === 'function') widgetPush(); }
+  if (changed) { hooks.change(); if (typeof dockSaved === 'function') dockSaved(); if (typeof editedPaint === 'function') editedPaint(); if (typeof widgetPush === 'function') widgetPush(); }
   else if (typeof dockSaved === 'function') dockSaved(true);
 }
 function save() { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 120); if (typeof savePending === 'function') savePending(); }

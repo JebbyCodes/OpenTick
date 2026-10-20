@@ -1,12 +1,14 @@
 /* ---------- Gantt page ----------
-   OpenTick's own renderer draws tasks the OpenGantt way (plan bar, striped actual, open-task progress bar, the same table
-   columns, custom columns from extra chart keys) and lets you edit by dragging: move a plan bar, pull its edges, pull the
-   actual's left edge, drag an undated task from the tray onto the timeline. It also does what the OpenGantt app does around
-   the chart: a YAML editor, open / save / copy as an Obsidian block, print, PNG / SVG / CSV export, full screen, a legend
-   toggle, a column menu on every heading and a hover card with the details. */
+   OpenTick's own renderer draws tasks as a plan bar, a striped actual and a progress bar for open tasks, with a table of
+   columns beside the timeline, and lets you edit by dragging: move a plan bar, pull its edges, pull the actual's left
+   edge, drag an undated task from the tray onto the timeline. Around the chart: print, PNG / SVG / CSV export, full
+   screen, a legend toggle, a column menu on every heading and a hover card with the details. */
 const GT_PPD = { day: 30, week: 14, month: 5, year: 1.7 }, GT_ROW = 30;
 const GT_ZOOM = [0.35, 0.5, 0.7, 1, 1.4, 2, 3];
-U.gList = 'all'; U.gcol = new Set(); U.ogList = null; U.gRows = []; U.gMeta = null; U.gYaml = false;
+U.gList = 'all'; U.gcol = new Set(); U.gRows = []; U.gMeta = null;
+const gtDated = t => !!(t.start || t.due || t.astart);
+const gtCharted = t => !t.deleted && t.status !== 'wontdo' && !t.log && gtDated(t);
+const gtNoon = d => { const [y, m, dd] = d.split('-').map(Number); return new Date(y, m - 1, dd, 12).getTime(); };
 
 function ganttDates(x, isTask) {
   const done = isTask ? x.status === 'done' : !!x.done, today = todayStr();
@@ -20,7 +22,7 @@ function ganttRows(sel) {
   const rows = [], lists = sel === 'all' ? S.lists : [listOf(sel)];
   const subs = (arr, lv, c, pid) => arr.forEach(s => { const kids = !!(s.children && s.children.length); rows.push({ k: 'sub', s, lv, c, pid, kids }); if (kids && !U.gcol.has(s.id)) subs(s.children, lv + 1, c, pid); });
   for (const l of lists) {
-    const ts = S.tasks.filter(t => t.listId === l.id && ogExportable(t)).sort((a, b) => (a.order || 0) - (b.order || 0));
+    const ts = S.tasks.filter(t => t.listId === l.id && gtCharted(t)).sort((a, b) => (a.order || 0) - (b.order || 0));
     if (!ts.length) continue;
     if (sel === 'all') rows.push({ k: 'list', l });
     for (const t of ts) { const kids = t.subtasks.length > 0; rows.push({ k: 'task', t, lv: sel === 'all' ? 1 : 0, c: l.color, kids }); if (kids && !U.gcol.has(t.id)) subs(t.subtasks, (sel === 'all' ? 1 : 0) + 1, l.color, t.id); }
@@ -28,7 +30,7 @@ function ganttRows(sel) {
   return rows;
 }
 
-/* ---------- table columns (names follow OpenGantt's `columns:` key) ---------- */
+/* ---------- table columns ---------- */
 const gtMD = x => { const d = pYmd(x); return `${MONTHS[d.getMonth()].slice(0, 3)} ${d.getDate()}`; };
 const gtSigned = n => (n > 0 ? `+${n} d` : n < 0 ? `−${-n} d` : '0 d');
 function gtPct(d) { if (d.done) return 100; if (!d.ps || !d.pe) return null; return Math.max(0, Math.min(999, Math.round((dayDiff(d.today, d.ps) + 1) / (dayDiff(d.pe, d.ps) + 1) * 100))); }
@@ -119,16 +121,16 @@ function renderGantt() {
   const rows = ganttRows(U.gList), D = rows.map(r => (r.k === 'task' ? ganttDates(r.t, true) : r.k === 'sub' ? ganttDates(r.s, false) : null));
   U.gRows = rows; U.gD = D;
   const all = D.filter(Boolean).flatMap(d => [d.ps, d.pe, d.as, d.ae || (d.open ? td : null)]).filter(Boolean).concat([td]);
-  const undatedL = S.tasks.filter(t => (U.gList === 'all' || t.listId === U.gList) && !t.deleted && t.status === 'open' && !ogDated(t) && !t.log && !t.slotId);
+  const undatedL = S.tasks.filter(t => (U.gList === 'all' || t.listId === U.gList) && !t.deleted && t.status === 'open' && !gtDated(t) && !t.log && !t.slotId);
   const tools = `<select data-gs="list" title="List">${opts([['all', 'All lists'], ...S.lists.map(l => [l.id, l.name])], U.gList)}</select><select data-gs="scale" title="Scale">${opts([['day', 'Day'], ['week', 'Week'], ['month', 'Month'], ['year', 'Year']], g.scale)}</select><select data-gs="mode" title="Show">${opts([['both', 'Plan + actual'], ['plan', 'Plan'], ['actual', 'Actual']], g.mode)}</select>`
     + `<div class="seg gt-zoom"><button data-act="gzoom" data-d="-1" title="Zoom out (Ctrl + scroll)">${ic('zoom-out', 16)}</button><button data-act="gfit" title="Fit everything in view">${ic('fit', 16)}</button><button data-act="gzoom" data-d="1" title="Zoom in (Ctrl + scroll)">${ic('zoom-in', 16)}</button></div>`
     + `<button class="ib" data-act="gtoday" title="Scroll to today">${ic('calendar')}</button><button class="ib${tbl ? ' on' : ''}" data-act="gtable" title="Show / hide the table">${ic('table')}</button><button class="ib" data-act="gcols" title="Table columns">${ic('columns')}</button><button class="ib" data-act="gexp" data-v="0" title="Expand all">${ic('expand')}</button><button class="ib" data-act="gexp" data-v="1" title="Collapse all">${ic('collapse')}</button>`
     + `<button class="ib${gtTrayOn() ? ' on' : ''}" data-act="uitoggle" data-k="gtray" title="Unscheduled tasks panel">${ic('list')}</button>`
-    + `<button class="ib${U.gYaml ? ' on' : ''}" data-act="gyaml" title="YAML editor: the chart as text">${ic('code')}</button><button class="ib" data-act="gexport" title="Print or export (PNG, SVG, CSV)">${ic('download')}</button><button class="ib${U.gFull ? ' on' : ''}" data-act="gfull" title="Full screen">${ic('focus')}</button><button class="ib" data-act="gmenu" title="More: open, save, link a file, legend, reset">${ic('more')}</button>`;
+    + `<button class="ib" data-act="gexport" title="Print or export (PNG, SVG, CSV)">${ic('download')}</button><button class="ib${U.gFull ? ' on' : ''}" data-act="gfull" title="Full screen">${ic('focus')}</button><button class="ib" data-act="gmenu" title="More: legend, reset">${ic('more')}</button>`;
   const old = $('.gt-wrap'), keep = old && !U.gScrollReset ? [old.scrollLeft, old.scrollTop] : null; U.gScrollReset = false;
-  const trayHtml = gtTrayOn() && !U.gYaml ? `<aside class="gt-tray"><div class="rs rs-l" data-rs="gtray" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize · double-click to reset"></div><div class="trh"><b>Unscheduled</b><small>${undatedL.length}</small><button class="ib sm" data-act="uitoggle" data-k="gtray" title="Hide this panel">${ic('x', 14)}</button></div><div class="trl">${undatedL.slice(0, 120).map(t => `<div class="tri p${t.priority}${U.sel === t.id ? ' sel' : ''}" draggable="true" data-act="open" data-id="${t.id}"><div class="ttl">${titleHtml(t)}</div>${U.gList === 'all' ? `<div class="meta"><span class="ln"><i style="background:${listOf(t.listId).color}"></i>${esc(listOf(t.listId).name)}</span></div>` : ''}</div>`).join('') || '<p class="hint">Every open task has a date.</p>'}</div><p class="hint">Drag a task onto the timeline to schedule it.</p></aside>` : '';
+  const trayHtml = gtTrayOn() ? `<aside class="gt-tray"><div class="rs rs-l" data-rs="gtray" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize · double-click to reset"></div><div class="trh"><b>Unscheduled</b><small>${undatedL.length}</small><button class="ib sm" data-act="uitoggle" data-k="gtray" title="Hide this panel">${ic('x', 14)}</button></div><div class="trl">${undatedL.slice(0, 120).map(t => `<div class="tri p${t.priority}${U.sel === t.id ? ' sel' : ''}" draggable="true" data-act="open" data-id="${t.id}"><div class="ttl">${titleHtml(t)}</div>${U.gList === 'all' ? `<div class="meta"><span class="ln"><i style="background:${listOf(t.listId).color}"></i>${esc(listOf(t.listId).name)}</span></div>` : ''}</div>`).join('') || '<p class="hint">Every open task has a date.</p>'}</div><p class="hint">Drag a task onto the timeline to schedule it.</p></aside>` : '';
   if (!rows.some(r => r.k !== 'list')) {
-    $('#main').innerHTML = topHtml('Gantt', tools) + `<div class="gt-body"><div class="empty">${ic('table', 44)}<p>No tasks with dates yet.<br>Give a task a start or due date (task details → “Gantt dates”), drag one from the panel, or open a chart file (⋯ menu).</p>${U.gList === 'all' ? '' : `<button class="btn" data-act="ogopen" data-list="${esc(U.gList)}">Import / link a chart</button>`}</div>${trayHtml}</div>`;
+    $('#main').innerHTML = topHtml('Gantt', tools) + `<div class="gt-body"><div class="empty">${ic('table', 44)}<p>No tasks with dates yet.<br>Give a task a start or due date (task details → “Gantt dates”), or drag one from the panel.</p></div>${trayHtml}</div>`;
     return;
   }
   const min = addDays(pYmd(all.reduce((a, b) => (a < b ? a : b))), -3), max = addDays(pYmd(all.reduce((a, b) => (a > b ? a : b))), 10), span = dayDiff(ymd(max), ymd(min)) + 1, W = Math.round(span * ppd);
@@ -174,8 +176,8 @@ function renderGantt() {
   }).join('');
   const heads = cols.map(k => `<span class="gt-c gt-ch" draggable="true" data-gcol="${k}" style="width:${gtCol(k)[1]}px" title="Click for options · drag to reorder" data-act="gcolmenu">${esc(gtCol(k)[0])}</span>`).join('');
   $('#main').innerHTML = topHtml('Gantt', tools) + (g.legend === false ? '' : gtLegend(g, rows))
-    + `<div class="gt-body">${gtYamlHtml()}<div class="gt-wrap${tbl ? '' : ' tbl-off'}${lanes ? ' lanes' : ''}" style="--gn:${tbl ? nameW : 30}px;--gr:${lanes ? 44 : 30}px"><div class="gt-in" data-w="${W}" style="width:calc(var(--gn) + ${W}px)"><div class="gt-h"><div class="gt-n gt-hn"><span class="gt-tt">Task</span>${heads}<i class="rs rs-r" data-rs="gname" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize the table · double-click to reset"></i></div><div class="gt-t gt-ht" style="width:${W}px"><div class="gt-h1">${top}</div><div class="gt-h2">${sub}</div><u style="left:${tX}px"></u><em class="gt-tl" style="left:${tX}px">Today</em></div></div>${body}</div></div>${trayHtml}</div>`
-    + `<div class="gt-foot hint">${gtSummary(D)}${U.gList !== 'all' && OG.links[U.gList] ? `<span id="ogstate">${ogStateHtml(U.gList)}</span>` : `<span class="gt-help">Drag a bar to move it, pull its edges to change the dates. Open a task to edit plan and actual dates.</span>`}</div>`;
+    + `<div class="gt-body"><div class="gt-wrap${tbl ? '' : ' tbl-off'}${lanes ? ' lanes' : ''}" style="--gn:${tbl ? nameW : 30}px;--gr:${lanes ? 44 : 30}px"><div class="gt-in" data-w="${W}" style="width:calc(var(--gn) + ${W}px)"><div class="gt-h"><div class="gt-n gt-hn"><span class="gt-tt">Task</span>${heads}<i class="rs rs-r" data-rs="gname" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize the table · double-click to reset"></i></div><div class="gt-t gt-ht" style="width:${W}px"><div class="gt-h1">${top}</div><div class="gt-h2">${sub}</div><u style="left:${tX}px"></u><em class="gt-tl" style="left:${tX}px">Today</em></div></div>${body}</div></div>${trayHtml}</div>`
+    + `<div class="gt-foot hint">${gtSummary(D)}<span class="gt-help">Drag a bar to move it, pull its edges to change the dates. Open a task to edit plan and actual dates.</span></div>`;
   const wrap = $('.gt-wrap');
   if (wrap) {
     if (U.gAnchor) { const a = U.gAnchor; U.gAnchor = null; wrap.scrollLeft = Math.max(0, 2 * X(a) + nameW - wrap.clientWidth); if (keep) wrap.scrollTop = keep[1]; }
@@ -214,7 +216,7 @@ function gtDetailHtml(t) {
 <div class="chips gx-btns"><button class="btn sm" data-act="gxstart"${t.astart === todayStr() ? ' disabled' : ''}>Started today</button><button class="btn sm" data-act="gxend"${done ? ' disabled' : ''}>Finished today</button><button class="btn sm" data-act="gxclear"${t.astart || done ? '' : ' disabled'}>Clear actual</button></div>
 ${span ? `<div class="gx-mini"><div class="gx-row"><span>Plan</span><div>${bar(d.ps, d.pe, 'plan')}</div></div><div class="gx-row"><span>Actual</span><div>${d.as ? bar(d.as, d.ae || d.today, d.open ? 'live' : 'act') : ''}${over}</div></div><div class="gx-ax"><small>${esc(gtMD(lo))}</small><small>${esc(gtMD(hi))}</small></div></div>` : ''}
 <div class="gx-stats"><span class="st ${st[1]}">${esc(st[0])}</span>${pd ? `<span>${pd} d planned</span>` : ''}${ad ? `<span>${ad} d actual</span>` : ''}${vr ? `<span class="${vr[0] === '+' ? 'late' : ''}">${vr} vs plan</span>` : ''}${pct != null && !done ? `<span>${pct}% of plan elapsed</span>` : ''}</div>
-<p class="hint">Setting an actual end completes the task; clearing it reopens it. The same dates appear in the Gantt view and in OpenGantt.</p></details>`;
+<p class="hint">Setting an actual end completes the task; clearing it reopens it. The same dates appear in the Gantt view.</p></details>`;
 }
 
 /* ---------- drag bars: move / resize the plan, pull the actual's start or end ---------- */
@@ -222,7 +224,7 @@ const gtShift = (d, n) => ymd(addDays(pYmd(d), n));
 function gtApply(row, p, mode, dd, d) {
   const x = row.k === 'task' ? row.t : row.s;
   if (p === 'act') {
-    if (mode === 'r') { const ne = gtShift(d.ae, dd), end = ne < d.as ? d.as : ne; if (row.k === 'task') x.doneAt = ogNoon(end); else x.aend = end; return; } // pull the finish date
+    if (mode === 'r') { const ne = gtShift(d.ae, dd), end = ne < d.as ? d.as : ne; if (row.k === 'task') x.doneAt = gtNoon(end); else x.aend = end; return; } // pull the finish date
     const na = gtShift(d.as, dd); x.astart = d.ae && na > d.ae ? d.ae : na; return;
   }
   if (d.single) { const f = x.start && !x.due ? 'start' : 'due'; x[f] = gtShift(f === 'start' ? d.ps : d.pe, dd); return; }
@@ -296,41 +298,6 @@ function gtDrop(e, el) {
   t.start = d; t.due = d; save(); refresh(); toast(`Scheduled “${t.title}” on ${gtMD(d)}`); return true;
 }
 
-
-/* ---------- chart options carried by a chart file (OpenGantt's block keys: scale, mode, progress, hatch, table, columns, collapsed) ---------- */
-function ogApplyOpts(doc, listId) {
-  if (!doc || typeof doc !== 'object') return;
-  const g = S.settings.gantt;
-  if (['day', 'week', 'month', 'year'].includes(doc.scale)) g.scale = doc.scale;
-  const mm = { plan: 'plan', planned: 'plan', actual: 'actual', both: 'both' }[String(doc.mode || '').toLowerCase()]; if (mm) g.mode = mm;
-  for (const k of ['progress', 'hatch', 'table']) if (typeof doc[k] === 'boolean') g[k] = doc[k];
-  if (Array.isArray(doc.columns)) {
-    const known = new Map(gtAllCols().map(k => [k.toLowerCase(), k])), cols = [];
-    for (const c of doc.columns) { const k = known.get(String(c).toLowerCase().replace(/^x:/, '').replace(/\s+/g, '')) || known.get('x:' + String(c).toLowerCase()); if (k && !cols.includes(k)) cols.push(k); }
-    if (cols.length) gtSetCols(cols);
-  }
-  if (doc.collapsed === true && listId) { for (const t of S.tasks.filter(t => t.listId === listId && t.subtasks.length)) U.gcol.add(t.id); }
-}
-
-/* ---------- the chart as text ---------- */
-function gtYamlCheck(text) {
-  try { const d = ogYamlParse(text); if (!d || typeof d !== 'object' || Array.isArray(d) || !Array.isArray(d.rows)) return '<span class="bad">Needs a “rows:” list</span>'; return `<span class="ok">${d.rows.length} rows · ready to apply</span>`; } catch (e) { return `<span class="bad">${esc(e.message || String(e))}</span>`; }
-}
-function gtYamlHtml() {
-  if (!U.gYaml) return '';
-  const head = (name, dis) => `<div class="gy-h"><b>${ic('code', 14)} YAML${name ? ' · ' + esc(name) : ''}</b><span class="sp"></span>${name ? `<button class="btn sm" data-act="gyrevert"${dis}>Revert</button><button class="btn sm pri" data-act="gyapply"${dis}>Apply</button>` : ''}<button class="ib sm" data-act="gyaml" title="Hide the editor" aria-label="Hide the editor">${ic('x', 14)}</button></div>`;
-  if (U.gList === 'all') return `<aside class="gt-yaml">${head('', '')}<p class="hint gy-p">Pick one list in the list menu to edit its chart as text.</p></aside>`;
-  const list = listOf(U.gList), text = U.gYDirty ? U.gYText : ogBuild(list, '').yaml, dis = U.gYDirty ? '' : ' disabled';
-  return `<aside class="gt-yaml">${head(list.name, dis)}<textarea id="gt-ya" spellcheck="false" wrap="off" aria-label="Chart as YAML">${esc(text)}</textarea><div class="gy-f" id="gy-err">${U.gYDirty ? gtYamlCheck(text) : 'Edit the chart as text, then Apply. Rows keep their link to the task through <code>otid</code>.'}</div></aside>`;
-}
-document.addEventListener('input', e => {
-  if (!e.target || e.target.id !== 'gt-ya') return;
-  U.gYDirty = true; U.gYText = e.target.value; const er = $('#gy-err'); if (er) er.innerHTML = gtYamlCheck(U.gYText);
-  $$('[data-act="gyapply"],[data-act="gyrevert"]').forEach(b => { b.disabled = false; });
-});
-document.addEventListener('keydown', e => { // Tab indents inside the editor instead of leaving it
-  if (e.key === 'Tab' && e.target && e.target.id === 'gt-ya' && !e.shiftKey) { e.preventDefault(); const t = e.target; t.setRangeText('  ', t.selectionStart, t.selectionEnd, 'end'); t.dispatchEvent(new Event('input', { bubbles: true })); }
-});
 
 /* ---------- rendering the chart as an SVG (print, PNG, SVG) ---------- */
 const GT_THEME = {
@@ -487,22 +454,12 @@ async function gtColMenu(k) {
   else if (r === 2) gtSetCols(on.filter(x => x !== k)); else if (r === 3) { openGtCols(); return; }
   renderMain();
 }
-function gtExampleYaml() {
-  const d = n => ymd(addDays(new Date(), n));
-  return `title: Example project\nscale: week\nmode: both\nrows:\n  - label: Kick-off\n    plan: [${d(-12)}]\n    fact: [${d(-12)}, ${d(-12)}]\n  - label: Design\n    plan: [${d(-11)}, ${d(-2)}]\n    fact: [${d(-11)}, ${d(1)}]\n    notes: Wireframes, review and sign-off\n    owner: Sam\n    children:\n      - label: Wireframes\n        plan: [${d(-11)}, ${d(-6)}]\n        fact: [${d(-11)}, ${d(-5)}]\n      - label: Review\n        plan: [${d(-5)}, ${d(-2)}]\n        fact: [${d(-4)}, ${d(1)}]\n  - label: Build\n    plan: [${d(-1)}, ${d(14)}]\n    fact: [${d(0)}]\n    owner: Alex\n  - label: Launch\n    plan: [${d(18)}]\n    priority: High\n`;
-}
 async function gtMore() {
-  const one = U.gList !== 'all', g = S.settings.gantt;
-  const items = [{ label: 'Open a chart file…' }, { label: 'Save the chart as a file…' }, { label: 'Copy as an Obsidian block' }, { label: 'Link to a file (auto-sync)…' }, { label: 'Create an example chart' }, { label: g.legend === false ? 'Show the legend' : 'Hide the legend' }, { label: 'Reset the view' }];
+  const g = S.settings.gantt;
+  const items = [{ label: g.legend === false ? 'Show the legend' : 'Hide the legend' }, { label: 'Reset the view' }];
   const r = await askMenu('Gantt', items); if (r == null) return;
-  const need = () => { if (!one) { toast('Pick one list first'); return false; } return true; };
-  if (r === 0) ogImport(one ? U.gList : null);
-  else if (r === 1) { if (need()) ogExport(U.gList, false); }
-  else if (r === 2) { if (need()) ogExport(U.gList, true); }
-  else if (r === 3) { if (need()) openOG(U.gList); }
-  else if (r === 4) { try { const res = ogImportText(gtExampleYaml(), 'Example project.yaml', null); U.gList = res.list.id; refresh(); toast('Example chart created'); } catch (e) { toast('Could not create it: ' + (e.message || e)); } }
-  else if (r === 5) { g.legend = g.legend === false; save(); renderMain(); }
-  else if (r === 6) { Object.assign(g, { scale: 'week', zoom: 1, mode: 'both', cols: ['plan', 'actual'], table: true, legend: true, hatch: true, progress: true, lanes: true }); U.gcol.clear(); save(); U.gScrollReset = true; renderMain(); toast('View reset'); }
+  if (r === 0) { g.legend = g.legend === false; save(); renderMain(); }
+  else if (r === 1) { Object.assign(g, { scale: 'week', zoom: 1, mode: 'both', cols: ['plan', 'actual'], table: true, legend: true, hatch: true, progress: true, lanes: true }); U.gcol.clear(); save(); U.gScrollReset = true; renderMain(); toast('View reset'); }
 }
 
 /* ---------- hover card (mouse only; on touch a tap opens the task) ---------- */
@@ -526,21 +483,13 @@ async function gtMore() {
   document.addEventListener('pointerleave', hide, true); document.addEventListener('scroll', hide, true); document.addEventListener('pointerdown', hide, true);
 })();
 
-/* ---------- keyboard: Ctrl/Cmd + P print, O open, S save (like the OpenGantt app) ---------- */
+/* ---------- keyboard: Ctrl/Cmd + P prints the chart ---------- */
 document.addEventListener('keydown', e => {
   if (U.page !== 'gantt' || !(e.ctrlKey || e.metaKey) || e.altKey || $('#modal.on') || (e.target.closest && e.target.closest('input,textarea,select'))) return;
-  const k = e.key.toLowerCase(), one = U.gList !== 'all';
-  if (k === 'p' && !e.shiftKey) { e.preventDefault(); gtPrint(); }
-  else if (k === 'o') { e.preventDefault(); ogImport(one ? U.gList : null); }
-  else if (k === 's' && one) { e.preventDefault(); ogExport(U.gList, false); }
+  if (e.key.toLowerCase() === 'p' && !e.shiftKey) { e.preventDefault(); gtPrint(); }
 });
 
 const GT_ACT = {
-  gyaml: () => { U.gYaml = !U.gYaml; if (!U.gYaml) U.gYDirty = false; renderMain(); },
-  gyapply: () => {
-    try { const r = ogImportText(U.gYText, 'chart.yaml', U.gList); U.gYDirty = false; refresh(); toast(`Applied: ${r.added} new, ${r.pulled} updated`); } catch (e) { toast('Could not apply: ' + (e.message || e)); }
-  },
-  gyrevert: () => { U.gYDirty = false; renderMain(); },
   gexport: () => openGtExport(),
   gfull: () => gtFull(),
   gmenu: () => gtMore(),

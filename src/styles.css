@@ -349,7 +349,6 @@ body.gtdrag,body.gtdrag *{cursor:grabbing!important;user-select:none!important}
 .gt-t.over{background-color:color-mix(in srgb,var(--acc) 10%,transparent)}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}.seg button{padding:5px 10px;font-size:12px;color:var(--muted);display:inline-flex;align-items:center}.seg button:hover{background:var(--hover);color:var(--text)}.seg button.on{background:var(--sel);color:var(--acc)}
 .gt-zoom button{padding:5px 7px}
-.og-body{margin:0 8px 8px}.og-frame{flex:1;width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;min-height:0}
 .mrow label.chkl{margin-right:10px}
 /* polish */
 ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--muted) 38%,transparent);border-radius:10px;border:2px solid transparent;background-clip:content-box}::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--muted) 65%,transparent);background-clip:content-box;border:2px solid transparent}::-webkit-scrollbar-corner{background:transparent}
@@ -893,12 +892,8 @@ body.batch .task{cursor:pointer}
 .bseg button{text-align:center;justify-content:center;padding:8px 4px}
 .bn{color:var(--muted);font-size:12px}
 
-/* ---------- Gantt: YAML editor, hover card, full screen, export ---------- */
-.gt-yaml{flex:none;width:clamp(260px,34%,400px);display:flex;flex-direction:column;border-right:1px solid var(--line);background:var(--side);min-height:0}
-.gy-h{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--line)}.gy-h b{display:flex;align-items:center;gap:6px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.gy-h .sp{flex:1}
-.gt-yaml textarea{flex:1;min-height:0;resize:none;border:0;border-radius:0;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre;overflow:auto;background:var(--bg);tab-size:2}
-.gy-f{padding:6px 10px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}.gy-f .bad{color:var(--red)}.gy-f .ok{color:var(--acc)}.gy-p{padding:12px}
-@media (max-width:820px){.gt-body{flex-direction:column}.gt-yaml{width:100%;height:42%;border-right:0;border-bottom:1px solid var(--line)}}
+/* ---------- Gantt: hover card, full screen, export ---------- */
+@media (max-width:820px){.gt-body{flex-direction:column}}
 .gtp{position:fixed;z-index:200;max-width:300px;background:var(--side);color:var(--text);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:9px 11px;font-size:12px;pointer-events:none}
 .gtp[hidden]{display:none}.gtp-t{font-weight:700;font-size:13px;margin-bottom:5px}.gtp div{display:flex;justify-content:space-between;gap:14px}.gtp div span{color:var(--muted)}.gtp p{margin:6px 0 0;color:var(--muted);line-height:1.4}
 .gx-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}.gx-btns .btn{min-height:46px;justify-content:center}

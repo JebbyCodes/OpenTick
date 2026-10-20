@@ -165,27 +165,19 @@ const mkN = (o = {}) => { const n = A.newNote(o); S.notes.push(n); return n; };
   A.EDITED.set(t.id, clock.t - 999999); assert.equal(A.editedCls(t.id), '', 'markers expire');
 }
 
-/* ---- Gantt: columns, svg export, yaml, options ---- */
+/* ---- Gantt: columns, svg export ---- */
 {
   S.settings.gantt.cols = ['plan', 'notes', 'priority', 'x:owner']; const t = mkT('Chart', { start: '2026-10-05', due: '2026-10-12', notes: 'some **notes**', priority: 3 }); t.gx = { owner: 'Sam' };
   assert.ok(A.gtAllCols().includes('x:owner'), 'extra chart keys become columns'); assert.equal(A.gtCol('x:owner')[0], 'Owner');
   const d = A.ganttDates(t, true); assert.equal(A.gtCol('notes')[2](d, t), 'some notes'); assert.equal(A.gtCol('priority')[2](d, t), 'High'); assert.equal(A.gtCol('x:owner')[2](d, t), 'Sam');
   A.U.page = 'gantt'; A.U.gList = 'all'; A.renderGantt();
-  assert.ok(!A.els['#main'].innerHTML.includes('OpenGantt</button>') && !A.els['#main'].innerHTML.includes('data-act="gpane"'), 'the embedded OpenGantt pane is gone');
-  for (const x of ['data-act="gyaml"', 'data-act="gexport"', 'data-act="gfull"', 'data-act="gmenu"', 'data-act="gcolmenu"', 'data-i="']) assert.ok(A.els['#main'].innerHTML.includes(x), x);
+  assert.ok(!A.els['#main'].innerHTML.includes('data-act="gyaml"') && !A.els['#main'].innerHTML.includes('data-act="gpane"'), 'no YAML editor or embedded pane');
+  for (const x of ['data-act="gexport"', 'data-act="gfull"', 'data-act="gmenu"', 'data-act="gcolmenu"', 'data-i="']) assert.ok(A.els['#main'].innerHTML.includes(x), x);
   const M = A.gtModel(); assert.ok(M && M.rows.length > 1); const svg = A.gtSvg(M, { dark: false, title: true, legend: true });
   assert.ok(svg.svg.startsWith('<svg') && svg.svg.includes('Chart') && svg.svg.includes('Today') && svg.svg.includes('Planned'), 'the chart renders as a standalone SVG');
   assert.ok(A.gtSvg(M, { dark: true, title: false, legend: false }).svg.includes('#1b1d21'), 'dark colours'); assert.ok(!A.gtSvg(M, { title: false, legend: false }).svg.includes('Planned'), 'no legend when switched off');
   assert.ok(A.gtPages(M, { orient: 'landscape', paged: true }).length >= 1);
   assert.equal(A.gtRaw('planStart', d, t), '2026-10-05'); assert.equal(A.gtRaw('planDays', d, t), 8);
-  // yaml editor
-  A.U.gYaml = true; A.U.gList = S.lists[0].id; assert.match(A.gtYamlHtml(), /<textarea id="gt-ya"/); assert.match(A.gtYamlCheck('rows:\n  - label: x\n'), /1 rows/); assert.match(A.gtYamlCheck('title: x'), /rows/); A.U.gYaml = false;
-  // chart file options
-  A.ogApplyOpts({ scale: 'month', mode: 'planned', progress: false, columns: ['status', 'notes', 'planStart'] });
-  assert.equal(S.settings.gantt.scale, 'month'); assert.equal(S.settings.gantt.mode, 'plan'); assert.equal(S.settings.gantt.progress, false); eq(S.settings.gantt.cols, ['status', 'notes', 'planStart'], 'columns from the file');
-  // import applies them
-  const text = 'title: Opts\nscale: year\nmode: actual\nrows:\n  - label: One\n    plan: [2026-10-01, 2026-10-03]\n';
-  A.ogImportText(text, 'o.yaml', null); assert.equal(S.settings.gantt.scale, 'year'); assert.equal(S.settings.gantt.mode, 'actual');
 }
 
 console.log('0.9 feature tests passed');

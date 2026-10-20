@@ -102,7 +102,7 @@ The Android widget code could not be compiled where this release was written, so
 - **Links between notes and tasks**, both ways, with pickers on each side. Repeating tasks carry their notes, linked notes and files into every new occurrence.
 - **"Edited" signals**: a live *Saving… / Saved* note, *Edited 5 min ago* in the task and note panels, an *Edited* marker on rows, blocks and notes you just changed, and an *Unsaved changes* warning in the slot editor.
 - **Custom themes**: import a `.css` (or `.json`) theme, paste CSS, or start from the downloadable template.
-- **Gantt**: only OpenTick's own Gantt remains, now with everything the OpenGantt app offers: a YAML editor, open / save / copy as an Obsidian block, print, PNG / SVG / CSV export, full screen, a legend toggle, column menus, Notes / Priority / Tags and custom columns, and a hover card.
+- **Gantt**: print, PNG / SVG / CSV export, full screen, a legend toggle, column menus, Notes / Priority / Tags columns, and a hover card.
 - **Task notes box** is bigger and grows with its text.
 
 ## What's new in 0.6
@@ -133,7 +133,7 @@ The Android widget code could not be compiled where this release was written, so
   - [WebDAV](#webdav)
   - [A file in a synced folder](#a-file-in-a-synced-folder)
   - [Adding a provider](#adding-a-provider)
-- [OpenGantt integration](#opengantt-integration)
+- [Gantt](#gantt)
 - [Timetable](#timetable)
 - [Markdown](#markdown)
 - [Themes](#themes)
@@ -193,7 +193,7 @@ Most task managers make you pick a side: a polished desktop app **or** a phone a
 | **Tasks** | Grouped and sorted list, plus a per-list **board (kanban)** with sections and drag-and-drop between columns. |
 | **Calendar** | Month grid with colour-coded chips per day; click a day to add a task. |
 | **Timetable** | Week and day timetable with weekly recurring slots and tasks on the grid — see [Timetable](#timetable). |
-| **Gantt** | OpenTick’s own built-in Gantt renderer — see [OpenGantt integration](#opengantt-integration) for the chart-file format it reads and writes. |
+| **Gantt** | Plan and actual bars with a table, drag-to-edit dates and print / export — see [Gantt](#gantt). |
 | **Matrix** | Eisenhower quadrants (urgent/important) derived from due dates and priorities, each with its own quick-add box. |
 | **Habit** | Daily check-ins, streaks, and a rolling seven-day strip per habit. |
 | **Focus** | Pomodoro timer with focus / short break / long break modes, session log, today's stats and a seven-day bar chart. |
@@ -328,7 +328,6 @@ Runs seven suites, each a plain Node script with no test framework:
 | `test/markdown.mjs` | Markdown rendering, XSS safety, checklist toggling. |
 | `test/sync.mjs` | Merge rules, change tracking, and two devices syncing against a mock WebDAV server. |
 | `test/timetable.mjs` | Themes, tag colours, durations, timetable layout, drag/drop, reminders, merge. |
-| `test/opengantt.mjs` | YAML subset, Markdown fence handling, task ↔ row mapping, two-way file sync. |
 | `test/layout.mjs` | Panel sizing, sidebar views, task drops, Gantt table columns and drag date maths. |
 | `test/v09.mjs` | Notes fixes, durations and reminders, custom themes, attachments, note/task links, batch editing, edited markers and the Gantt tools. |
 
@@ -416,49 +415,14 @@ S3, Dropbox, Google Drive and friends are one object away. Add to `PROVIDERS` in
 
 ---
 
-## OpenGantt integration
+## Gantt
 
-OpenTick reads and writes the YAML that [OpenGantt](https://github.com/JebbyCodes/OpenGantt) draws — `rows:` with `label`, `plan`, `fact`, `notes`, `children` and any extra columns — whether it lives in a `.yaml` file or in the first ```` ```gantt ```` block of a Markdown note.
-
-**Gantt view.** The *Gantt* tab draws your tasks the OpenGantt way: a bar for the plan (start → due; a single date is a diamond), a striped bar for the actual (actual start → the day you finished), and an open task with an actual start as a progress bar up to today showing the percentage of the plan elapsed. Subtasks are children (collapse with the chevron), scale is day / week / month / year, and mode is plan / actual / both. Click a bar to open the task. Set dates in a task's details under **Gantt dates** (*Start*, *Actual start*; the due date is the plan end).
-
-### Mapping
-
-| OpenTick | OpenGantt row |
-|---|---|
-| task title | `label` |
-| start → due date (due only = one date) | `plan: [start, end]` / `plan: [date]` |
-| actual start; done tasks end on the day they were completed | `fact: [start]` (open) / `fact: [start, end]` (finished) |
-| notes | `notes` |
-| priority, tags | `priority: High`, `tags: [a, b]` |
-| subtasks (any depth) | `children` |
-| unknown columns in a chart (e.g. `owner`) | kept on the task and written back unchanged |
-| task id | `otid` — a hidden-by-default extra column that lets edits find the right task again |
-
-Only tasks with a start, due or actual-start date are exported. Undated, deleted, won't-do and repeat-log entries are not. A finished subtask without dates is written as `done: true`.
-
-### Import, export, copy
-
-In a list: the link icon → **Import chart…** (into this list), **Export file…** (`.md` note or `.yaml`), **Copy as Obsidian block**. Settings → **Import OpenGantt chart…** creates a new list from a file.
-
-### Linking a list to a chart file
-
-Desktop app or a Chromium browser, because it writes the file. Link icon → **Link to a file…**, then pick an existing `.md` / `.yaml` or create one. From then on OpenTick keeps the chart's `rows:` in step with the list — after you edit (a couple of seconds later), when you come back to the app, every 3 minutes, or with **Sync now**.
-
-- For a `.md` note **only the `gantt` block is touched** — the front matter, other blocks and the rest of the note stay byte for byte. For any file, the chart's own keys (`scale`, `mode`, `columns`, `title`, comments…) are preserved; only `rows:` is rewritten.
-- It is a **three-way merge per task**. OpenTick remembers what each task looked like at the last sync. Changed only in the file → pulled in. Changed only in OpenTick → written out. Changed in both → the OpenTick version wins (and the Sync dialog counts it). A row you delete in OpenGantt moves the task to the Trash; new rows become new tasks and get an `otid`. A file that cannot be parsed is **never** overwritten.
-- Rows keep the file's order; reordering tasks in OpenTick does not reorder the chart.
-- Links are per device (the file handle or path stays on the device). The task data itself syncs through normal OpenTick sync, so two devices linked to the same synced file converge.
-- The format is implemented from OpenGantt's README. Features not documented there are preserved as custom columns — tell us if something does not round-trip.
-
-### The Gantt page
-
-OpenTick has one Gantt, drawn by OpenTick itself. It reads and writes the OpenGantt chart format (above), and it covers what the OpenGantt app does around the chart:
+The *Gantt* tab draws your tasks as a bar for the plan (start → due; a single date is a diamond), a striped bar for the actual (actual start → the day you finished), and, for an open task with an actual start, a progress bar up to today showing the percentage of the plan elapsed. Subtasks are children (collapse with the chevron), scale is day / week / month / year, and mode is plan / actual / both. Click a bar to open the task. Set dates in a task's details under **Gantt dates** (*Start*, *Actual start*; the due date is the plan end).
 
 - **Plan / Actual / Both**, **Day / Week / Month / Year**, zoom, a *Today* marker, hierarchy with collapse, milestones, progress for open tasks and variance / status columns.
-- **Columns**: Plan, Actual, dates, durations, variance, status, **Notes, Priority, Tags** and one column for every extra key in a chart row (an `owner:` key becomes an *Owner* column). Click a column heading for *Move left / right*, *Hide* and *Choose columns*.
-- **YAML editor** (the `</>` button): the selected list as text. Edit it and **Apply**; rows stay linked to their tasks through `otid`. Chart options in the text (`scale`, `mode`, `progress`, `hatch`, `table`, `columns`, `collapsed`) apply too.
-- **File menu** (the `⋯` button): open a chart file, save it, copy it as an Obsidian block, link it to a file, create an example chart, hide the legend, reset the view. <kbd>Ctrl/Cmd</kbd>+<kbd>O</kbd> opens, <kbd>Ctrl/Cmd</kbd>+<kbd>S</kbd> saves, <kbd>Ctrl/Cmd</kbd>+<kbd>P</kbd> prints.
+- **Columns**: Plan, Actual, dates, durations, variance, status, **Notes, Priority, Tags**. Click a column heading for *Move left / right*, *Hide* and *Choose columns*.
+- **Drag to edit**: move a plan bar, pull its edges, pull the actual's left edge, or drag an undated task from the *Unscheduled* panel onto the timeline.
+- **More menu** (the `⋯` button): hide the legend, reset the view. <kbd>Ctrl/Cmd</kbd>+<kbd>P</kbd> prints.
 - **Print / export** (the download button): landscape or portrait pages, light or dark colours, optional title and legend, as **PNG**, **SVG**, **CSV** or a paginated print.
 - **Full screen**, and a **hover card** with plan, actual, status, progress, variance, extra fields and notes.
 
@@ -583,4 +547,5 @@ OpenTick/
 - **Calendar**: Month / Week / Day / Agenda views; repeating tasks appear on every future date (dashed).
 - **Habits**: choose an icon, colour and goal (daily by default, or N× a week / month); a flame plays when a check-in extends a streak.
 - **Gantt**: chart key above the timeline; progress labels no longer clipped.
+- **Removed**: the OpenGantt chart-file support (YAML editor, open / save / link a chart file, copy as an Obsidian block, Settings → Import an OpenGantt chart). The Gantt view itself is unchanged.
 - Short animations for ticking, adding, deleting, opening and dropping (off with reduced-motion).

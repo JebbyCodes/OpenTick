@@ -29,7 +29,6 @@ const EMPTY_DATA = () => ({ v: 1, tasks: [], lists: [], habits: [], tags: [], sl
 // Resolves to the key of the restore point (or '' when none could be written).
 async function wipeAll(o = {}) {
   let key = ''; try { key = (await snapSave(true, 'before-delete')) || ''; } catch (e) { key = ''; }
-  if (typeof OG !== 'undefined' && OG.links) for (const id of Object.keys(OG.links)) { try { await ogUnlink(id); } catch (e) { /* linked file stays as it is */ } }
   const d = EMPTY_DATA(); if (!o.settings) d.settings = S.settings;
   S.history = [];
   replaceAll(d);
