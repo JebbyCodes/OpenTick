@@ -19,7 +19,9 @@ const refresh = () => { renderSide(); renderMain(); renderDetail(); };
 /* ---------- small animations ----------
    Rendering rebuilds the DOM, so an animation is queued with fx(selector, name) and played on the fresh elements by
    fxFlush() at the end of renderMain / renderDetail. Everything is switched off by prefers-reduced-motion. */
-const motionOK = () => !(typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+const motionOK = () => !(typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) && (!S || !S.settings || S.settings.motion !== 'off');
+// Settings → Animations: the whole interface reads data-motion (normal / calm / off) from the page root
+function motionApply() { if (typeof document !== 'undefined' && document.documentElement && document.documentElement.setAttribute) document.documentElement.setAttribute('data-motion', (S.settings && S.settings.motion) || 'normal'); }
 const rowSel = id => ['.task', '.card', '.tri', '.chip', '.blk', '.gt-r'].map(c => `${c}[data-id="${id}"]`).join(',');
 function fx(sel, name = 'pop') { if (motionOK()) U.fx.push({ sel, name, at: Date.now() }); }
 function fxPlay(el, name) {
@@ -157,6 +159,7 @@ function checkReminders() {
     const key = `${t.id}|${t.due}|${t.time || ''}|${t.reminder}`;
     if (now >= at && now - at < 864e5 && !S.fired[key]) { S.fired[key] = 1; changed = true; notify(t.title, 'Due ' + dueLabel(t)); sfx('chime'); }
   }
+  if (schoolRemind()) changed = true;
   // timetable slots: remind before they start (today, and tomorrow for slots just after midnight)
   const today = new Date();
   for (const sl of S.slots) {
@@ -254,6 +257,7 @@ const fdStatus = () => {
 // keep the screen awake while a face-down session runs (the sensor stops reporting on a locked phone)
 const WL = { lock: null };
 function wlSync() {
+  if (typeof widgetPush === 'function') widgetPush(true); // the Focus widget shows whether a session is running
   try {
     const want = P.run && S.settings.pomo.faceDown && navigator.wakeLock;
     if (want && !WL.lock && document.visibilityState === 'visible') navigator.wakeLock.request('screen').then(l => { WL.lock = l; l.addEventListener('release', () => { if (WL.lock === l) WL.lock = null; }); }).catch(() => {});
@@ -277,6 +281,8 @@ async function loadSnaps(m) {
 function openSettings() {
   const s = S.settings;
   openModal(`<h3>Settings</h3><h4 class="mh first">Appearance</h4><div id="thsec">${themeSectionHtml()}</div>${scaleSetting()}<div class="dgrid" style="margin-top:10px"><button data-m="bgfx">${ic('sparkles', 18)}<span><b>Background effects</b><small>${bgNorm(s.bg).on ? 'On · ' + (BG_STYLES.find(x => x[0] === bgNorm(s.bg).style) || [])[1] : 'Off'} — soft moving shapes behind the app</small></span></button></div><h4 class="mh">General &amp; focus timer</h4><div class="form">
+<label>Start screen${homeSelectHtml()}</label>
+<label>Animations<select data-sx="motion">${opts([['normal', 'Normal'], ['calm', 'Calm (subtle)'], ['off', 'Off']], s.motion || 'normal')}</select></label>
 <label>Week starts on<select data-s="weekStart">${opts([[1, 'Monday'], [0, 'Sunday'], [6, 'Saturday']], s.weekStart)}</select></label>
 <label>Focus (min)<input type="number" min="1" max="180" data-p="focus" value="${s.pomo.focus}"></label>
 <label>Short break (min)<input type="number" min="1" max="60" data-p="short" value="${s.pomo.short}"></label>
@@ -292,7 +298,7 @@ function openSettings() {
 <button data-m="import">${ic('upload', 18)}<span><b>Import a backup</b><small>Merge or replace · OpenTick JSON file</small></span></button>
 <button data-m="oginport">${ic('calendar', 18)}<span><b>Import an OpenGantt chart</b><small>.opengantt file</small></span></button>
 <button data-m="notif">${ic('bell', 18)}<span><b>Notifications</b><small>Allow reminders</small></span></button></div>
-<h4 class="mh">Widgets</h4><div class="dgrid"><button data-m="widget">${ic('layers', 18)}<span><b>${isAndroidApp() ? 'Home-screen widgets' : 'Mini widget window'}</b><small>${isAndroidApp() ? 'Long-press the home screen → Widgets → OpenTick' : 'Today\'s tasks in a small window that stays on top'}</small></span></button></div>
+<h4 class="mh">Widgets</h4>${isAndroidApp() ? `<div class="dgrid"><button data-m="widget">${ic('layers', 18)}<span><b>Home-screen widgets</b><small>Long-press the home screen → Widgets → OpenTick. There is one for tasks, lists, projects, notes, calendar, timetable, matrix, habits and focus.</small></span></button></div>` : `<div class="dgrid">${WG_KINDS.map(k => `<button data-m="widget" data-w="${k[0]}">${ic(k[2], 18)}<span><b>${k[1]}</b><small>${esc(k[3])}</small></span></button>`).join('')}</div><p class="hint">Small windows that stay on top and look like the app. They update as you work.</p>`}
 <h4 class="mh">Danger zone</h4><div class="dgrid"><button class="dz" data-m="wipe">${ic('trash', 18)}<span><b>Delete everything…</b><small>Tasks, lists, notes, habits and more · asks first</small></span></button></div>
 <h4 class="mh">Automatic backups</h4><div id="snaps" class="snaps"><p class="hint">Loading…</p></div>
 <h4 class="mh">Help &amp; about</h4><div class="dgrid"><button data-m="help">${ic('book-open', 18)}<span><b>Help &amp; user guide</b><small>How everything works · printable</small></span></button><button data-m="aboutdlg">${ic('info', 18)}<span><b>About OpenTick</b><small>v${esc(APP_VERSION)} · source, licences &amp; credits</small></span></button></div>
@@ -305,6 +311,7 @@ function openSettings() {
       if (el.dataset.ck) { S.settings.clock[el.dataset.ck] = el.checked; save(); clockPaint(); return; }
       if (el.dataset.snd) { const k = el.dataset.snd; S.settings.sound[k] = el.type === 'checkbox' ? el.checked : +el.value; save(); if (k === 'vol' || (k === 'on' && el.checked)) sfx('done', true); return; }
       if (el.dataset.pg) { const h = S.settings.ui.hidePages; if (el.checked) S.settings.ui.hidePages = h.filter(k => k !== el.dataset.pg); else if (!h.includes(el.dataset.pg)) h.push(el.dataset.pg); save(); const b = $('#sbv', m); if (b) b.innerHTML = uiSidebarSettings(); return; }
+      if (el.dataset.sx) { S.settings[el.dataset.sx] = el.value; if (el.dataset.sx === 'motion') motionApply(); save(); return; }
       if (el.dataset.s) { S.settings[el.dataset.s] = +el.value; }
       if (el.dataset.p) { S.settings.pomo[el.dataset.p] = Math.max(1, Math.min(180, +el.value || 25)); if (!P.run) pSet(P.mode); }
       save();
@@ -324,7 +331,7 @@ function openSettings() {
       if (a === 'ok') { closeModal(); render(); }
       else if (a === 'export') exportData();
       else if (a === 'import') { closeModal(); importData(); }
-      else if (a === 'widget') { if (isAndroidApp()) { widgetPush(true); toast('Long-press the home screen, choose Widgets, then OpenTick'); } else openMiniWidget(); }
+      else if (a === 'widget') { if (isAndroidApp()) { widgetPush(true); toast('Long-press the home screen, choose Widgets, then OpenTick'); } else openMiniWidget(b.dataset.w || 'tasks'); }
       else if (a === 'bgfx') { closeModal(); openBgSettings(); }
       else if (a === 'help') { closeModal(); openHelp(); }
       else if (a === 'aboutdlg') { closeModal(); openAbout(); }
@@ -384,7 +391,7 @@ function openSlot(s, pre = {}) {
   const isNew = !s, ws = +S.settings.weekStart, order = Array.from({ length: 7 }, (_, i) => (ws + i) % 7);
   const d = s ? { ...s, days: [...s.days] } : { id: uid(), title: pre.title || '', days: pre.days || [new Date().getDay()], start: pre.start || '09:00', end: pre.end || '10:00', color: pre.color || COLORS[S.slots.length % COLORS.length][0], loc: '', notes: '', remind: null, created: Date.now() };
   const linked = () => { const ts = S.tasks.filter(t => !t.deleted && t.slotId === d.id); return ts.length ? ts.map(t => `<div class="lt${t.status !== 'open' ? ' fin' : ''}" data-act="open" data-id="${t.id}"><span>${titleHtml(t)}</span><small>${t.due ? esc(dueLabel(t)) : 'no date'}</small></div>`).join('') : '<p class="hint">No tasks linked yet.</p>'; };
-  const snap = () => JSON.stringify([d.title, d.days, d.start, d.end, d.color, d.loc, d.notes, d.remind]); let orig = snap(), armed = false;
+  const snap = () => JSON.stringify([d.title, d.days, d.start, d.end, d.color, d.loc, d.notes, d.remind, d.icon || '']); let orig = snap(), armed = false;
   const read = () => { d.title = $('#sl-title').value.trim(); d.start = $('#sl-start').value || d.start; d.end = $('#sl-end').value || d.end; d.loc = $('#sl-loc').value.trim(); d.notes = $('#sl-notes').value; d.remind = remRead($('[data-rem=sl]')); };
   const warn = () => { read(); const bad = toMin(d.end) <= toMin(d.start) ? 'End time must be after the start time.' : '', cl = bad ? [] : slotClashes(d); $('#sl-warn').innerHTML = bad ? `<span class="bad">${bad}</span>` : cl.length ? `<span class="bad">${ic('alert', 13)} Overlaps with ${esc(cl.join(', '))}</span>` : ''; };
   openModal(`<h3>${isNew ? 'New timetable slot' : 'Edit slot'} <span class="dirty" id="sl-dirty" hidden>${ic('alert', 12)} Unsaved changes</span></h3><div class="form one">
@@ -392,6 +399,7 @@ function openSlot(s, pre = {}) {
 <div class="lbl">Repeats weekly on<div class="dayp">${order.map(n => `<button type="button" class="dp${d.days.includes(n) ? ' on' : ''}" data-d="${n}">${DAYS[n]}</button>`).join('')}</div></div>
 <div class="two"><label>Start<input type="time" id="sl-start" value="${d.start}"></label><label>End<input type="time" id="sl-end" value="${d.end}"></label></div>
 <div id="sl-warn" class="hint"></div>
+<details class="hb-more"${d.icon ? ' open' : ''}><summary>Icon</summary><input type="search" id="sl-isearch" placeholder="Search icons" autocomplete="off" aria-label="Search icons"><div class="ic-scroll" id="sl-ig">${iconGridHtml(d.icon, d.color)}<p class="hint ic-none" hidden>No icon matches that.</p></div></details>
 <div class="lbl">Colour<div class="sw">${COLORS.map(([c, n]) => `<button type="button" style="--c:${c}" class="${c === d.color ? 'on' : ''}" data-c="${c}" title="${n}" aria-label="${n}"></button>`).join('')}<input type="color" id="sl-cust" value="${/^#[0-9a-f]{6}$/i.test(d.color) ? d.color : '#4772fa'}" title="Custom colour"></div></div>
 <label>Location<input id="sl-loc" value="${esc(d.loc)}" placeholder="Room, address or link" autocomplete="off"></label>
 <div class="lbl">Reminder${remHtml('sl', d.remind)}</div>
@@ -405,7 +413,7 @@ ${isNew ? '<p class="hint">Save the slot first, then you can attach tasks to it.
       if (!dirty() || armed) { closeModal(); return; }
       armed = true; const c = $('[data-m=no]', m); c.textContent = 'Discard changes'; c.classList.add('danger'); toast('You have unsaved changes — press again to discard them');
     };
-    m.oninput = () => dirty();
+    m.oninput = e => { if (e.target.id === 'sl-isearch') { iconFilter($('#sl-ig', m), e.target.value); return; } dirty(); };
     m.onchange = e => { if (e.target.id === 'sl-cust') { d.color = e.target.value; $$('.sw button', m).forEach(x => x.classList.remove('on')); } else if (/^sl-(start|end)$/.test(e.target.id)) warn(); else if (e.target.closest && e.target.closest('[data-rem]')) remSync($('[data-rem=sl]', m)); dirty(); };
     m.onkeydown = e => {
       if (e.key !== 'Enter' || e.isComposing) return;
@@ -418,6 +426,7 @@ ${isNew ? '<p class="hint">Save the slot first, then you can attach tasks to it.
       if (!b) { if (e.target.classList.contains('mback')) leave(); return; }
       if (b.dataset.d != null) { const n = +b.dataset.d; d.days = d.days.includes(n) ? d.days.filter(x => x !== n) : [...d.days, n].sort((x, y) => x - y); b.classList.toggle('on', d.days.includes(n)); warn(); dirty(); }
       else if (b.dataset.c) { d.color = b.dataset.c; $$('.sw button', m).forEach(x => x.classList.toggle('on', x === b)); dirty(); }
+      else if (b.dataset.i != null) { d.icon = d.icon === b.dataset.i ? '' : b.dataset.i; $$('#sl-ig button', m).forEach(x => x.classList.toggle('on', x.dataset.i === d.icon)); dirty(); }
       else if (b.dataset.m === 'no') leave();
       else if (b.dataset.m === 'save') {
         read();
@@ -563,7 +572,7 @@ function openHabit(h) {
   const nOpts = () => { const max = d.goal.per === 'week' ? 7 : 31; return Array.from({ length: max }, (_, i) => `<option value="${i + 1}"${d.goal.n === i + 1 ? ' selected' : ''}>${i + 1}</option>`).join(''); };
   openModal(`<h3>${isNew ? 'New habit' : 'Edit habit'}</h3><div class="form one">
 <label>Name<input id="hb-name" value="${esc(d.name)}" placeholder="e.g. Read 20 pages" autocomplete="off"></label>
-<div class="lbl">Icon<div class="hb-icons" id="hb-icons">${[...new Set([d.icon, ...HABIT_ICONS])].map(i => `<button type="button" data-i="${esc(i)}" class="${i === d.icon ? 'on' : ''}">${esc(i)}</button>`).join('')}</div><label class="hb-own">or type your own <input id="hb-icon" value="${esc(d.icon)}" maxlength="8" autocomplete="off"></label></div>
+<div class="lbl">Icon<div class="hb-icons" id="hb-icons">${[...new Set([d.icon, ...HABIT_ICONS])].filter(i => !IC[i]).map(i => `<button type="button" data-i="${esc(i)}" class="${i === d.icon ? 'on' : ''}">${esc(i)}</button>`).join('')}</div><details class="hb-more"${IC[d.icon] ? ' open' : ''}><summary>More icons</summary><input id="hb-isearch" type="search" placeholder="Search icons" autocomplete="off" aria-label="Search icons"><div class="ic-scroll" id="hb-ig">${iconGridHtml(d.icon, d.color)}<p class="hint ic-none" hidden>No icon matches that.</p></div></details><label class="hb-own">or type your own <input id="hb-icon" value="${esc(d.icon)}" maxlength="8" autocomplete="off"></label></div>
 <div class="lbl">Colour<div class="sw">${COLORS.map(([c, n]) => `<button type="button" style="--c:${c}" class="${c === d.color ? 'on' : ''}" data-c="${c}" title="${n}" aria-label="${n}"></button>`).join('')}<input type="color" id="hb-cust" value="${/^#[0-9a-f]{6}$/i.test(d.color) ? d.color : '#4772fa'}" title="Custom colour"></div></div>
 <div class="lbl">Goal<div class="seg full" id="hb-per">${HABIT_PER.map(([k, n]) => `<button type="button" data-per="${k}" class="${d.goal.per === k ? 'on' : ''}">${n}</button>`).join('')}</div><div class="hb-n" id="hb-n"></div></div></div>
 <div class="mact">${isNew ? '' : '<button class="danger" data-m="del">Delete</button>'}<span class="sp"></span><button data-m="no">Cancel</button><button class="pri" data-m="save">Save</button></div>`, m => {
@@ -573,8 +582,8 @@ function openHabit(h) {
       $$('#hb-per button', m).forEach(b => b.classList.toggle('on', b.dataset.per === g.per));
     };
     paintGoal(); $('#hb-name', m).focus();
-    const pickIcon = i => { d.icon = i; $('#hb-icon', m).value = i; $$('#hb-icons button', m).forEach(b => b.classList.toggle('on', b.dataset.i === i)); };
-    m.oninput = e => { if (e.target.id === 'hb-icon') { const v = e.target.value.trim(); if (v) { d.icon = v; $$('#hb-icons button', m).forEach(b => b.classList.toggle('on', b.dataset.i === v)); } } };
+    const pickIcon = i => { d.icon = i; $('#hb-icon', m).value = i; $$('#hb-icons button, #hb-ig button', m).forEach(b => b.classList.toggle('on', b.dataset.i === i)); };
+    m.oninput = e => { if (e.target.id === 'hb-isearch') iconFilter($('#hb-ig', m), e.target.value); else if (e.target.id === 'hb-icon') { const v = e.target.value.trim(); if (v) pickIcon(v); } };
     m.onchange = e => {
       if (e.target.id === 'hb-cust') { d.color = e.target.value; $$('.sw button', m).forEach(x => x.classList.remove('on')); }
       else if (e.target.id === 'hb-nsel') { d.goal.n = +e.target.value; paintGoal(); }
@@ -604,7 +613,7 @@ function openHabit(h) {
 // one form for a new or an existing list: name, icon (or any emoji), colour and the list it sits inside
 const isEmojiIcon = i => !!i && !IC[i];
 function iconColourFields(d, what) {
-  return `<div class="lbl">Icon<div class="ic-grid" id="pk-icons">${LIST_ICONS.map(k => `<button type="button" data-i="${k}" title="${k}" aria-label="${k}">${ic(k, 20)}</button>`).join('')}</div><label class="hb-own">or use an emoji <input id="pk-emoji" maxlength="8" value="${isEmojiIcon(d.icon) ? esc(d.icon) : ''}" placeholder="🙂" autocomplete="off"></label></div>
+  return `<div class="lbl">Icon<input id="pk-isearch" type="search" placeholder="Search icons" autocomplete="off" aria-label="Search icons"><div class="ic-scroll" id="pk-icons">${iconGridHtml(d.icon, d.color)}<p class="hint ic-none" hidden>No icon matches that.</p></div><label class="hb-own">or use an emoji <input id="pk-emoji" maxlength="8" value="${isEmojiIcon(d.icon) ? esc(d.icon) : ''}" placeholder="🙂" autocomplete="off"></label></div>
 <div class="lbl">Colour<div class="sw">${COLORS.map(([c, n]) => `<button type="button" style="--c:${c}" data-c="${c}" title="${n}" aria-label="${n}"></button>`).join('')}<input type="color" id="pk-cust" value="${/^#[0-9a-f]{6}$/i.test(d.color) ? d.color : '#4772fa'}" title="Custom colour"></div></div>`;
 }
 // keeps the preview, the icon grid and the swatches in step with d
@@ -615,6 +624,7 @@ function iconColourWire(m, d) {
     const pv = $('#pk-prev', m); if (pv) pv.innerHTML = `<span class="ni" style="color:${d.color}">${listIcon(d, 22)}</span><b>${esc(d.name || 'Untitled')}</b>`;
   };
   m.oninput = e => {
+    if (e.target.id === 'pk-isearch') { iconFilter(m, e.target.value); return; }
     if (e.target.id === 'pk-name') d.name = e.target.value;
     else if (e.target.id === 'pk-emoji') { const v = e.target.value.trim(); d.icon = v || ''; }
     paint();
@@ -691,6 +701,8 @@ ${bannerFields(d, d.color)}</div>
 }
 const gantt_parents = () => [...S.tasks.filter(t => t.listId && !t.deleted && t.subtasks && t.subtasks.length).map(t => t.id), ...S.tasks.flatMap(t => { const out = []; const walk = a => (a || []).forEach(x => { if (x.children && x.children.length) { out.push(x.id); walk(x.children); } }); walk(t.subtasks); return out; })];
 const ACT = {
+  async taskicon() { const t = getT(U.sel); if (!t) return; const v = await pickIcon(t.icon || '', listOf(t.listId).color, 'Task icon'); if (v == null) return; if (v) t.icon = v; else delete t.icon; save(); render(); },
+  taskiconx() { const t = getT(U.sel); if (!t) return; delete t.icon; save(); render(); },
   nav: (el, e) => {
     const nav = el.dataset.nav;
     if (nav.startsWith('tag:') && e && (e.ctrlKey || e.metaKey || e.shiftKey)) { // Ctrl / Shift + click a sidebar tag: add it to the tag filter
@@ -801,6 +813,7 @@ const ACT = {
   },
   nfmt: el => { const f = el.dataset.for; if (f && /^#[nx]-ta$/.test(f) && BE.cur && BE.cur.o.pre === f[1] && $(`#${f[1]}-ed`) && $(`#${f[1]}-ed`).classList.contains('ed-blocks') && bedFormat(el.dataset.k)) return; mdFormat(el.dataset.k, f ? $(f) : null); },
   ...NOTE_ACT,
+  ...SC_ACT,
   ...BATCH_ACT,
   ...HABIT_ACT,
   ...HELP_ACT,
@@ -849,6 +862,9 @@ const ACT = {
   // gantt / OpenGantt
   ogopen: el => openOG(el.dataset.list),
   gtog: (el, e) => { e.stopPropagation(); const k = el.dataset.key; if (U.gcol.has(k)) U.gcol.delete(k); else U.gcol.add(k); renderMain(); },
+  gfold: el => { const k = el.dataset.k, f = S.settings.ui.fold; f[k] = !f[k]; save(); el.classList.toggle('closed', !!f[k]); el.setAttribute('aria-expanded', String(!f[k])); const b = el.nextElementSibling; if (b && b.classList.contains('gbody')) b.classList.toggle('closed', !!f[k]); },
+  gfoldall: () => { const hs = $$('#main .gtog'); if (!hs.length) return; const shut = hs.some(h => !h.classList.contains('closed')), f = S.settings.ui.fold; hs.forEach(h => { f[h.dataset.k] = shut; h.classList.toggle('closed', shut); h.setAttribute('aria-expanded', String(!shut)); const b = h.nextElementSibling; if (b && b.classList.contains('gbody')) b.classList.toggle('closed', shut); }); save(); },
+  pexp: el => { const f = S.settings.ui.fold, k = 'pe:' + el.dataset.pid; f[k] = !f[k]; save(); renderSide(); },
   fold: el => { const f = S.settings.ui.fold; f[el.dataset.k] = !f[el.dataset.k]; save(); renderSide(); },
   uitoggle: el => uiToggle(el.dataset.k),
   gzoom: el => gtZoom(+el.dataset.d),
@@ -975,7 +991,7 @@ document.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && !e.altKey) { const k = { b: 'bold', i: 'italic', k: 'link' }[e.key.toLowerCase()]; if (k) { e.preventDefault(); mdFormat(k, el); return; } }
     if (e.key === 'Tab') { mdTab(el, e); return; }
   }
-  if (e.key === 'Escape') { if ($('#modal.on')) { const b = $('.mback'); if (b) b.click(); } else if (U.sel) closeDetail(); else document.body.classList.remove('drawer'); return; }
+  if (e.key === 'Escape') { if (U.nFull && !$('#modal.on') && !$('.bed-pop')) { noteFull(false); return; } if ($('#modal.on')) { const b = $('.mback'); if (b) b.click(); } else if (U.sel) closeDetail(); else document.body.classList.remove('drawer'); return; }
   if ((e.key === 'k' && (e.ctrlKey || e.metaKey)) || (e.key === '/' && !typing)) { e.preventDefault(); document.body.classList.add('drawer'); const q = $('#q'); if (q) q.focus(); return; }
   if (!typing && !e.ctrlKey && !e.metaKey && !e.altKey && !($('#modal.on'))) {
     if (e.key === '[') { e.preventDefault(); uiToggle('side'); return; }
@@ -1006,6 +1022,8 @@ function mdFormat(kind, ta) {
   else if (kind === 'code') { if (sel.includes('\n')) wrap('```\n', '\n```', ''); else wrap('`', '`', 'code'); }
   else if (kind === 'link') { const txt = sel || 'link'; v = v.slice(0, a) + '[' + txt + '](https://)' + v.slice(b); a += txt.length + 3; b = a + 8; }
   else if (kind === 'img') { const txt = sel || 'alt text'; v = v.slice(0, a) + '![' + txt + '](https://)' + v.slice(b); a += txt.length + 4; b = a + 8; }
+  else if (kind === 'embed') insert('![](https://)\n', 4, 8);
+  else if (kind === 'nembed') insert('![[Note title]]\n', 3, 10);
   else if (kind === 'ul') lines(/^\s*[-*+]\s+(?!\[[ xX]\])/, '- ', ITEM);
   else if (kind === 'ol') lines(/^\s*\d+[.)]\s+/, i => `${i + 1}. `, ITEM);
   else if (kind === 'task') lines(/^\s*[-*+]\s+\[[ xX]\]\s/, '- [ ] ', ITEM);
@@ -1193,11 +1211,14 @@ document.addEventListener('touchend', e => { if (!swipe) return; const t = e.cha
 })();
 
 /* ---------- startup ---------- */
+if (!WIDGET) homeApply();
+motionApply();
 applyTheme();
 applyScale(null, { quiet: true });
 bgApply();
 uiInit();
 render();
+mqStart();
 checkReminders();
 setInterval(checkReminders, 20000);
 setInterval(clockPaint, 1000); setInterval(editedSweep, 20000); setTimeout(filesGC, 25000);
@@ -1205,7 +1226,7 @@ setTimeout(() => snapSave(), 8000); setInterval(() => snapSave(), 30 * 60000); /
 ogSchedule(1500); setInterval(() => ogSchedule(10), 180000);
 // keep the timetable's "now" line moving (not while typing, in a dialog, or mid-drag)
 setInterval(() => { if (U.page === 'timetable' && !U.drag && !$('#modal.on') && !/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '')) renderMain(); }, 60000);
-window.addEventListener('storage', e => { if (e.key === KEY) { S = load(); initSeen(); applyTheme(); render(); } });
+window.addEventListener('storage', e => { if (e.key === WCMD && e.newValue) { wgRunCommand(e.newValue); return; } if (e.key === KEY) { S = load(); initSeen(); applyTheme(); render(); } });
 window.addEventListener('pagehide', flush);
 if (S.settings.pomo.faceDown) { try { if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission !== 'function') fdEnable(); else if (typeof DeviceOrientationEvent !== 'undefined') { window.addEventListener('deviceorientation', fdHandler); FD.on = true; } } catch (e) { /* no sensor */ } }
 startSync();

@@ -170,7 +170,9 @@ async function filesAdd(k, id, list) {
   if (skipped.length) toast((added.length ? 'Not attached: ' : '') + skipped.join('; '), { label: 'OK', fn() {} });
   return added;
 }
-const fileMd = f => `${fileKind(f) === 'image' ? '!' : ''}[${f.name.replace(/[\[\]]/g, '')}](ot-file:${f.id})`;
+// the kind of an attachment by id (searched across everything that can hold files), '' when unknown
+const fileKindById = id => { for (const o of [...S.tasks, ...S.notes, ...S.slots]) { const f = (o.files || []).find(x => x.id === id); if (f) return fileKind(f); } return ''; };
+const fileMd = f => `${['image', 'audio', 'video'].includes(fileKind(f)) ? '!' : ''}[${f.name.replace(/[\[\]]/g, '')}](ot-file:${f.id})`;
 
 /* ---------- the attachments block ---------- */
 function filesHtml(k, id) {
@@ -186,9 +188,10 @@ function filesRefresh(k, id) {
 }
 // fill in pictures and mark files that are not on this device (runs on anything that carries data-file)
 async function filesHydrate(root) {
-  for (const el of $$('[data-file]', root || document)) {
-    if (el.dataset.fh) continue; el.dataset.fh = '1'; const id = el.dataset.file;
+  for (const el of $$('[data-file], [data-fe]', root || document)) {
+    if (el.dataset.fh) continue; el.dataset.fh = '1'; const id = el.dataset.file || el.dataset.fe;
     if (el.tagName === 'IMG') { const u = await fileUrl(id); if (u) el.src = u; else { el.alt = el.alt || 'Image not on this device'; el.classList.add('fmissing'); } }
+    else if (el.dataset.fe) { const u = await fileUrl(id), k = fileKindById(id); el.innerHTML = !u ? `<span class="hint">${esc(el.dataset.alt || 'File')} is not on this device. Attach it again to play it here.</span>` : k === 'audio' ? `<audio controls preload="metadata" src="${u}"></audio>` : k === 'video' ? `<video controls preload="metadata" playsinline src="${u}"></video>` : `<iframe src="${u}" title="${esc(el.dataset.alt || 'PDF')}" loading="lazy"></iframe>`; el.classList.toggle('miss', !u); }
     else if (el.classList.contains('frow') || el.classList.contains('fl')) { if (!(await fileGet(id))) el.classList.add('miss'); }
   }
 }

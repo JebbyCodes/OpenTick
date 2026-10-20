@@ -5,14 +5,14 @@
 // what a person would call their data, counted the way they see it (no Inbox, no trash, no finished repeats)
 function dataCounts() {
   const t = S.tasks.filter(x => !x.deleted && !x.log).length;
-  return { tasks: t, lists: S.lists.filter(l => l.id !== 'inbox').length, notes: S.notes.length, habits: S.habits.length, projects: S.projects.length, slots: S.slots.length,
+  return { tasks: t, lists: S.lists.filter(l => l.id !== 'inbox').length, notes: S.notes.length, habits: S.habits.length, projects: S.projects.length, slots: S.slots.length, school: S.school.filter(r => r.k !== 'cfg' && r.k !== 'period').length,
     files: [...S.tasks, ...S.notes, ...S.slots].reduce((n, o) => n + ((o.files || []).length), 0) };
 }
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 function dataCountsText(c = dataCounts()) {
   const out = [];
   if (c.tasks) out.push(plural(c.tasks, 'task')); if (c.lists) out.push(plural(c.lists, 'list')); if (c.projects) out.push(plural(c.projects, 'project'));
-  if (c.notes) out.push(plural(c.notes, 'note')); if (c.habits) out.push(plural(c.habits, 'habit')); if (c.slots) out.push(plural(c.slots, 'timetable slot')); if (c.files) out.push(plural(c.files, 'attached file'));
+  if (c.notes) out.push(plural(c.notes, 'note')); if (c.habits) out.push(plural(c.habits, 'habit')); if (c.slots) out.push(plural(c.slots, 'timetable slot')); if (c.school) out.push(plural(c.school, 'school item')); if (c.files) out.push(plural(c.files, 'attached file'));
   return out.length ? out.join(', ') : 'nothing yet';
 }
 // the bytes of attachments live in IndexedDB; this drops every one of them
@@ -23,7 +23,7 @@ async function filesWipe() {
     if (typeof FILE_URL !== 'undefined') { for (const u of FILE_URL.values()) { try { URL.revokeObjectURL(u); } catch (e) { /* ignore */ } } FILE_URL.clear(); }
   } catch (e) { /* storage is optional */ }
 }
-const EMPTY_DATA = () => ({ v: 1, tasks: [], lists: [], habits: [], tags: [], slots: [], notes: [], projects: [], pomo: [] });
+const EMPTY_DATA = () => ({ v: 1, tasks: [], lists: [], habits: [], tags: [], slots: [], notes: [], projects: [], school: [], pomo: [] });
 // Delete everything: tasks, lists, projects, notes, habits, timetable, tags, focus log and history. Sync sees it as a deliberate deletion.
 //   o.settings  also reset the settings (theme, layout, sounds)       o.files  also delete the attachments' bytes (default yes)
 // Resolves to the key of the restore point (or '' when none could be written).

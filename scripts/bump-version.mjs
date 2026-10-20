@@ -2,6 +2,7 @@
 //   npm run bump -- 0.7.0     set package.json, package-lock.json, src-tauri/tauri.conf.json and src-tauri/Cargo.toml (and the README's "What's new in" heading)
 //                             Android versionName / versionCode follow tauri.conf.json automatically; scripts/check-android-version.mjs proves it
 //   npm run bump -- --check   exit 1 if they disagree (the test suite runs this)
+//   npm run version:sync      re-write every manifest from package.json's version (the single source of truth); no argument needed
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -32,7 +33,14 @@ export function setVersion(v) {
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const arg = process.argv[2];
-  if (arg === '--check' || !arg) {
+  if (arg === '--sync') {
+    const v = JSON.parse(rd('package.json')).version;
+    setVersion(v);
+    const after = versions(), bad = Object.entries(after).filter(([, x]) => x !== v);
+    for (const [f, x] of Object.entries(after)) console.log(`${String(x).padEnd(10)} ${f}`);
+    if (bad.length) { console.error('Sync failed for: ' + bad.map(b => b[0]).join(', ')); process.exit(1); }
+    console.log(`All manifests synced to ${v} (from package.json).`);
+  } else if (arg === '--check' || !arg) {
     const v = versions(), vals = new Set(Object.values(v));
     for (const [f, x] of Object.entries(v)) console.log(`${String(x).padEnd(10)} ${f}`);
     if (vals.size !== 1) { console.error('Versions disagree. Run: npm run bump -- X.Y.Z'); process.exit(1); }

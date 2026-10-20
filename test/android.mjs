@@ -20,4 +20,48 @@ assert.match(rd('.github/workflows/build.yml'), /node scripts\/android-widgets\.
 // the capabilities the attachment code needs
 const cap = JSON.parse(rd('src-tauri/capabilities/default.json')).permissions;
 for (const p of ['fs:allow-read-file', 'fs:allow-write-file', 'fs:allow-read-text-file', 'notification:default', 'dialog:default']) assert.ok(cap.includes(p), 'capability ' + p);
+
+/* ---- the home-screen widgets: Kotlin, layouts, manifest and the app's data have to agree (Kotlin cannot be compiled in these tests) ---- */
+import { readdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+const wdir = 'src-tauri/android-widgets/', kt = {}, res = {};
+for (const f of readdirSync(root + wdir + 'kotlin')) kt[f] = rd(wdir + 'kotlin/' + f);
+for (const d of readdirSync(root + wdir + 'res')) for (const f of readdirSync(root + wdir + 'res/' + d)) res[d + '/' + f] = rd(wdir + 'res/' + d + '/' + f);
+const layoutText = Object.entries(res).filter(([k]) => k.startsWith('layout/')).map(([, v]) => v).join('\n');
+const ids = new Set([...layoutText.matchAll(/@\+id\/([\w]+)/g)].map(m => m[1]));
+const allKt = Object.values(kt).join('\n');
+// the generated layouts are current
+execFileSync(process.execPath, [root + 'scripts/gen-widget-layouts.mjs'], { stdio: 'pipe' });
+const after = {}; for (const d of readdirSync(root + wdir + 'res')) for (const f of readdirSync(root + wdir + 'res/' + d)) after[d + '/' + f] = rd(wdir + 'res/' + d + '/' + f);
+for (const k of Object.keys(res)) assert.equal(after[k], res[k], 'run scripts/gen-widget-layouts.mjs: ' + k + ' is out of date');
+// every R.id / R.layout / R.drawable / R.xml the Kotlin names exists
+for (const m of allKt.matchAll(/R\.id\.(\w+)/g)) assert.ok(ids.has(m[1]), 'R.id.' + m[1] + ' is in a layout');
+for (const m of allKt.matchAll(/R\.layout\.(\w+)/g)) assert.ok(res['layout/' + m[1] + '.xml'], 'layout ' + m[1]);
+for (const m of allKt.matchAll(/R\.drawable\.(\w+)/g)) assert.ok(res['drawable/' + m[1] + '.xml'], 'drawable ' + m[1]);
+// views looked up by name: "ot_ls_n$n" needs ot_ls_n0 ..., "ot_mx_t${i}_$j" needs ot_mx_t0_0, a plain "ot_x_y" needs itself
+for (const m of allKt.matchAll(/"(ot_[a-z]+_[a-z]+)(\$[a-z]|\$\{[a-z]\}_\$[a-z])?"/g)) {
+  const [, base, tail] = m; const want = !tail ? base : tail.includes('_') ? base + '0_0' : base + '0';
+  assert.ok(ids.has(want), `view ${want} (from ${m[0]}) is in a layout`);
+}
+// layouts only use ids that are unique, and every drawable and string a layout names exists
+for (const [k, v] of Object.entries(res)) if (k.startsWith('layout/')) {
+  const own = [...v.matchAll(/android:id="@\+id\/(\w+)"/g)].map(m => m[1]); assert.equal(new Set(own).size, own.length, k + ': ids are unique');
+  for (const m of v.matchAll(/@drawable\/(\w+)/g)) assert.ok(res['drawable/' + m[1] + '.xml'], k + ' names drawable ' + m[1]);
+}
+// every widget in the manifest has its class, info file, label and description, and is refreshed with the others
+const mf = rd(wdir + 'manifest-snippet.xml'), strings = res['values/ot_widget_strings.xml'];
+const recv = [...mf.matchAll(/<receiver android:name="__PACKAGE__\.(\w+)"[^>]*label="@string\/(\w+)"[\s\S]*?resource="@xml\/(\w+)"/g)];
+assert.equal(recv.length, 10, 'ten widgets: tasks, quick add, lists, projects, notes, calendar, timetable, matrix, habits, focus');
+for (const [, cls, label, info] of recv) {
+  assert.ok(kt[cls + '.kt'], cls + '.kt'); assert.match(kt['OtUi.kt'], new RegExp(cls + '::class\\.java'), cls + ' is in OtUi.refreshAll');
+  assert.ok(strings.includes(`name="${label}"`) && strings.includes(`name="${label.replace('_label', '_desc')}"`), label + ' and its description');
+  const x = res['xml/' + info + '.xml']; assert.ok(x, info); const lay = x.match(/initialLayout="@layout\/(\w+)"/)[1]; assert.ok(res['layout/' + lay + '.xml'], 'initial layout ' + lay);
+  assert.match(kt[cls + '.kt'], new RegExp('override val layout = R\\.layout\\.' + lay + '\\b'), cls + ' draws ' + lay);
+}
+// braces and parentheses balance in every Kotlin file (a cheap guard against a broken edit)
+for (const [f, t] of Object.entries(kt)) { const code = t.replace(/"(\\.|[^"\\])*"/g, '""').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, ''); for (const [a, b] of [['{', '}'], ['(', ')'], ['[', ']']]) assert.equal(code.split(a).length, code.split(b).length, `${f}: ${a}${b} balance`); }
+// the data the widgets read is written by the app
+const wj = rd('src/js/widget.js');
+for (const m of allKt.matchAll(/\bdata\?\.opt(?:JSONArray|JSONObject)\("(\w+)"\)/g)) if (m[1] !== 'theme') assert.match(wj, new RegExp('\\b' + m[1] + ': '), 'the snapshot has "' + m[1] + '"');
+for (const op of ['nav', 'page', 'note', 'newnote', 'focus', 'habit']) assert.match(wj, new RegExp("'" + op + "'"), 'the app acts on widget op ' + op);
 console.log('android resource tests passed');

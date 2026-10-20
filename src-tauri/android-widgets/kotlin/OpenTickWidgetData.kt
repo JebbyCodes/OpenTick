@@ -69,20 +69,32 @@ object OtData {
         } catch (e: Exception) { /* the widget still works without the note */ }
     }
 
-    // tasks ticked on the widget that the app has not applied yet
-    fun pendingDone(ctx: Context): Set<String> {
+    // ids ticked on a widget (op "done" for a task, "habit" for a habit) that the app has not applied yet
+    fun pending(ctx: Context, op: String): Set<String> {
         val out = HashSet<String>()
         val list = readActions(ctx)
         for (i in 0 until list.length()) {
             val o = list.optJSONObject(i) ?: continue
-            if (o.optString("op") == "done") out.add(o.optString("id"))
+            if (o.optString("op") == op) out.add(o.optString("id"))
         }
         return out
     }
+
+    fun pendingDone(ctx: Context): Set<String> = pending(ctx, "done")
 
     fun today(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
 
     fun color(theme: JSONObject?, key: String, fallback: String): Int {
         return try { Color.parseColor(theme?.optString(key, fallback)?.takeIf { it.isNotBlank() } ?: fallback) } catch (e: Exception) { Color.parseColor(fallback) }
+    }
+}
+
+/** The app's colours (written by the app next to the data), so every widget matches the theme you picked. */
+class OtTheme(val bg: Int, val card: Int, val text: Int, val muted: Int, val acc: Int, val onAcc: Int, val red: Int, val line: Int) {
+    companion object {
+        fun from(t: JSONObject?): OtTheme = OtTheme(
+            OtData.color(t, "bg", "#282828"), OtData.color(t, "card", "#32302f"), OtData.color(t, "text", "#ebdbb2"), OtData.color(t, "muted", "#a89984"),
+            OtData.color(t, "acc", "#fabd2f"), OtData.color(t, "onAcc", "#282828"), OtData.color(t, "red", "#fb4934"), OtData.color(t, "line", "#3c3836")
+        )
     }
 }

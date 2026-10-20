@@ -2,7 +2,8 @@
    Touch: press and hold a task (half a second, a short buzz confirms it), slide to another box and let go. A finger that moves
    before the press counts is a scroll and does nothing. The grid scrolls by itself when the finger nears its edge.
    Keyboard: Tab to a task, then Alt + arrow keys move it (left / right and up / down on the 2 x 2 grid; up / down on a phone's
-   single column), Enter opens it. Mouse: the browser's own drag and drop (see main.js).
+   single column), Enter opens it. Mouse and pen: pointer events (below), not the browser's own drag and drop, which desktop web views such as
+   Tauri's on Windows can swallow.
    All three end in the same place, matrixDrop / mxMove, so priority, due date, order and saving behave identically. */
 
 // where an arrow key sends a task. `stacked` = the boxes are in one column (narrow screens)
@@ -86,4 +87,62 @@ document.addEventListener('keydown', e => {
   document.addEventListener('touchcancel', finish);
   // the page going to the background (a call, the app switcher) must not leave a ghost or a half-finished drag behind
   document.addEventListener('visibilitychange', () => { if (document.hidden) finish(); });
+})();
+
+// mouse / pen: press on a task, move a few pixels, slide to another box and let go. It is built on pointer events instead of the
+// browser's HTML5 drag and drop because some desktop web views (Tauri on Windows, for one) keep drag and drop to themselves, which
+// left the matrix undraggable there. A press that does not move is still a plain click, so the task opens as before.
+(() => {
+  let g = null;
+  const SEL = '#main .quad .task[data-id]';
+  const under = (x, y) => (document.elementFromPoint ? document.elementFromPoint(x, y) : null);
+  const quadAt = (x, y) => { const el = under(x, y); return el && el.closest ? el.closest('.quad') : null; };
+  const finish = () => {
+    if (!g) return;
+    clearInterval(g.tick); if (g.ghost) g.ghost.remove();
+    document.removeEventListener('pointermove', onMove, true); document.removeEventListener('pointerup', onUp, true); document.removeEventListener('pointercancel', onCancel, true); document.removeEventListener('keydown', onKey, true);
+    if (g.el && g.el.classList) g.el.classList.remove('drag');
+    document.body.classList.remove('mdrag'); $$('.over').forEach(x => x.classList.remove('over'));
+    if (g.on) { U.drag = null; U.suppress = Date.now(); } // the click that ends the drag must not open the task
+    g = null;
+  };
+  const place = (x, y) => {
+    const gh = g.ghost; gh.style.left = Math.round(x / Z.z - g.gw / 2) + 'px'; gh.style.top = Math.round(y / Z.z - g.gh / 2) + 'px';
+    const z = quadAt(x, y); $$('.over').forEach(el => { if (el !== z) el.classList.remove('over'); }); if (z) z.classList.add('over');
+  };
+  const begin = () => {
+    const r = g.el.getBoundingClientRect(); g.on = true; U.drag = g.el.dataset.id;
+    g.gw = Math.min(r.width / Z.r, 300); g.gh = Math.min(r.height / Z.r, 64);
+    const gh = g.ghost = g.el.cloneNode(true); gh.classList.add('tghost'); gh.removeAttribute('data-act'); gh.removeAttribute('tabindex');
+    for (const [k, v] of Object.entries({ position: 'fixed', margin: '0', width: g.gw + 'px', height: g.gh + 'px', zIndex: '300', pointerEvents: 'none', right: 'auto', bottom: 'auto' })) gh.style[k] = v;
+    document.body.appendChild(gh); g.el.classList.add('drag'); document.body.classList.add('mdrag');
+    g.tick = setInterval(() => { // a single-column matrix (narrow window) scrolls while the pointer sits near its edge
+      const sc = $('#main .matrix'); if (!sc || !g) return; const b = sc.getBoundingClientRect(), gy = zc(g.y);
+      if (sc.scrollHeight > sc.clientHeight) { if (gy < b.top + 50 * Z.r) sc.scrollTop -= 12; else if (gy > b.bottom - 50 * Z.r) sc.scrollTop += 12; }
+      place(g.x, g.y);
+    }, 16);
+  };
+  function onMove(e) {
+    if (!g || e.pointerId !== g.id) return;
+    g.x = e.clientX; g.y = e.clientY;
+    if (!g.on) { if (Math.hypot(e.clientX - g.x0, e.clientY - g.y0) < 6) return; begin(); }
+    e.preventDefault(); place(g.x, g.y);
+  }
+  function onUp(e) {
+    if (!g || e.pointerId !== g.id) return;
+    if (g.on) {
+      const gh = g.ghost; if (gh) gh.style.display = 'none';
+      const quad = quadAt(e.clientX, e.clientY), at = under(e.clientX, e.clientY);
+      if (quad && getT(U.drag)) matrixDrop({ target: at }, quad);
+    }
+    finish();
+  }
+  function onCancel() { finish(); }
+  function onKey(e) { if (e.key === 'Escape' && g) { e.stopPropagation(); finish(); } }
+  document.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'touch' || e.button > 0 || U.page !== 'matrix' || U.bsel) return;
+    const el = e.target.closest && e.target.closest(SEL); if (!el || e.target.closest('.chk,button,input,select,textarea,a')) return;
+    finish(); g = { el, id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, on: false };
+    document.addEventListener('pointermove', onMove, true); document.addEventListener('pointerup', onUp, true); document.addEventListener('pointercancel', onCancel, true); document.addEventListener('keydown', onKey, true);
+  });
 })();

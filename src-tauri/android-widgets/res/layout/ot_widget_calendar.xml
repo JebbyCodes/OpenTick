@@ -1,0 +1,248 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/ot_cal_root" android:layout_width="match_parent" android:layout_height="match_parent">
+<ImageView android:id="@+id/ot_cal_bg" android:layout_width="match_parent" android:layout_height="match_parent" android:importantForAccessibility="no" android:src="@drawable/ot_widget_bg" android:scaleType="fitXY" />
+<LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="6dp">
+<LinearLayout android:layout_width="match_parent" android:layout_height="44dp" android:orientation="horizontal" android:gravity="center_vertical" android:paddingStart="10dp" android:paddingEnd="2dp">
+<TextView android:id="@+id/ot_cal_title" android:layout_width="wrap_content" android:layout_height="match_parent" android:textSize="16sp" android:textStyle="bold" android:singleLine="true" android:ellipsize="end" android:gravity="center_vertical" />
+<TextView android:id="@+id/ot_cal_sub" android:layout_width="wrap_content" android:layout_height="match_parent" android:layout_weight="1" android:textSize="12sp" android:singleLine="true" android:ellipsize="end" android:gravity="center_vertical" android:paddingStart="8dp" />
+<ImageView android:id="@+id/ot_cal_prev" android:layout_width="34dp" android:layout_height="34dp" android:padding="8dp" android:importantForAccessibility="yes" android:contentDescription="Previous month" android:src="@drawable/ot_widget_prev" />
+<ImageView android:id="@+id/ot_cal_next" android:layout_width="34dp" android:layout_height="34dp" android:padding="8dp" android:importantForAccessibility="yes" android:contentDescription="Next month" android:src="@drawable/ot_widget_next" />
+<FrameLayout android:layout_width="40dp" android:layout_height="40dp" android:id="@+id/ot_cal_addf" android:clickable="false">
+<ImageView android:id="@+id/ot_cal_add" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="7dp" android:importantForAccessibility="yes" android:contentDescription="New task" android:src="@drawable/ot_widget_circle" />
+<ImageView android:id="@+id/ot_cal_plus" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="12dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_plus" />
+</FrameLayout>
+</LinearLayout>
+<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+<TextView android:id="@+id/ot_cal_w0" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="10sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<TextView android:id="@+id/ot_cal_w1" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="10sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<TextView android:id="@+id/ot_cal_w2" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="10sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<TextView android:id="@+id/ot_cal_w3" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="10sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<TextView android:id="@+id/ot_cal_w4" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="10sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<TextView android:id="@+id/ot_cal_w5" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="10sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<TextView android:id="@+id/ot_cal_w6" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="10sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+</LinearLayout>
+<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f0" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c0" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d0" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k0" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f1" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c1" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d1" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k1" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f2" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c2" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d2" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k2" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f3" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c3" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d3" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k3" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f4" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c4" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d4" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k4" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f5" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c5" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d5" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k5" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f6" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c6" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d6" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k6" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+</LinearLayout>
+<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f7" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c7" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d7" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k7" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f8" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c8" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d8" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k8" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f9" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c9" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d9" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k9" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f10" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c10" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d10" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k10" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f11" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c11" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d11" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k11" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f12" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c12" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d12" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k12" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f13" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c13" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d13" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k13" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+</LinearLayout>
+<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f14" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c14" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d14" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k14" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f15" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c15" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d15" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k15" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f16" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c16" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d16" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k16" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f17" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c17" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d17" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k17" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f18" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c18" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d18" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k18" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f19" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c19" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d19" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k19" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f20" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c20" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d20" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k20" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+</LinearLayout>
+<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f21" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c21" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d21" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k21" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f22" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c22" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d22" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k22" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f23" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c23" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d23" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k23" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f24" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c24" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d24" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k24" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f25" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c25" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d25" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k25" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f26" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c26" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d26" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k26" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f27" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c27" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d27" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k27" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+</LinearLayout>
+<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f28" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c28" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d28" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k28" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f29" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c29" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d29" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k29" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f30" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c30" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d30" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k30" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f31" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c31" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d31" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k31" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f32" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c32" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d32" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k32" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f33" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c33" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d33" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k33" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f34" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c34" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d34" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k34" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+</LinearLayout>
+<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f35" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c35" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d35" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k35" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f36" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c36" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d36" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k36" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f37" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c37" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d37" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k37" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f38" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c38" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d38" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k38" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f39" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c39" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d39" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k39" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f40" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c40" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d40" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k40" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="34dp" android:id="@+id/ot_cal_f41" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cal_c41" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cal_d41" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cal_k41" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="3dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+</LinearLayout>
+<TextView android:id="@+id/ot_cal_info" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:singleLine="true" android:ellipsize="end" android:paddingStart="10dp" android:paddingTop="4dp" />
+</LinearLayout>
+</FrameLayout>

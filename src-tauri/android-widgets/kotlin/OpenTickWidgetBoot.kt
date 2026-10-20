@@ -21,7 +21,7 @@ class OpenTickWidgetBoot : ContentProvider() {
         app.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
             override fun onActivityStopped(activity: Activity) {
                 if (activity is OpenTickWidgetActivity) return
-                handler.postDelayed({ OpenTickTasksWidget.refreshAll(app) }, 1500)
+                handler.postDelayed({ OtUi.refreshAll(app) }, 1500)
             }
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
             override fun onActivityStarted(activity: Activity) {}

@@ -3,7 +3,8 @@
   "description": "Permissions for the main window on every platform",
   "windows": [
     "main",
-    "widget"
+    "widget",
+    "widget-*"
   ],
   "permissions": [
     "core:default",

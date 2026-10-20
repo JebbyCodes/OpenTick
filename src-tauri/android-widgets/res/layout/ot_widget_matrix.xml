@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/ot_mx_root" android:layout_width="match_parent" android:layout_height="match_parent">
+<ImageView android:id="@+id/ot_mx_bg" android:layout_width="match_parent" android:layout_height="match_parent" android:importantForAccessibility="no" android:src="@drawable/ot_widget_bg" android:scaleType="fitXY" />
+<LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="6dp">
+<LinearLayout android:layout_width="match_parent" android:layout_height="44dp" android:orientation="horizontal" android:gravity="center_vertical" android:paddingStart="10dp" android:paddingEnd="2dp">
+<TextView android:id="@+id/ot_mx_title" android:layout_width="wrap_content" android:layout_height="match_parent" android:textSize="16sp" android:textStyle="bold" android:singleLine="true" android:ellipsize="end" android:gravity="center_vertical" android:text="Matrix" />
+<TextView android:id="@+id/ot_mx_sub" android:layout_width="wrap_content" android:layout_height="match_parent" android:layout_weight="1" android:textSize="12sp" android:singleLine="true" android:ellipsize="end" android:gravity="center_vertical" android:paddingStart="8dp" />
+<FrameLayout android:layout_width="40dp" android:layout_height="40dp" android:id="@+id/ot_mx_addf" android:clickable="false">
+<ImageView android:id="@+id/ot_mx_add" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="7dp" android:importantForAccessibility="yes" android:contentDescription="New task" android:src="@drawable/ot_widget_circle" />
+<ImageView android:id="@+id/ot_mx_plus" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="12dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_plus" />
+</FrameLayout>
+</LinearLayout>
+<LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal">
+<FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:id="@+id/ot_mx_q0" android:layout_weight="1" android:layout_margin="3dp">
+<ImageView android:id="@+id/ot_mx_b0" android:layout_width="match_parent" android:layout_height="match_parent" android:importantForAccessibility="no" android:src="@drawable/ot_widget_row" android:scaleType="fitXY" />
+<ImageView android:id="@+id/ot_mx_h0" android:layout_width="match_parent" android:layout_height="4dp" android:layout_gravity="top" android:importantForAccessibility="no" android:src="@drawable/ot_widget_row" android:scaleType="fitXY" />
+<LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="9dp" android:paddingTop="10dp">
+<TextView android:id="@+id/ot_mx_n0" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" android:singleLine="true" android:ellipsize="end" />
+<TextView android:id="@+id/ot_mx_c0" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="10sp" android:singleLine="true" android:ellipsize="end" android:paddingBottom="3dp" />
+<TextView android:id="@+id/ot_mx_t0_0" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:singleLine="true" android:ellipsize="end" android:paddingTop="2dp" />
+<TextView android:id="@+id/ot_mx_t0_1" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:singleLine="true" android:ellipsize="end" android:paddingTop="2dp" />
+<TextView android:id="@+id/ot_mx_t0_2" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:singleLine="true" android:ellipsize="end" android:paddingTop="2dp" />
+</LinearLayout>
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:id="@+id/ot_mx_q1" android:layout_weight="1" android:layout_margin="3dp">
+<ImageView android:id="@+id/ot_mx_b1" android:layout_width="match_parent" android:layout_height="match_parent" android:importantForAccessibility="no" android:src="@drawable/ot_widget_row" android:scaleType="fitXY" />
+<ImageView android:id="@+id/ot_mx_h1" android:layout_width="match_parent" android:layout_height="4dp" android:layout_gravity="top" android:importantForAccessibility="no" android:src="@drawable/ot_widget_row" android:scaleType="fitXY" />
+<LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="9dp" android:paddingTop="10dp">
+<TextView android:id="@+id/ot_mx_n1" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" android:singleLine="true" android:ellipsize="end" />
+<TextView android:id="@+id/ot_mx_c1" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="10sp" android:singleLine="true" android:ellipsize="end" android:paddingBottom="3dp" />
+<TextView android:id="@+id/ot_mx_t1_0" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:singleLine="true" android:ellipsize="end" android:paddingTop="2dp" />
+<TextView android:id="@+id/ot_mx_t1_1" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:singleLine="true" android:ellipsize="end" android:paddingTop="2dp" />
+<TextView android:id="@+id/ot_mx_t1_2" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:singleLine="true" android:ellipsize="end" android:paddingTop="2dp" />
+</LinearLayout>
+</FrameLayout>
+</LinearLayout>
+<LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal">
+<FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:id="@+id/ot_mx_q2" android:layout_weight="1" android:layout_margin="3dp">
+<ImageView android:id="@+id/ot_mx_b2" android:layout_width="match_parent" android:layout_height="match_parent" android:importantForAccessibility="no" android:src="@drawable/ot_widget_row" android:scaleType="fitXY" />
+<ImageView android:id="@+id/ot_mx_h2" android:layout_width="match_parent" android:layout_height="4dp" android:layout_gravity="top" android:importantForAccessibility="no" android:src="@drawable/ot_widget_row" android:scaleType="fitXY" />
+<LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="9dp" android:paddingTop="10dp">
+<TextView android:id="@+id/ot_mx_n2" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" android:singleLine="true" android:ellipsize="end" />
+<TextView android:id="@+id/ot_mx_c2" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="10sp" android:singleLine="true" android:ellipsize="end" android:paddingBottom="3dp" />
+<TextView android:id="@+id/ot_mx_t2_0" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:singleLine="true" android:ellipsize="end" android:paddingTop="2dp" />
+<TextView android:id="@+id/ot_mx_t2_1" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:singleLine="true" android:ellipsize="end" android:paddingTop="2dp" />
+<TextView android:id="@+id/ot_mx_t2_2" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:singleLine="true" android:ellipsize="end" android:paddingTop="2dp" />
+</LinearLayout>
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:id="@+id/ot_mx_q3" android:layout_weight="1" android:layout_margin="3dp">
+<ImageView android:id="@+id/ot_mx_b3" android:layout_width="match_parent" android:layout_height="match_parent" android:importantForAccessibility="no" android:src="@drawable/ot_widget_row" android:scaleType="fitXY" />
+<ImageView android:id="@+id/ot_mx_h3" android:layout_width="match_parent" android:layout_height="4dp" android:layout_gravity="top" android:importantForAccessibility="no" android:src="@drawable/ot_widget_row" android:scaleType="fitXY" />
+<LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="9dp" android:paddingTop="10dp">
+<TextView android:id="@+id/ot_mx_n3" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" android:singleLine="true" android:ellipsize="end" />
+<TextView android:id="@+id/ot_mx_c3" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="10sp" android:singleLine="true" android:ellipsize="end" android:paddingBottom="3dp" />
+<TextView android:id="@+id/ot_mx_t3_0" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:singleLine="true" android:ellipsize="end" android:paddingTop="2dp" />
+<TextView android:id="@+id/ot_mx_t3_1" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:singleLine="true" android:ellipsize="end" android:paddingTop="2dp" />
+<TextView android:id="@+id/ot_mx_t3_2" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:singleLine="true" android:ellipsize="end" android:paddingTop="2dp" />
+</LinearLayout>
+</FrameLayout>
+</LinearLayout>
+</LinearLayout>
+</FrameLayout>

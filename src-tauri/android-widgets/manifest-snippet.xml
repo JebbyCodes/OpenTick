@@ -11,6 +11,54 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/ot_widget_quick_info" />
         </receiver>
+        <receiver android:name="__PACKAGE__.OpenTickListsWidget" android:exported="true" android:label="@string/ot_widget_lists_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/ot_widget_lists_info" />
+        </receiver>
+        <receiver android:name="__PACKAGE__.OpenTickProjectsWidget" android:exported="true" android:label="@string/ot_widget_projects_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/ot_widget_projects_info" />
+        </receiver>
+        <receiver android:name="__PACKAGE__.OpenTickNotesWidget" android:exported="true" android:label="@string/ot_widget_notes_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/ot_widget_notes_info" />
+        </receiver>
+        <receiver android:name="__PACKAGE__.OpenTickCalendarWidget" android:exported="true" android:label="@string/ot_widget_calendar_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/ot_widget_calendar_info" />
+        </receiver>
+        <receiver android:name="__PACKAGE__.OpenTickTimetableWidget" android:exported="true" android:label="@string/ot_widget_timetable_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/ot_widget_timetable_info" />
+        </receiver>
+        <receiver android:name="__PACKAGE__.OpenTickMatrixWidget" android:exported="true" android:label="@string/ot_widget_matrix_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/ot_widget_matrix_info" />
+        </receiver>
+        <receiver android:name="__PACKAGE__.OpenTickHabitsWidget" android:exported="true" android:label="@string/ot_widget_habits_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/ot_widget_habits_info" />
+        </receiver>
+        <receiver android:name="__PACKAGE__.OpenTickFocusWidget" android:exported="true" android:label="@string/ot_widget_focus_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/ot_widget_focus_info" />
+        </receiver>
         <activity android:name="__PACKAGE__.OpenTickWidgetActivity" android:exported="false" android:theme="@android:style/Theme.Translucent.NoTitleBar" android:excludeFromRecents="true" android:noHistory="true" android:taskAffinity="" />
         <provider android:name="__PACKAGE__.OpenTickWidgetBoot" android:authorities="${applicationId}.widgetboot" android:exported="false" />
         <!-- /OpenTick home-screen widgets -->

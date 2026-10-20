@@ -6,11 +6,11 @@ with sync_playwright() as p:
         pg.evaluate("U.page='notes'; U.noteSel=S.notes[0].id; render()"); pg.wait_for_timeout(300)
         pg.evaluate("document.querySelector('[data-ed][data-mode=write]').click()"); pg.wait_for_timeout(250)
         info = pg.evaluate("[...document.querySelectorAll('.fmt')].map(b=>{const r=b.getBoundingClientRect();return {k:b.dataset.k,svg:!!b.querySelector('svg'),text:b.textContent.trim(),label:b.getAttribute('aria-label'),w:r.width,h:r.height}})")
-        assert len(info) == 13, info
+        assert len(info) == 15, info
         for x in info:
             assert x['svg'] and not x['text'] and x['label'], x
             assert min(x['w'], x['h']) >= (40 if mobile else 32) - 0.5, ('target too small', x)
-        assert len({x['label'] for x in info}) == 13, 'every icon has its own name'
+        assert len({x['label'] for x in info}) == 15, 'every icon has its own name'
         # keyboard focus is visible
         pg.focus('.fmt[data-k="italic"]'); pg.keyboard.press('Shift+Tab'); pg.keyboard.press('Tab')
         assert pg.evaluate("getComputedStyle(document.activeElement).outlineStyle") != 'none' and pg.evaluate("document.activeElement.dataset.k") == 'italic'

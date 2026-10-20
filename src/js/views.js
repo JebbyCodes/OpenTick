@@ -107,7 +107,7 @@ const LIST_ICONS = ['list', 'inbox', 'sun', 'calendar', 'star', 'flag', 'heart',
 const listIcon = (o, n = 18) => { const i = o && o.icon; return i && IC[i] ? ic(i, n) : i ? `<span class="emo" style="font-size:${Math.round(n * 0.9)}px">${esc(i)}</span>` : ic(o && o.listIds ? 'layers' : 'list', n); };
 const U = { projList: {}, tagSel: [], tagMode: 'all', hist: { acts: [], kinds: [], q: '', sort: 'new', shown: 150 },  page: 'tasks', nav: 'today', q: '', sel: null, calD: new Date(), fx: [], showDone: {}, drag: null, _rn: null, ttDate: null, ttTray: null, ttV: null };
 const SMART = [['inbox', 'Inbox', 'inbox'], ['today', 'Today', 'sun'], ['tomorrow', 'Tomorrow', 'sunrise'], ['week', 'Next 7 Days', 'calendar'], ['all', 'All', 'layers']];
-const PAGES = [['tasks', 'Tasks', 'check-circle'], ['notes', 'Notes', 'notes'], ['calendar', 'Calendar', 'calendar'], ['timetable', 'Timetable', 'table'], ['gantt', 'Gantt', 'gantt'], ['matrix', 'Matrix', 'grid'], ['habits', 'Habit', 'activity'], ['focus', 'Focus', 'clock']];
+const PAGES = [['home', 'Projects', 'dashboard'], ['tasks', 'Tasks', 'check-circle'], ['notes', 'Notes', 'notes'], ['calendar', 'Calendar', 'calendar'], ['timetable', 'Timetable', 'table'], ['gantt', 'Gantt', 'gantt'], ['matrix', 'Matrix', 'grid'], ['habits', 'Habit', 'activity'], ['focus', 'Focus', 'clock']];
 const FLAT = ['done', 'trash', 'wontdo', 'search'];
 // inline markdown in titles, never as links (rows are click targets)
 const FULLDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -248,7 +248,8 @@ function render() {
   document.body.classList.toggle('on-help', U.page === 'help'); // the print rules for the Help page are keyed on this
   if (typeof WIDGET !== 'undefined' && WIDGET) return renderWidget();
   if (U.gFull && U.page !== 'gantt') { U.gFull = false; document.body.classList.remove('gtfull'); try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) { /* not in full screen */ } }
-  document.body.classList.toggle('pg-notes', U.page === 'notes' || U.page === 'history'); // the Notes page uses the whole width: no details panel
+  if (U.nFull && (U.page !== 'notes' || !U.noteSel)) { U.nFull = false; document.body.classList.remove('nfull'); }
+  document.body.classList.toggle('pg-notes', U.page === 'notes' || U.page === 'history' || (U.page === 'timetable' && schoolOn())); // the Notes page uses the whole width: no details panel
   renderSide(); renderMain(); renderDetail(); renderTabbar();
 }
 // phone navigation: the first views as bottom tabs, "More" opens the full menu
@@ -258,7 +259,8 @@ function renderTabbar() {
   const items = main.some(p => p[0] === U.page) || !cur ? main : [...main.slice(0, 3), cur];
   el.innerHTML = items.map(([k, n, i]) => `<button class="${U.page === k ? 'on' : ''}" data-act="page" data-page="${k}">${ic(i, 22)}<small>${n}</small></button>`).join('') + `<button data-act="burger">${ic('menu', 22)}<small>More</small></button>`;
 }
-function renderMain() { ({ tasks: renderTasks, notes: renderNotes, calendar: renderCal, timetable: renderTimetable, gantt: renderGantt, matrix: renderMatrix, habits: renderHabits, help: renderHelp, focus: renderFocus, history: renderHistory })[U.page](); fxFlush(); if (typeof batchPaint === 'function') batchPaint(); }
+function renderTimetable() { schoolOn() ? renderSchool() : renderTimetablePlan(); }
+function renderMain() { if (typeof WIDGET !== 'undefined' && WIDGET) return renderWidget(); ({ home: renderHome, tasks: renderTasks, notes: renderNotes, calendar: renderCal, timetable: renderTimetable, gantt: renderGantt, matrix: renderMatrix, habits: renderHabits, help: renderHelp, focus: renderFocus, history: renderHistory })[U.page](); fxFlush(); if (typeof batchPaint === 'function') batchPaint(); }
 
 function renderSide() {
   const q = $('#q'), keep = q ? q.value : '';
@@ -274,7 +276,15 @@ function renderSide() {
     const key = 'list:' + l.id, n = openCount(key);
     rows.push(`<div class="navrow${on(key) ? ' on' : ''}" data-lid="${esc(l.id)}" draggable="true" style="--d:${depth}">${kids ? `<button class="caret${folded('l:' + l.id) ? '' : ' open'}" data-act="fold" data-k="l:${esc(l.id)}" aria-label="${folded('l:' + l.id) ? 'Expand' : 'Collapse'} ${esc(l.name)}" aria-expanded="${!folded('l:' + l.id)}">${ic('right', 12)}</button>` : '<span class="caret sp"></span>'}<button class="nav${on(key)}" data-act="nav" data-nav="${esc(key)}" title="${esc(listLabel(l.id))}"><span class="ni" style="color:${l.color}">${listIcon(l, 18)}</span><span class="nl">${esc(l.name)}</span>${n ? `<span class="cnt">${n}</span>` : ''}</button><button class="ib sm nmore" data-act="listmenu" data-lid="${esc(l.id)}" title="List options" aria-label="Options for ${esc(l.name)}">${ic('more', 14)}</button></div>`);
   }
-  const projRows = S.projects.map(p => { const n = openCount('project:' + p.id); return `<button class="nav${on('project:' + p.id)}" data-act="nav" data-nav="project:${esc(p.id)}"><span class="ni" style="color:${p.color}">${listIcon(p, 18)}</span><span class="nl">${esc(p.name)}</span>${n ? `<span class="cnt">${n}</span>` : ''}</button>`; });
+  const projKids = p => { // the lists a project links, with their sublists, as rows under it
+    const roots = (p.listIds || []).filter(id => S.lists.some(l => l.id === id)), out = [], seen = new Set();
+    const walk = (id, d) => { if (seen.has(id)) return; seen.add(id); const l = listOf(id), key = 'list:' + id, n = openCount(key), sub = S.lists.filter(x => x.parent === id && x.id !== id), shut = folded('pl:' + p.id + ':' + id);
+      out.push(`<div class="navrow sub${on(key) ? ' on' : ''}" style="--d:${d + 1}">${sub.length ? `<button class="caret${shut ? '' : ' open'}" data-act="fold" data-k="pl:${esc(p.id)}:${esc(id)}" aria-label="${shut ? 'Expand' : 'Collapse'} ${esc(l.name)}" aria-expanded="${!shut}">${ic('right', 12)}</button>` : '<span class="caret sp"></span>'}<button class="nav${on(key)}" data-act="nav" data-nav="${esc(key)}" title="${esc(listLabel(id))}"><span class="ni" style="color:${l.color}">${listIcon(l, 16)}</span><span class="nl">${esc(l.name)}</span>${n ? `<span class="cnt">${n}</span>` : ''}</button></div>`);
+      if (!shut) for (const c of sub) walk(c.id, d + 1); };
+    for (const id of roots) walk(id, 0); return out;
+  };
+  const projRows = S.projects.flatMap(p => { const n = openCount('project:' + p.id), kids = (p.listIds || []).some(id => S.lists.some(l => l.id === id)), open = !!S.settings.ui.fold['pe:' + p.id];
+    return [`<div class="navrow proj${on('project:' + p.id) ? ' on' : ''}" style="--d:0">${kids ? `<button class="caret${open ? ' open' : ''}" data-act="pexp" data-pid="${esc(p.id)}" aria-label="${open ? 'Collapse' : 'Expand'} ${esc(p.name)}" aria-expanded="${open}">${ic('right', 12)}</button>` : '<span class="caret sp"></span>'}<button class="nav${on('project:' + p.id)}" data-act="nav" data-nav="project:${esc(p.id)}"><span class="ni" style="color:${p.color}">${listIcon(p, 18)}</span><span class="nl">${esc(p.name)}</span>${n ? `<span class="cnt">${n}</span>` : ''}</button></div>`, ...(open ? projKids(p) : [])]; });
   $('#side').innerHTML = `
 <div class="brand">${logoHtml(28)}<span class="bn"><b>OpenTick</b><small class="ver" title="Version ${esc(APP_VERSION)}">v${esc(APP_VERSION)}</small></span><button class="ib" data-act="uitoggle" data-k="side" title="${S.settings.ui.side ? 'Hide sidebar' : 'Dock sidebar'}">${ic('panel-left', 18)}</button><button class="ib" data-act="settings" title="Settings">${ic('sliders', 18)}</button></div>
 <div class="search">${ic('search', 16)}<input id="q" placeholder="Search" autocomplete="off"></div>
@@ -307,13 +317,37 @@ function tagBar(eff) {
 }
 function rowHtml(t, showList) {
   const l = listOf(t.listId), done = t.subtasks.filter(s => s.done).length, fin = t.status !== 'open';
-  return `<div class="task${fin ? ' fin' : ''}${U.sel === t.id ? ' sel' : ''}${U.bsel && U.bsel.has(t.id) ? ' picked' : ''}${editedCls(t.id)}" data-act="open" data-id="${t.id}"${U.page === 'matrix' ? dragAttr() + ' tabindex="0" role="button"' : canDrag() ? ' draggable="true"' : ''}>
+  return `<div class="task${fin ? ' fin' : ''}${U.sel === t.id ? ' sel' : ''}${U.bsel && U.bsel.has(t.id) ? ' picked' : ''}${editedCls(t.id)}" data-act="open" data-id="${t.id}"${U.page === 'matrix' ? ' tabindex="0" role="button"' : canDrag() ? ' draggable="true"' : ''}>
 <button class="chk p${t.priority}${t.status === 'done' ? ' on' : ''}" data-act="toggle" data-id="${t.id}" aria-label="Complete task">${t.status === 'done' ? ic('check', 13) : t.status === 'wontdo' ? ic('slash', 13) : ''}</button>
-<div class="tb"><div class="ttl">${titleHtml(t)}</div><div class="meta">${t.due ? `<span class="due${isOverdue(t) ? ' late' : ''}">${esc(dueLabel(t))}</span>` : ''}${t.repeat ? ic('repeat', 12) : ''}${metaX(t)}${t.reminder != null ? ic('bell', 12) : ''}${noteBadge(t)}${t.subtasks.length ? `<span>${ic('list', 12)} ${done}/${t.subtasks.length}</span>` : ''}${t.tags.map(tagChip).join('')}</div></div>
+<div class="tb"><div class="ttl">${taskIcon(t)}${titleHtml(t)}</div><div class="meta">${t.due ? `<span class="due${isOverdue(t) ? ' late' : ''}">${esc(dueLabel(t))}</span>` : ''}${t.repeat ? ic('repeat', 12) : ''}${metaX(t)}${t.reminder != null ? ic('bell', 12) : ''}${noteBadge(t)}${t.subtasks.length ? `<span>${ic('list', 12)} ${done}/${t.subtasks.length}</span>` : ''}${t.tags.map(tagChip).join('')}</div></div>
 ${showList ? `<span class="ln" title="${esc(listLabel(l.id))}"><i style="background:${l.color}"></i>${esc(l.name)}</span>` : ''}</div>`;
 }
 function cardHtml(t) {
-  return `<div class="card p${t.priority}${U.sel === t.id ? ' sel' : ''}${U.bsel && U.bsel.has(t.id) ? ' picked' : ''}${editedCls(t.id)}" draggable="true" data-act="open" data-id="${t.id}"><div class="ttl">${titleHtml(t)}</div><div class="meta">${t.due ? `<span class="due${isOverdue(t) ? ' late' : ''}">${esc(dueLabel(t))}</span>` : ''}${noteBadge(t)}${t.tags.map(tagChip).join('')}</div></div>`;
+  return `<div class="card p${t.priority}${U.sel === t.id ? ' sel' : ''}${U.bsel && U.bsel.has(t.id) ? ' picked' : ''}${editedCls(t.id)}" draggable="true" data-act="open" data-id="${t.id}"><div class="ttl">${taskIcon(t)}${titleHtml(t)}</div><div class="meta">${t.due ? `<span class="due${isOverdue(t) ? ' late' : ''}">${esc(dueLabel(t))}</span>` : ''}${noteBadge(t)}${t.tags.map(tagChip).join('')}</div></div>`;
+}
+/* ---------- lists and sublists as folding sections ----------
+   In a project, each linked list is a section; in a list that has sublists, the list's own tasks come first and each sublist
+   is a section under it, nested as deep as the lists are. A section folds with its header (the choice is kept per view). */
+const secKey = (eff, id) => `g:${eff}:${id}`;
+function treeSections(open, eff, roots, rootIsList) {
+  const by = new Map(); for (const t of sortTasks(open)) { const k = listOf(t.listId).id; if (!by.has(k)) by.set(k, []); by.get(k).push(t); }
+  const kids = id => S.lists.filter(x => x.parent === id && x.id !== id);
+  const seen = new Set(), total = id => { if (seen.has(id)) return 0; seen.add(id); const n = (by.get(id) || []).length + kids(id).reduce((a, k) => a + total(k.id), 0); seen.delete(id); return n; };
+  const rows = id => (by.get(id) || []).map(t => rowHtml(t, false)).join('');
+  const used = new Set();
+  const sec = (id, depth) => {
+    if (used.has(id)) return ''; used.add(id);
+    const n = total(id); if (!n) return '';
+    const l = listOf(id), k = secKey(eff, id), shut = folded(k);
+    const inner = rows(id) + kids(id).map(c => sec(c.id, depth + 1)).join('');
+    return `<button type="button" class="grp gtog${shut ? ' closed' : ''}" data-act="gfold" data-k="${esc(k)}" aria-expanded="${!shut}" style="--d:${depth}"><span class="gcar">${ic('chevron-right', 13)}</span><span class="gic" style="color:${l.color}">${listIcon(l, 14)}</span><span class="gnm">${esc(l.name)}</span><span>${n}</span></button><div class="gbody${shut ? ' closed' : ''}"><div class="gin">${inner}</div></div>`;
+  };
+  let out = '';
+  for (const id of roots) {
+    if (rootIsList) { used.add(id); out += rows(id) + kids(id).map(c => sec(c.id, 0)).join(''); }
+    else { const skip = (() => { let p = (S.lists.find(x => x.id === id) || {}).parent; const g = new Set(); while (p && !g.has(p)) { if (roots.includes(p)) return true; g.add(p); p = (S.lists.find(x => x.id === p) || {}).parent; } return false; })(); if (!skip) out += sec(id, 0); }
+  }
+  return out;
 }
 function renderKanban(list, open) {
   const sec = t => (list.sections.includes(t.section) ? t.section : '');
@@ -346,9 +380,12 @@ function renderTasks() {
   else if (kan) body = renderKanban(list, open);
   else if (flat) body = all.map(t => rowHtml(t, true)).join('');
   else {
-    body = groupTasks(sortTasks(open), proj && S.settings.group === 'none' ? 'list' : undefined).map(g => (g.title ? `<div class="grp">${g.title}<span>${g.tasks.length}</span></div>` : '') + g.tasks.map(t => rowHtml(t, !isList || subs)).join('')).join('');
+    const g0 = S.settings.group, treeOk = (proj || subs) && (g0 === 'none' || g0 === 'list');
+    if (treeOk && open.length) { const roots = proj ? (proj.listIds || []).filter(id => S.lists.some(l => l.id === id)) : [list.id]; body = treeSections(open, eff, roots, !proj); }
+    else body = groupTasks(sortTasks(open), proj && S.settings.group === 'none' ? 'list' : undefined).map(g => (g.title ? `<div class="grp">${g.title}<span>${g.tasks.length}</span></div>` : '') + g.tasks.map(t => rowHtml(t, !isList || subs)).join('')).join('');
     if (fin.length) body += `<button class="grp tog" data-act="showdone">${ic(U.showDone[eff] ? 'down' : 'right', 14)} Completed<span>${fin.length}</span></button>` + (U.showDone[eff] ? fin.map(t => rowHtml(t, !isList || subs)).join('') : '');
   }
+  if (body && body.includes('gtog')) { tools = `<button class="ib" data-act="gfoldall" title="Fold or unfold every section" aria-label="Fold or unfold every section">${ic('collapse')}</button>` + tools; }
   const pl = proj ? projectListIds(proj) : [], pTarget = proj ? (pl.includes(U.projList[proj.id]) ? U.projList[proj.id] : (proj.listIds || []).find(id => S.lists.some(l => l.id === id))) : null;
   const tgt = isList ? list.name : proj && pTarget ? listLabel(pTarget) : 'Inbox';
   $('#main').innerHTML = (!U.q && isList ? bannerHtml('list', list) : !U.q && proj ? bannerHtml('project', proj) : '') + topHtml(U.q ? `Search “${esc(U.q)}”` : (eff.startsWith('tag:') && tagColor(eff.slice(4)) ? `<span style="color:${tagColor(eff.slice(4))}">${esc(navTitle(eff))}</span>` : esc(navTitle(eff))), tools)
@@ -611,6 +648,7 @@ function renderDetail() {
 <div class="dr"><span>${ic('list', 16)}</span><select data-f="list">${opts(listOpts(), t.listId)}</select>${secs.length ? `<select data-f="section">${opts([['', 'Not sectioned'], ...secs.map(s => [s, s])], t.section || '')}</select>` : ''}</div>
 <div class="dr"><span>${ic('repeat', 16)}</span><select data-f="repeat">${opts([['none', 'Does not repeat'], ...Object.keys(RN).map(k => [k, RN[k]]), ...(rk === 'custom' ? [['custom', repeatLabel(t.repeat)]] : [])], rk)}</select></div>
 <div class="dr top"><span>${ic('bell', 16)}</span>${remHtml('task', t.reminder, U.remCustom === t.id)}</div>
+<div class="dr"><span>${ic('sparkles', 16)}</span><button class="btn sm ticbtn" data-act="taskicon" title="Give this task an icon">${t.icon ? iconAny(t.icon, 16) + ' Change icon' : 'Add an icon'}</button>${t.icon ? '<button class="btn sm" data-act="taskiconx">Remove</button>' : ''}</div>
 <div class="dr"><span>${ic('tag', 16)}</span><input data-f="tags" value="${esc(t.tags.map(g => '#' + g).join(' '))}" placeholder="#tags"></div>
 ${gtDetailHtml(t)}
 ${t.tags.length ? `<div class="chips tg">${t.tags.map(g => `<button class="tag tagb"${tagColor(g) ? ` style="--tc:${tagColor(g)}"` : ''} data-act="tagcolor" data-tag="${esc(g)}" title="Colour this tag">#${esc(g)}</button>`).join('')}<small class="hint">tap a tag to colour it</small></div>` : ''}
@@ -695,7 +733,7 @@ function ttStrip(base) {
     return `<button class="${span.includes(k) ? 'on' : ''}${k === td ? ' today' : ''}" data-act="ttjump" data-d="${k}"><small>${DAYS[d.getDay()]}</small><b>${d.getDate()}</b><i>${n ? '•'.repeat(Math.min(3, n)) : ''}</i></button>`;
   }).join('')}</div>`;
 }
-function renderTimetable() {
+function renderTimetablePlan() {
   const tt = S.settings.tt, view = ttView(), days = ttDays(), td = todayStr(), phone = narrow(600);
   const data = days.map(d => ({ d, k: ymd(d), ...ttItems(d) }));
   let from = (tt.auto ? TT_AUTO[0] : tt.from) * 60, to = (tt.auto ? TT_AUTO[1] : tt.to) * 60, firstA = 1440;
@@ -710,7 +748,7 @@ function renderTimetable() {
   const pos = it => `top:${(it.a - from) * ppm}px;height:${Math.max(TT_MINH(), (it.b - it.a) * ppm - 2)}px;left:calc(${(it.col / it.n) * 100}% + 1px);width:calc(${100 / it.n}% - 3px)`;
   const taskLine = t => `<div class="bl${t.status !== 'open' ? ' fin' : ''}" data-act="open" data-id="${t.id}"><button class="chk sm p${t.priority}${t.status === 'done' ? ' on' : ''}" data-act="toggle" data-id="${t.id}" aria-label="Complete task">${t.status === 'done' ? ic('check', 11) : ''}</button><span>${titleHtml(t)}</span></div>`;
   const block = (it, d) => it.k === 'slot'
-    ? `<div class="blk slot${it.clash ? ' clash' : ''}${editedCls(it.s.id)}" style="${pos(it)};--c:${it.s.color}" data-act="ttslot" data-sid="${it.s.id}" data-day="${d.getDay()}" data-a="${it.a}" data-b="${it.b}"${dragAttr()} title="${esc(it.s.title)} ${fmtRange(it.a, it.b)}${it.clash ? ' (overlaps another slot)' : ''}" tabindex="0" role="button" aria-label="${esc(it.s.title)}, ${fmtRange(it.a, it.b)}${it.clash ? ', overlaps another slot' : ''}"><div class="bt">${it.clash && it.n === 1 ? ic('alert', 12) + ' ' : ''}<span class="tt-t">${esc(it.s.title)}</span><span class="tt-tm">${fmtRange(it.a, it.b)}</span></div><div class="bm">${fmtRange(it.a, it.b)} · ${fmtDur(it.b - it.a)}${it.s.loc ? ` · ${ic('pin', 11)} ${esc(it.s.loc)}` : ''}</div>${it.tasks.map(taskLine).join('')}<i class="rz rz-t" data-e="top" data-k="slot" data-id="${it.s.id}"></i><i class="rz" data-k="slot" data-id="${it.s.id}"></i></div>`
+    ? `<div class="blk slot${it.clash ? ' clash' : ''}${editedCls(it.s.id)}" style="${pos(it)};--c:${it.s.color}" data-act="ttslot" data-sid="${it.s.id}" data-day="${d.getDay()}" data-a="${it.a}" data-b="${it.b}"${dragAttr()} title="${esc(it.s.title)} ${fmtRange(it.a, it.b)}${it.clash ? ' (overlaps another slot)' : ''}" tabindex="0" role="button" aria-label="${esc(it.s.title)}, ${fmtRange(it.a, it.b)}${it.clash ? ', overlaps another slot' : ''}"><div class="bt">${it.clash && it.n === 1 ? ic('alert', 12) + ' ' : ''}<span class="tt-t">${it.s.icon ? iconAny(it.s.icon, 13) + " " : ""}${esc(it.s.title)}</span><span class="tt-tm">${fmtRange(it.a, it.b)}</span></div><div class="bm">${fmtRange(it.a, it.b)} · ${fmtDur(it.b - it.a)}${it.s.loc ? ` · ${ic('pin', 11)} ${esc(it.s.loc)}` : ''}</div>${it.tasks.map(taskLine).join('')}<i class="rz rz-t" data-e="top" data-k="slot" data-id="${it.s.id}"></i><i class="rz" data-k="slot" data-id="${it.s.id}"></i></div>`
     : `<div class="blk tk p${it.t.priority}${it.t.status !== 'open' ? ' fin' : ''}${U.sel === it.t.id ? ' sel' : ''}${editedCls(it.t.id)}" style="${pos(it)}" data-act="open" data-id="${it.t.id}" data-a="${it.a}" data-b="${it.b}"${dragAttr()} title="${esc(it.t.title)} ${fmtRange(it.a, it.b)}" tabindex="0" role="button" aria-label="${esc(it.t.title)}, ${fmtRange(it.a, it.b)}"><div class="bt"><button class="chk sm p${it.t.priority}${it.t.status === 'done' ? ' on' : ''}" data-act="toggle" data-id="${it.t.id}" aria-label="Complete task">${it.t.status === 'done' ? ic('check', 11) : ''}</button> <span class="tt-t">${titleHtml(it.t)}</span><span class="tt-tm">${fmtRange(it.a, it.b)}</span></div><div class="bm">${fmtRange(it.a, it.b)} · ${fmtDur(it.b - it.a)}</div><i class="rz rz-t" data-e="top" data-k="task" data-id="${it.t.id}"></i><i class="rz" data-k="task" data-id="${it.t.id}"></i></div>`;
   const head = `<div class="tt-row"><div class="tt-cor"></div>${data.map(x => `<button class="tt-dh${x.k === td ? ' today' : ''}" data-act="ttday" data-d="${x.k}" title="Open this day"><small>${DAYS[x.d.getDay()]}</small><b>${x.d.getDate()}</b></button>`).join('')}</div>`;
   const adOpen = tt.adOpen !== false, adN = data.reduce((n, x) => n + x.allday.length, 0);
@@ -720,7 +758,7 @@ function renderTimetable() {
   const trayOn = ttTrayOn(), un = ttUnscheduled();
   const tray = trayOn ? `<aside class="tray"><div class="rs rs-l" data-rs="tray" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize · double-click to reset"></div><div class="trh"><b>Tasks</b><small>${un.length} without a time</small><button class="ib sm" data-act="tttray" title="Hide this panel">${ic('x', 14)}</button></div><input class="tradd" placeholder="+ New task  (try “Study 4pm for 90min”)" autocomplete="off"><div class="trl">${un.slice(0, 80).map(ttTrayItem).join('') || '<p class="hint">Nothing waiting — nice.</p>'}</div><p class="hint">Drag a task onto the grid, or press the clock to pick a time. Pull a block’s top or bottom edge to resize it.</p></aside>` : '';
   const seg = `<div class="seg">${[['day', 'Day'], ['3day', '3 days'], ['week', 'Week']].map(([v, n]) => `<button class="${view === v ? 'on' : ''}" data-act="ttview" data-v="${v}">${n}</button>`).join('')}</div>`;
-  const tools = `<button class="ib" data-act="ttprev" title="Previous">${ic('left')}</button><button class="btn" data-act="tttoday">Today</button><button class="ib" data-act="ttnext" title="Next">${ic('right')}</button>${seg}<button class="btn pri" data-act="ttadd" title="Add a task or a weekly slot">${ic('plus', 16)}<span class="hide-m"> Add</span></button><button class="ib${trayOn ? ' on' : ''}" data-act="tttray" title="Unscheduled tasks">${ic('list')}</button><button class="ib" data-act="ttset" title="Timetable settings">${ic('sliders')}</button>`;
+  const tools = `<button class="ib" data-act="ttprev" title="Previous">${ic('left')}</button><button class="btn" data-act="tttoday">Today</button><button class="ib" data-act="ttnext" title="Next">${ic('right')}</button>${seg}${ttModeSeg()}<button class="btn pri" data-act="ttadd" title="Add a task or a weekly slot">${ic('plus', 16)}<span class="hide-m"> Add</span></button><button class="ib${trayOn ? ' on' : ''}" data-act="tttray" title="Unscheduled tasks">${ic('list')}</button><button class="ib" data-act="ttset" title="Timetable settings">${ic('sliders')}</button>`;
   const old = $('.tt-scroll'), keep = old && !U.ttRe ? old.scrollTop * (TT_HH / (prevHH || TT_HH)) : null;
   const draft = $('.tradd') ? $('.tradd').value : '';
   const hint = S.slots.length ? '' : `<p class="hint pad">${phone ? 'Tap' : 'Click, or drag across'} the grid to add a task or a weekly slot (a class, shift or routine). Tasks with a time appear here too.</p>`;
@@ -736,6 +774,6 @@ function renderTimetable() {
   if (tt.fit !== false && !U.ttRe && sc && sc.clientHeight > 0) {
     const top = $('.tt-top'), av = sc.clientHeight - (top ? top.offsetHeight : 0) - 4, want = ttFitHH(av, to - from);
     U.ttAvail = av;
-    if (Math.abs(want - TT_HH) >= 2) { U.ttRe = true; try { renderTimetable(); } finally { U.ttRe = false; } }
+    if (Math.abs(want - TT_HH) >= 2) { U.ttRe = true; try { renderTimetablePlan(); } finally { U.ttRe = false; } }
   }
 }

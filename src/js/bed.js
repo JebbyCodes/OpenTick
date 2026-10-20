@@ -10,6 +10,8 @@ const BED_CMDS = [
   { id: 'table', label: 'Table', hint: 'Rows and columns', words: 'table grid columns' },
   { id: 'image', label: 'Image', hint: 'Attach a picture and show it here', words: 'image picture photo upload' },
   { id: 'file', label: 'File', hint: 'Attach a PDF, document…', words: 'file attach pdf document upload' },
+  { id: 'embed', label: 'Embed', hint: 'A video, audio, PDF or music player from a link', words: 'embed video youtube vimeo spotify audio pdf player iframe' },
+  { id: 'notebed', label: 'Embed a note', hint: 'Show another note right here', words: 'embed note include transclude show ![[' },
   { id: 'note', label: 'Link to a note', hint: 'A [[link]] to another note', words: 'link note wiki mention [[' },
   { id: 'task', label: 'Link a task', hint: 'Connect a task to this note', words: 'link task connect', only: 'n' },
   { id: 'date', label: "Today's date", hint: 'Type the date', words: 'date today' },
@@ -151,6 +153,8 @@ async function bedPickMenu(inst, n) {
   if (c.id === 'hr') { const f = blkInsertAfter(inst.doc, i, 'raw', '---'); inst.act = f.i; bedPaint(inst, { pos: 0 }); bedCommit(inst); return; }
   if (c.id === 'table') { const f = blkInsertAfter(inst.doc, i, 'table', '| Column | Column |\n|---|---|\n|  |  |'); inst.act = f.i; bedPaint(inst, { pos: 0 }); bedCommit(inst); return; }
   if (c.id === 'date') { const d = new Date(), ins = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; b.text = b.text.slice(0, start) + ins + b.text.slice(start); bedPaint(inst, { pos: start + ins.length }); bedCommit(inst); return; }
+  if (c.id === 'embed') { const f = blkInsertAfter(inst.doc, i, 'p', '![](https://)'); inst.act = f.i; bedPaint(inst, { pos: 4 }); bedCommit(inst); return; }
+  if (c.id === 'notebed') { bedPaint(inst, { pos: start }); const cur = bedCur(inst); if (cur) { cur.text = cur.text.slice(0, start) + '![[' + cur.text.slice(start); bedPaint(inst, { pos: start + 3 }); bedOpenMenu(inst, 'wiki', start + 1); } return; }
   if (c.id === 'note') { bedPaint(inst, { pos: start }); const t2 = bedTa(inst); if (t2) { const cur = bedCur(inst); cur.text = cur.text.slice(0, start) + '[[' + cur.text.slice(start); bedPaint(inst, { pos: start + 2 }); bedOpenMenu(inst, 'wiki', start); } return; }
   if (c.id === 'task') { bedPaint(inst, { pos: start }); bedCommit(inst); openLinkPicker('note', U.noteSel); return; }
   if (c.id === 'image' || c.id === 'file') {

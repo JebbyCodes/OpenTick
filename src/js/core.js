@@ -152,7 +152,7 @@ function migrate(r) {
   r.lists.forEach(l => { l.sections = l.sections || []; });
   r.tasks.forEach(t => { t.tags = t.tags || []; t.subtasks = t.subtasks || []; t.notes = t.notes || ''; t.status = t.status || 'open'; if (t.links && !Array.isArray(t.links)) t.links = []; });
   r.habits = r.habits || []; r.pomo = r.pomo || []; r.fired = r.fired || {}; r.tomb = r.tomb || {};
-  r.tags = r.tags || []; r.slots = r.slots || []; r.notes = Array.isArray(r.notes) ? r.notes : [];
+  r.tags = r.tags || []; r.slots = r.slots || []; r.school = Array.isArray(r.school) ? r.school.filter(x => x && x.id && x.k) : []; r.notes = Array.isArray(r.notes) ? r.notes : [];
   r.notes.forEach(n => { n.title = n.title || ''; n.body = n.body || ''; n.tags = n.tags || []; n.created = n.created || Date.now(); n.updated = n.updated || n.created; });
   r.slots.forEach(x => { x.days = x.days || []; });
   r.settings = { theme: DEFAULT_THEME, sort: 'manual', group: 'none', weekStart: localWeekStart(), ...(r.settings || {}) };
@@ -215,8 +215,8 @@ function load() {
    Every record (task, list, habit) carries `u`, the time it last changed. Instead of touching every mutation site,
    save() compares each record with a snapshot (SEEN) and stamps the ones that differ. Records that disappeared get a
    tombstone in S.tomb so a deletion can be told apart from "this device has never seen it". */
-const COLL = ['tasks', 'lists', 'habits', 'tags', 'slots', 'notes', 'projects'];
-const SEEN = { tasks: new Map(), lists: new Map(), habits: new Map(), tags: new Map(), slots: new Map(), notes: new Map(), projects: new Map() };
+const COLL = ['tasks', 'lists', 'habits', 'tags', 'slots', 'notes', 'projects', 'school'];
+const SEEN = { tasks: new Map(), lists: new Map(), habits: new Map(), tags: new Map(), slots: new Map(), notes: new Map(), projects: new Map(), school: new Map() };
 const hashOf = o => JSON.stringify(o, (k, v) => (k === 'u' ? undefined : v));
 // "edited just now" markers: which records this device changed in the last couple of minutes (never synced, never saved)
 const EDITED = new Map(), EDIT_SHOW = 120000;
@@ -319,7 +319,7 @@ function save() { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 120); i
 const TOMB_TTL = 180 * 864e5;
 const canon = o => JSON.stringify(Object.keys(o || {}).sort().map(k => [k, o[k]]));
 const cyrb53 = s => { let a = 0xdeadbeef, b = 0x41c6ce57; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 2654435761); b = Math.imul(b ^ c, 1597334677); } a = Math.imul(a ^ (a >>> 16), 2246822507) ^ Math.imul(b ^ (b >>> 13), 3266489909); b = Math.imul(b ^ (b >>> 16), 2246822507) ^ Math.imul(a ^ (a >>> 13), 3266489909); return (4294967296 * (2097151 & b) + (a >>> 0)).toString(36); };
-const snapshot = () => ({ tasks: S.tasks, lists: S.lists, habits: S.habits, tags: S.tags, slots: S.slots, notes: S.notes, projects: S.projects, pomo: S.pomo, tomb: S.tomb });
+const snapshot = () => ({ tasks: S.tasks, lists: S.lists, habits: S.habits, tags: S.tags, slots: S.slots, notes: S.notes, projects: S.projects, school: S.school, pomo: S.pomo, tomb: S.tomb });
 function fingerprint(d) {
   const p = [];
   for (const c of COLL) for (const o of (d[c] || [])) p.push(c[0] + o.id + ':' + (o.u || 0));
@@ -368,7 +368,7 @@ function mergeData(L, R) {
   return out;
 }
 function applyMerged(m) {
-  S.tasks = m.tasks; S.lists = m.lists; S.habits = m.habits; S.tags = m.tags; S.slots = m.slots; S.notes = m.notes; S.projects = m.projects; S.pomo = m.pomo; S.tomb = m.tomb;
+  S.tasks = m.tasks; S.lists = m.lists; S.habits = m.habits; S.tags = m.tags; S.slots = m.slots; S.notes = m.notes; S.projects = m.projects; S.school = m.school; S.pomo = m.pomo; S.tomb = m.tomb;
   migrate(S); initSeen();
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* keep going: memory copy is still right */ }
 }

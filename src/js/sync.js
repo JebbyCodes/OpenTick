@@ -223,7 +223,7 @@ function parsePayload(text) {
   let d; try { d = JSON.parse(text); } catch (e) { throw syncErr('The remote file is not valid JSON — leaving it alone'); }
   if (!d || d.app !== 'opentick' || !Array.isArray(d.tasks) || !Array.isArray(d.lists)) throw syncErr('The remote file is not an OpenTick sync file — refusing to overwrite it');
   if ((d.schema || 1) > SYNC_V) throw syncErr('The remote data was written by a newer OpenTick — please update this app');
-  d.habits = d.habits || []; d.tags = d.tags || []; d.slots = d.slots || []; d.notes = d.notes || []; d.projects = d.projects || []; d.pomo = d.pomo || []; d.tomb = d.tomb || {};
+  d.habits = d.habits || []; d.tags = d.tags || []; d.slots = d.slots || []; d.notes = d.notes || []; d.projects = d.projects || []; d.school = d.school || []; d.pomo = d.pomo || []; d.tomb = d.tomb || {};
   return d;
 }
 function setSync(state, msg = '') { Sync.state = state; Sync.msg = msg; paintSync(); }

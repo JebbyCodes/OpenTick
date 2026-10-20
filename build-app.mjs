@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync, statS
 import { join, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const root = dirname(fileURLToPath(import.meta.url)), src = join(root, 'src'), dist = join(root, 'dist');
-export const JS_ORDER = ['core', 'sfx', 'md', 'files', 'views', 'notes', 'blocks', 'bed', 'banner', 'batch', 'zoom', 'bgfx', 'help', 'licenses.gen', 'about', 'mxdrag', 'habitmap', 'sync', 'import', 'og', 'gantt', 'ui', 'themes', 'data', 'widget', 'main'];
+export const JS_ORDER = ['core', 'sfx', 'md', 'files', 'views', 'icons', 'home', 'notes', 'blocks', 'bed', 'banner', 'batch', 'zoom', 'bgfx', 'help', 'licenses.gen', 'about', 'mxdrag', 'habitmap', 'sync', 'import', 'og', 'gantt', 'school', 'ui', 'marquee', 'themes', 'data', 'widget', 'main'];
 const INLINE_MAX = 200 * 1024; // logos up to this size are embedded in index.html, so the single file still stands alone
 
 export const readVersion = () => JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;

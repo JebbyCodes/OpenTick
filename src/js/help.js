@@ -23,6 +23,27 @@ const HELP = [
 <li><b>All day</b> tasks (a date but no time) sit in the row under the days. Press that row’s label to fold it away and free space; the count stays visible.</li>
 <li>The <b>sliders</b> button opens timetable options: hide the quiet hours (6:00–22:00 plus anything scheduled or the current time), choose your own first and last hour, <i>fit the day to the screen</i> so more hours show without scrolling, and show or hide weekends.</li>
 <li>Two slots that overlap are drawn side by side and outlined in red so a clash is easy to see.</li></ul>`],
+  ['school', 'School timetable', `
+<p>The cap icon in the Timetable header opens the <b>school timetable</b>, a classic school week kept apart from your tasks: nothing in it appears in Today, lists, the matrix or the calendar. The same button (now a grid) takes you back to the planner.</p>
+<ul><li><b>Lesson times:</b> start with <i>Use a standard school day</i> or enter your own periods and breaks (<i>sliders → Lesson times</i>).</li>
+<li><b>Subjects</b> have a colour, an icon, a usual room and a teacher; <b>Teachers</b> keep an email and phone number. Tap an empty cell in the weekly grid to put a subject in that lesson; tap a filled cell to change or remove it.</li>
+<li><b>A / B weeks:</b> turn on <i>Alternate between week A and week B</i> in the settings, then mark a lesson as every week, A only or B only. <i>Swap</i> flips which week is which. The arrows in the header look at other weeks.</li>
+<li><b>Today</b> shows the lesson on <i>now</i> and <i>next</i>, today’s lessons, homework due this week and exams in the next three weeks.</li>
+<li><b>Homework</b> can be ticked off; <b>Exams</b> count down; <b>Notes</b> are small jottings, optionally tied to a subject.</li>
+<li>A <b>reminder</b> arrives shortly before each lesson (settings → Remind me). OpenTick cannot silence your phone during lessons; use your system’s Do Not Disturb schedule for that.</li>
+<li>It is saved, backed up and synced like everything else.</li></ul>`],
+  ['embed', 'Embedding in notes', `
+<p>Notes and task notes can show other things in place.</p>
+<ul><li><b>Another note:</b> <code>![[Note title]]</code> on its own line shows that note inside this one. It goes two levels deep at most and a note is never shown inside itself.</li>
+<li><b>Players:</b> <code>![caption](https://…)</code> on its own line becomes a player when the link is YouTube, Vimeo, Spotify, a video file (mp4, webm…), an audio file (mp3, m4a…) or a PDF. Any other link stays a normal picture or link. Players are sandboxed and load only from those sites.</li>
+<li><b>Your own files:</b> attach an audio or video file and it plays inside the note on this device.</li>
+<li>Type <code>/</code> in the block editor and pick <i>Embed</i> or <i>Embed a note</i>, or use the two toolbar buttons in Source and Split mode.</li></ul>`],
+  ['widgets', 'Widgets', `
+<p><b>Desktop and web:</b> Settings → Widgets opens a small always-on-top window for Tasks, Lists, Projects, Notes, Calendar, Timetable, Matrix, Habit or Focus. They are made of the app’s own pieces, so they match your theme, and ticking a task or habit there updates everything. Tapping something that needs the big window (a task, a note, a list) brings OpenTick forward and opens it. The Focus widget runs its own timer; finished sessions are saved with your data.</p>
+<p><b>Android:</b> long-press the home screen → Widgets → OpenTick. There are widgets for tasks, quick add, lists, projects, notes, calendar, timetable, matrix, habits and focus. They use your theme’s colours and refresh when you leave the app; a task or habit ticked on a widget is applied the next time OpenTick opens. The Focus widget counts down by itself while a session runs.</p>`],
+  ['home', 'Projects home screen and start screen', `
+<p>The <b>Projects</b> page gives an overview: one card per project with its progress, lists and next task, the lists that are in no project, and what needs attention today. <b>Settings → Start screen</b> picks what OpenTick opens on: Projects, Today, any other page, or a particular list or project.</p>
+<p>In a project, each list is a <b>foldable section</b>, and in a list with sublists each sublist is one too. Click a header to fold it; the button next to the sort box folds or unfolds all. In the sidebar, the arrow beside a project shows its lists.</p>`],
   ['matrix', 'The matrix', `
 <p>The matrix sorts open tasks into four boxes by urgency and importance, derived from each task’s <b>priority</b> and <b>due date</b>: <i>Do first</i> (urgent and important), <i>Schedule</i> (important, not urgent), <i>Delegate</i> (urgent, not important) and <i>Eliminate</i> (neither).</p>
 <ul><li><b>Move a task</b> to change its box. Mouse: drag it onto another box (drop between tasks to place it). Touch: press and hold the task for half a second until it lifts, slide to a box and let go; the grid scrolls when your finger nears its edge. Keyboard: Tab to a task and press ${kbd('Alt')}+an arrow key (left / right and up / down on the 2 × 2 grid; up / down on a phone’s single column). ${kbd('Enter')} opens the task.</li>

@@ -1,13 +1,14 @@
 /* OpenTick notes: the Notes page, the Markdown editor pieces shared with task notes, and the wide ("expanded") editor
    that opens a task's notes in a big window with a live preview. */
 U.noteSel = null; U.nq = '';
+MD_NOTE = name => { const n = noteByTitle(name); return n ? { id: n.id, title: noteTitle(n), body: n.body || '', self: U.page === 'notes' && U.noteSel === n.id } : null; };
 MD_WIKI = name => { const n = noteByTitle(name); return n ? { id: n.id, title: noteTitle(n) } : null; };
 
 // formatting toolbar: [id, label, tooltip]
 const NOTE_FMT = [
   ['bold', 'bold', 'Bold (Ctrl+B)'], ['italic', 'italic', 'Italic (Ctrl+I)'], ['strike', 'strike', 'Strikethrough'],
   ['code', 'code', 'Code'], ['link', 'link', 'Link (Ctrl+K)'], ['h', 'heading', 'Heading'], ['ul', 'list', 'Bulleted list'], ['ol', 'list-ol', 'Numbered list'],
-  ['task', 'check-square', 'Checklist'], ['quote', 'quote', 'Quote'], ['table', 'table', 'Insert a table'], ['img', 'image', 'Insert an image'], ['hr', 'minus', 'Divider'],
+  ['task', 'check-square', 'Checklist'], ['quote', 'quote', 'Quote'], ['table', 'table', 'Insert a table'], ['img', 'image', 'Insert an image'], ['embed', 'embed', 'Embed a video, audio, PDF or music player (paste its link)'], ['nembed', 'sticky', 'Embed another note'], ['hr', 'minus', 'Divider'],
 ];
 const mdToolbar = target => NOTE_FMT.map(([k, l, tt]) => `<button class="fmt" data-act="nfmt" data-k="${k}" data-for="${target}" title="${tt}" aria-label="${esc(tt)}">${ic(l, 17)}</button>`).join('');
 const edModeSeg = (mode, pre) => `<div class="seg" role="tablist">${[['blocks', 'Edit'], ['write', 'Source'], ['split', 'Split'], ['preview', 'Preview']].map(([m, n]) => `<button class="${mode === m ? 'on' : ''}${m === 'split' ? ' hide-m' : ''}" data-ed="${pre}" data-mode="${m}" role="tab" title="${{ blocks: 'Edit with blocks: type / for a menu', write: 'Edit the Markdown text', split: 'Markdown beside a live preview', preview: 'Read it' }[m]}">${n}</button>`).join('')}</div>`;
@@ -41,7 +42,7 @@ function noteScopeLabel(sc = noteScope()) {
 }
 const noteScopeCount = sc => S.notes.filter(n => noteInScope(n, sc)).length;
 function noteRowHtml(n, showHome) {
-  return `<div class="nti${U.noteSel === n.id ? ' on' : ''}${editedCls(n.id)}" data-act="noteopen" data-id="${n.id}"><div class="nt-t">${n.pinned ? ic('star', 12) + ' ' : ''}<span class="nt-tx">${noteTitleHtml(n)}</span></div><div class="nt-s">${esc(noteSnippet(n)) || '<i>No text</i>'}</div><div class="nt-m"><span>${esc(noteWhen(n.updated))}</span>${showHome ? noteHomeChip(n) : ''}${linkedTasks(n).length ? `<span title="Linked tasks">${ic('check-square', 12)} ${linkedTasks(n).length}</span>` : ''}${(n.files || []).length ? `<span title="Attachments">${ic('paperclip', 12)} ${n.files.length}</span>` : ''}${n.tags.map(tagChip).join('')}</div></div>`;
+  return `<div class="nti${U.noteSel === n.id ? ' on' : ''}${editedCls(n.id)}" data-act="noteopen" data-id="${n.id}"><div class="nt-t">${n.pinned ? ic('star', 12) + ' ' : ''}${n.icon ? `<span class="nt-ic">${iconAny(n.icon, 14)}</span>` : ''}<span class="nt-tx">${noteTitleHtml(n)}</span></div><div class="nt-s">${esc(noteSnippet(n)) || '<i>No text</i>'}</div><div class="nt-m"><span>${esc(noteWhen(n.updated))}</span>${showHome ? noteHomeChip(n) : ''}${linkedTasks(n).length ? `<span title="Linked tasks">${ic('check-square', 12)} ${linkedTasks(n).length}</span>` : ''}${(n.files || []).length ? `<span title="Attachments">${ic('paperclip', 12)} ${n.files.length}</span>` : ''}${n.tags.map(tagChip).join('')}</div></div>`;
 }
 function noteListHtml() {
   const ns = noteList(), sc = noteScope(); if (!ns.length) return `<p class="hint pad">${U.nq ? 'No notes match.' : sc ? 'No notes here yet.' : 'No notes yet.'}${sc && U.nq ? ' <button class="btn sm" data-act="notescope" data-sc="">Search all notes</button>' : ''}</p>`;
@@ -79,8 +80,8 @@ ${S.projects.length ? '<div class="scg">Projects</div>' + S.projects.map(p => ro
 }
 function noteEditorHtml(n) {
   const mode = edMode(S.settings.notes.view);
-  return `<div class="ne-head"><button class="ib mob2" data-act="noteback" aria-label="Back to the list">${ic('left', 20)}</button><input class="ne-title" data-f="ntitle" value="${esc(n.title)}" placeholder="Untitled note" autocomplete="off">`
-    + `<button class="ib${n.pinned ? ' on' : ''}" data-act="notepin" title="${n.pinned ? 'Unpin' : 'Pin to the top'}">${ic('star', 18)}</button>${edModeSeg(mode, 'n')}<button class="ib" data-act="notemenu" title="More">${ic('more', 18)}</button></div>`
+  return `<div class="ne-head"><button class="ib mob2" data-act="noteback" aria-label="Back to the list">${ic('left', 20)}</button><button class="ib ne-ico" data-act="noteicon" title="Note icon" aria-label="Choose an icon for this note">${iconAny(n.icon, 20, 'file-text')}</button><input class="ne-title" data-f="ntitle" value="${esc(n.title)}" placeholder="Untitled note" autocomplete="off">`
+    + `<button class="ib${n.pinned ? ' on' : ''}" data-act="notepin" title="${n.pinned ? 'Unpin' : 'Pin to the top'}">${ic('star', 18)}</button>${edModeSeg(mode, 'n')}<button class="ib hide-m ne-lt" data-act="notelist" title="${noteListOn() ? 'Hide the note list' : 'Show the note list'}" aria-label="Toggle the note list" aria-pressed="${!noteListOn()}">${ic(noteListOn() ? 'sidebar-close' : 'sidebar-open', 18)}</button><button class="ib ne-fs" data-act="notefull" title="${U.nFull ? 'Leave full screen (Esc)' : 'Full screen'}" aria-label="Full screen" aria-pressed="${!!U.nFull}">${ic(U.nFull ? 'minimize-2' : 'maximize-2', 18)}</button><button class="ib" data-act="notemenu" title="More">${ic('more', 18)}</button></div>`
     + `<div class="ne-props"><div class="ne-tags"><span>${ic('tag', 14)}</span><input data-f="ntags" value="${esc(n.tags.map(g => '#' + g).join(' '))}" placeholder="#tags" autocomplete="off"></div><label class="ne-home" title="Where this note is filed"><span>${ic('folder', 14)}</span><select data-f="nhome" aria-label="List or project">${noteHomeOptions(noteHomeValue(n))}</select></label></div>`
     + `<div class="ne-links" id="n-links">${noteLinksHtml(n)}</div>`
     + `<details class="ne-att"${(n.files || []).length ? ' open' : ''}><summary>${ic('paperclip', 14)} Attachments${(n.files || []).length ? ` <span class="fcnt">${n.files.length}</span>` : ''}</summary>${filesHtml('note', n.id)}</details>`
@@ -93,8 +94,8 @@ function renderNotes() {
   if (!n && !narrow(820) && !U.nq) { const first = noteList()[0]; if (first) { n = first; U.noteSel = first.id; } }
   const tools = `<button class="btn pri" data-act="noteadd">${ic('plus', 16)}<span class="hide-m"> New note</span></button><button class="ib" data-act="noteimport" title="Import a Markdown file">${ic('upload')}</button>`;
   $('#main').innerHTML = topHtml('Notes', tools)
-    + `<div class="nt${n ? ' open' : ''}"><aside class="nt-list"><button type="button" class="nt-scope${noteScope() ? ' on' : ''}" data-act="notescope" title="Show the notes of a list or project">${ic('folder', 14)}<span>${esc(noteScopeLabel())}</span><em>${noteScopeCount(noteScope())}</em>${ic('down', 12)}</button><div class="nt-search">${ic('search', 15)}<input id="nq" placeholder="Search notes" value="${esc(U.nq)}" autocomplete="off"></div><div class="nt-items" id="nt-items">${noteListHtml()}</div></aside>`
-    + `<section class="nt-ed" id="nt-ed">${n ? noteEditorHtml(n) : `<div class="empty">${ic('file-text', 44)}<p>${S.notes.length ? 'Pick a note to read or edit it' : 'Write your first note'}</p><button class="btn pri" data-act="noteadd">${ic('plus', 16)} New note</button></div>`}</section></div>`;
+    + `<div class="nt${n ? ' open' : ''}${noteListOn() ? '' : ' nolist'}"><aside class="nt-list"><button type="button" class="nt-scope${noteScope() ? ' on' : ''}" data-act="notescope" title="Show the notes of a list or project">${ic('folder', 14)}<span>${esc(noteScopeLabel())}</span><em>${noteScopeCount(noteScope())}</em>${ic('down', 12)}</button><div class="nt-search">${ic('search', 15)}<input id="nq" placeholder="Search notes" value="${esc(U.nq)}" autocomplete="off"></div><div class="nt-items" id="nt-items">${noteListHtml()}</div></aside>`
+    + `<section class="nt-ed${U.nFull && n ? ' full' : ''}" id="nt-ed">${n ? noteEditorHtml(n) : `<div class="empty">${ic('file-text', 44)}<p>${S.notes.length ? 'Pick a note to read or edit it' : 'Write your first note'}</p><button class="btn pri" data-act="noteadd">${ic('plus', 16)} New note</button></div>`}</section></div>`;
   noteBedStart();
 }
 // start the block editor on the Notes page (when that is the chosen mode)
@@ -124,7 +125,18 @@ function noteMarkdown(n) { return (n.title && n.title.trim() && !/^\s*#\s/.test(
 const noteFile = n => (noteTitle(n).replace(/[\\/:*?"<>|]+/g, '').trim().slice(0, 60) || 'note') + '.md';
 function openNoteById(id) { if ($('#modal.on')) closeModal(); U.page = 'notes'; U.noteSel = id; U.sel = null; U.nq = ''; render(); }
 
+const noteListOn = () => (S.settings.notes || {}).list !== false;
+// full screen writing: the editor takes the whole window; Esc (or the same button) brings the rest back
+function noteFull(on) {
+  U.nFull = !!on; document.body.classList.toggle('nfull', U.nFull);
+  const ed = $('#nt-ed'); if (ed) ed.classList.toggle('full', U.nFull && !!U.noteSel);
+  const b = $('.ne-fs'); if (b) { b.innerHTML = ic(U.nFull ? 'minimize-2' : 'maximize-2', 18); b.title = U.nFull ? 'Leave full screen (Esc)' : 'Full screen'; b.setAttribute('aria-pressed', String(!!U.nFull)); }
+  if (BE.cur && BE.cur.o.pre === 'n') { const h = $('#n-bed'); if (h) h.scrollTop = h.scrollTop; }
+}
 const NOTE_ACT = {
+  notefull: () => noteFull(!U.nFull),
+  notelist: () => { S.settings.notes.list = !noteListOn(); save(); const nt = $('.nt'); if (nt) nt.classList.toggle('nolist', !noteListOn()); const b = $('.ne-lt'); if (b) { b.innerHTML = ic(noteListOn() ? 'sidebar-close' : 'sidebar-open', 18); b.title = noteListOn() ? 'Hide the note list' : 'Show the note list'; b.setAttribute('aria-pressed', String(!noteListOn())); } },
+  async noteicon() { const n = noteById(U.noteSel); if (!n) return; const v = await pickIcon(n.icon || '', 'var(--acc)', 'Note icon'); if (v == null) return; if (v) n.icon = v; else delete n.icon; n.updated = Date.now(); save(); renderMain(); },
   notescope: el => { if (el && el.dataset && el.dataset.sc != null) { S.settings.notes.scope = el.dataset.sc; save(); U.noteSel = null; renderMain(); } else openNoteScope(); },
   scopenotes: el => { S.settings.notes.scope = el.dataset.scope; save(); U.page = 'notes'; U.noteSel = null; U.nq = ''; U.sel = null; document.body.classList.remove('drawer'); render(); },
   noteadd: () => { const n = newNote(noteHomePatch(noteScope())); S.notes.push(n); U.noteSel = n.id; U.nq = ''; save(); sfx('add'); renderMain(); const t = $('.ne-title'); if (t) t.focus(); },
