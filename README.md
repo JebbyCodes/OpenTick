@@ -34,7 +34,7 @@ Plan, schedule and track your day on the web, your desktop and your phone — wi
   </p>
 -->
 
-## What's new in 0.3.0
+## What's new in 0.3.1
 
 **Fixes**
 
