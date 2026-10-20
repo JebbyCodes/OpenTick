@@ -24,7 +24,7 @@ permissions:
   contents: read
 
 env:
-  NODE_VERSION: '22'
+  NODE_VERSION: '24'
   ANDROID_API: '35'
   ANDROID_BUILD_TOOLS_VERSION: '35.0.0'
   ANDROID_NDK_VERSION: '27.0.12077973'
@@ -48,10 +48,10 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -101,7 +101,7 @@ jobs:
         run: npx tauri build
 
       - name: Upload desktop build output
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: OpenTick-${{ matrix.platform }}
           path: src-tauri/target/release/bundle/**
@@ -115,10 +115,10 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -127,7 +127,7 @@ jobs:
         run: npm ci
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
@@ -135,7 +135,7 @@ jobs:
       # Install modern command-line tools and platform-tools.
       # Do not request the obsolete Android SDK "tools" package.
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
         with:
           packages: 'platform-tools'
           accept-android-sdk-licenses: 'true'
@@ -399,7 +399,7 @@ jobs:
           done
 
       - name: Upload Android APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: OpenTick-Android-APK
           path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
@@ -422,7 +422,7 @@ jobs:
 
     steps:
       - name: Download all build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: release-assets
           merge-multiple: false
@@ -476,12 +476,12 @@ jobs:
 
       # Generate signed SLSA build-provenance attestations for installers.
       - name: Generate release artifact attestations
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: 'release-files/*'
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
           files: release-files/*

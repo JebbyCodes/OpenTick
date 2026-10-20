@@ -1,6 +1,6 @@
 [package]
 name = "opentick"
-version = "0.3.2"
+version = "0.3.3"
 description = "Open-source TickTick-style task manager"
 license = "Unlicense"
 repository = "https://github.com/JebbyCodes/OpenTick"
