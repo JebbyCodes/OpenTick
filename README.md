@@ -1,4 +1,4 @@
-<div align="center"><img src="src/logo.png" alt="OpenTick logo" width="120" height="120"><h1>OpenTick</h1><p><strong>A TickTick-style task manager that runs everywhere from one codebase.</strong></p><p>Plan, schedule and track your day on the web, your desktop and your phone — without an account, a subscription or a server you don't own.</p><p>
+<div align="center"><img src="docs/images/banner.png" alt="OpenTick banner" width="240" height="240"><p><strong>A TickTick-style task manager that runs everywhere from one codebase.</strong></p><p>Plan, schedule and track your day on the web, your desktop and your phone — without an account, a subscription or a server you don't own.</p><p>
   <a href="https://unlicense.org"><img src="https://img.shields.io/badge/license-Unlicense-blue.svg" alt="License: Unlicense"></a>
   <a href="#platforms"><img src="https://img.shields.io/badge/platforms-Web%20%C2%B7%20Windows%20%C2%B7%20macOS%20%C2%B7%20Linux%20%C2%B7%20Android%20%C2%B7%20iOS-4d6bfe" alt="Platforms: Web, Windows, macOS, Linux, Android, iOS"></a>
   <a href="https://tauri.app"><img src="https://img.shields.io/badge/built%20with-Tauri%202-24C8DB?logo=tauri&amp;logoColor=white" alt="Built with Tauri 2"></a>
@@ -9,6 +9,8 @@
   <a href="#contributing"><img src="https://img.shields.io/badge/PRs-welcome-34b36b" alt="PRs welcome"></a>
 </p><p>
   <a href="https://rookieenough.github.io/Orion-Data/redirect.html?id=opentick&amp;icon=https%3A%2F%2Fraw.githubusercontent.com%2FJebbyCodes%2FOpenTick%2Frefs%2Fheads%2Fmain%2Fsrc%2Flogo.png"><img src="https://raw.githubusercontent.com/RookieEnough/Orion-Store/refs/heads/main/assets/orion-badge.png" alt="Get it on Orion Store" height="40"></a>
+  <img src="src/logo.png" alt="OpenTick logo" width="60" height="60">
+
 </p><p>
   <a href="#features">Features</a> ·
   <a href="#platforms">Platforms</a> ·
