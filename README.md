@@ -8,8 +8,12 @@
   <a href="#a-note-on-ai"><img src="https://img.shields.io/badge/generated%20with-AI-8e5cf7" alt="Generated with AI"></a>
   <a href="#contributing"><img src="https://img.shields.io/badge/PRs-welcome-34b36b" alt="PRs welcome"></a>
 </p><p>
-  <a href="https://rookieenough.github.io/Orion-Data/redirect.html?id=opentick&amp;icon=https%3A%2F%2Fraw.githubusercontent.com%2FJebbyCodes%2FOpenTick%2Frefs%2Fheads%2Fmain%2Fsrc%2Flogo.png"><img src="https://raw.githubusercontent.com/RookieEnough/Orion-Store/refs/heads/main/assets/orion-badge.png" alt="Get it on Orion Store" height="40"></a>
-  <img src="src/logo.png" alt="OpenTick logo" width="60" height="60">
+
+| <a href="https://rookieenough.github.io/Orion-Data/redirect.html?id=opentick&amp;icon=https%3A%2F%2Fraw.githubusercontent.com%2FJebbyCodes%2FOpenTick%2Frefs%2Fheads%2Fmain%2Fsrc%2Flogo.png"><img src="https://raw.githubusercontent.com/RookieEnough/Orion-Store/refs/heads/main/assets/orion-badge.png" alt="Get it on Orion Store" height="50"></a> | <a href="https://github.com/JebbyCodes/OpenTick/releases/latest"><img src="docs/images/get-it-on-github.png" alt="Get it on GitHub" height="70"></a> |
+| :---: | :---: |
+
+
+
 
 </p><p>
   <a href="#features">Features</a> ·
