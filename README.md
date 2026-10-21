@@ -30,9 +30,9 @@
 --- 
 
   <p align="center">
-    <img src="docs/tasks.png" width="32%" alt="Task list">
-    <img src="docs/timetable.png" width="32%" alt="Timetable week view">
-    <img src="docs/gantt.png" width="32%" alt="Gantt view">
+    <img src="docs/images/tasks.png" width="32%" alt="Task list">
+    <img src="docs/images/timetable.png" width="32%" alt="Timetable week view">
+    <img src="docs/images/gantt.png" width="32%" alt="Gantt view">
   </p>
 
 ## Table of contents
