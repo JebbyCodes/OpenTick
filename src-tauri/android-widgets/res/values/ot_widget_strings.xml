@@ -13,7 +13,7 @@
     <string name="ot_widget_calendar_label">OpenTick · Calendar</string>
     <string name="ot_widget_calendar_desc">A month with the days that have tasks.</string>
     <string name="ot_widget_timetable_label">OpenTick · Timetable</string>
-    <string name="ot_widget_timetable_desc">Today\'s timetable, or your school day.</string>
+    <string name="ot_widget_timetable_desc">Today\'s classes, slots and timed tasks, with end times.</string>
     <string name="ot_widget_matrix_label">OpenTick · Matrix</string>
     <string name="ot_widget_matrix_desc">The four boxes of the Eisenhower matrix.</string>
     <string name="ot_widget_habits_label">OpenTick · Habit</string>

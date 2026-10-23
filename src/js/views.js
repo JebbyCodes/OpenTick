@@ -115,8 +115,12 @@ const FULLDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frida
 const tagChip = g => { const c = tagColor(g); return `<span class="tag"${c ? ` style="--tc:${c}"` : ''}>#${esc(g)}</span>`; };
 // duration + timetable-slot badges shown in a task's meta line
 function metaX(t) {
-  const sl = t.slotId && slotById(t.slotId);
-  return (t.dur ? `<span title="Duration">${ic('clock', 12)} ${fmtDur(t.dur)}</span>` : '') + (sl ? `<span class="slb" style="--tc:${sl.color}" title="Timetable slot">${ic('table', 12)} ${esc(sl.title)}</span>` : '');
+  const sl = t.slotId && slotById(t.slotId), sj = t.subjectId && typeof scSubj === 'function' ? scSubj(t.subjectId) : null;
+  const cd = t.kind === 'exam' && t.status === 'open' && t.due ? dayDiff(t.due, todayStr()) : null; // days to go, for an exam that is still ahead
+  return (t.kind ? `<span class="kb ${t.kind}" title="${t.kind === 'exam' ? 'Exam' : 'Homework'}">${ic(t.kind === 'exam' ? 'exam' : 'homework', 12)}${t.kind === 'exam' ? ` ${cd != null && cd >= 0 && cd <= 30 ? (cd === 0 ? 'Today' : cd === 1 ? 'Tomorrow' : 'In ' + cd + ' days') : 'Exam'}` : ''}</span>` : '')
+    + (sj ? `<span class="slb" style="--tc:${sj.color}" title="Class">${iconAny(sj.icon, 12)} ${esc(sj.name)}</span>` : '')
+    + (t.room ? `<span title="Room">${ic('pin', 12)} ${esc(t.room)}</span>` : '')
+    + (t.dur ? `<span title="Duration">${ic('clock', 12)} ${fmtDur(t.dur)}</span>` : '') + (sl ? `<span class="slb" style="--tc:${sl.color}" title="Timetable slot">${ic('table', 12)} ${esc(sl.title)}</span>` : '');
 }
 const titleHtml = t => (t.title && t.title.trim() ? mdInline(t.title, true) : '<i>Untitled</i>');
 function noteBadge(t) {
@@ -249,7 +253,7 @@ function render() {
   if (typeof WIDGET !== 'undefined' && WIDGET) return renderWidget();
   if (U.gFull && U.page !== 'gantt') { U.gFull = false; document.body.classList.remove('gtfull'); try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) { /* not in full screen */ } }
   if (U.nFull && (U.page !== 'notes' || !U.noteSel)) { U.nFull = false; document.body.classList.remove('nfull'); }
-  document.body.classList.toggle('pg-notes', U.page === 'notes' || U.page === 'history' || (U.page === 'timetable' && schoolOn())); // the Notes page uses the whole width: no details panel
+  document.body.classList.toggle('pg-notes', U.page === 'notes' || U.page === 'history'); // the Notes page uses the whole width: no details panel
   renderSide(); renderMain(); renderDetail(); renderTabbar();
 }
 // phone navigation: the first views as bottom tabs, "More" opens the full menu
@@ -627,6 +631,19 @@ function fitTa(ta) {
   const max = Math.round((typeof window !== 'undefined' && window.innerHeight ? window.innerHeight / Z.z : 800) * 0.7), min = narrow(700) ? 220 : 280;
   ta.style.height = Math.min(max, Math.max(min, (ta.scrollHeight || 0) + 4)) + 'px';
 }
+// Type (task / homework / exam), class, the lesson it belongs to and where an exam is held. Always there for the type; the rest once classes are used.
+function classRows(t) {
+  const subjects = typeof scOf === 'function' ? scOf('subject') : [], use = subjects.length || t.subjectId || t.lessonId;
+  const kindIc = t.kind === 'exam' ? 'exam' : t.kind === 'homework' ? 'homework' : 'graduation';
+  let h = `<div class="dr"><span>${ic(kindIc, 16)}</span><select data-f="kind" title="Task, homework or exam">${opts([['', 'Task'], ['homework', 'Homework'], ['exam', 'Exam']], t.kind || '')}</select>${use ? `<select data-f="subject" title="Class">${opts(scSubjOpts(), t.subjectId && scSubj(t.subjectId) ? t.subjectId : '')}</select>` : ''}</div>`;
+  if (use) {
+    const ch = scLessonChoices(t), cur = t.lessonId && t.due ? t.lessonId + '|' + t.due : '';
+    if (cur && !ch.some(c => c[0] === cur) && scGet(t.lessonId)) ch.unshift([cur, 'Tied to a lesson on another day']);
+    h += `<div class="dr"><span>${ic('table', 16)}</span><select data-f="lesson" title="The lesson this belongs to: it is drawn inside that lesson on the timetable">${opts([['', 'Not tied to a lesson'], ...ch], cur && ch.some(c => c[0] === cur) ? cur : '')}</select>${t.subjectId && scSubj(t.subjectId) ? `<button class="btn sm" data-act="nextlesson" title="Due at the next lesson of this class">Next lesson</button>` : ''}</div>`;
+  }
+  if (t.kind === 'exam' || t.room) h += `<div class="dr"><span>${ic('pin', 16)}</span><input data-f="room" value="${esc(t.room || '')}" placeholder="Room or place" autocomplete="off"></div>`;
+  return h;
+}
 function renderDetail() {
   const t = getT(U.sel), el = $('#detail');
   if (U._dsel !== U.sel) { U._dsel = U.sel; U.nMode = null; if (U.sel) fx('#detail > *', 'fade'); } // opening another task starts in the default mode
@@ -643,7 +660,7 @@ function renderDetail() {
 <div class="dr"><span>${ic('calendar', 16)}</span><input type="date" data-f="due" value="${t.due || ''}"><input type="time" data-f="time" value="${t.time || ''}"${t.due ? '' : ' disabled'}></div>
 <div class="chips"><button class="btn sm${t.due === td ? ' on' : ''}" data-act="qdate" data-w="today">Today</button><button class="btn sm${t.due === tm ? ' on' : ''}" data-act="qdate" data-w="tomorrow">Tomorrow</button><button class="btn sm${t.due === nw ? ' on' : ''}" data-act="qdate" data-w="next">Next week</button><button class="btn sm${!t.due ? ' on' : ''}" data-act="qdate" data-w="none">No date</button></div>
 <div class="dr top"><span>${ic('clock', 16)}</span>${durHtml('task', t.dur)}</div>${slots.length ? `<div class="dr"><span>${ic('table', 16)}</span><select data-f="slot" title="Timetable slot">${opts([['', 'No timetable slot'], ...slots.map(x => [x.id, `${x.title} · ${x.days.map(d => DAYS[d]).join('/')} ${fmtTime(x.start)}`])], t.slotId && slotById(t.slotId) ? t.slotId : '')}</select></div>` : ''}
-<div class="dr"><span>${ic('flag', 16)}</span><div class="pri">${[3, 2, 1, 0].map(p => `<button class="pf p${p}${t.priority === p ? ' on' : ''}" data-act="prio" data-p="${p}">${PRIO[p]}</button>`).join('')}</div></div>
+${classRows(t)}<div class="dr"><span>${ic('flag', 16)}</span><div class="pri">${[3, 2, 1, 0].map(p => `<button class="pf p${p}${t.priority === p ? ' on' : ''}" data-act="prio" data-p="${p}">${PRIO[p]}</button>`).join('')}</div></div>
 <div class="dr"><span>${ic('list', 16)}</span><select data-f="list">${opts(listOpts(), t.listId)}</select>${secs.length ? `<select data-f="section">${opts([['', 'Not sectioned'], ...secs.map(s => [s, s])], t.section || '')}</select>` : ''}</div>
 <div class="dr"><span>${ic('repeat', 16)}</span><select data-f="repeat">${opts([['none', 'Does not repeat'], ...Object.keys(RN).map(k => [k, RN[k]]), ...(rk === 'custom' ? [['custom', repeatLabel(t.repeat)]] : [])], rk)}</select></div>
 <div class="dr top"><span>${ic('bell', 16)}</span>${remHtml('task', t.reminder, U.remCustom === t.id)}</div>
@@ -680,17 +697,22 @@ function ttDays() {
   const ws = +S.settings.weekStart, start = addDays(base, -((base.getDay() - ws + 7) % 7));
   return Array.from({ length: 7 }, (_, i) => addDays(start, i)).filter(d => tt.weekends || (d.getDay() !== 0 && d.getDay() !== 6));
 }
-function ttItems(d) {
-  const k = ymd(d), items = [], allday = [];
+// What is on a day: weekly slots, class lessons (unless they are switched off for the planner), and the tasks due that day. A task joins the block
+// it belongs to: a slot (task.slotId), a lesson (task.lessonId), or, when it has no time of its own, the lesson of its class that day (task.subjectId).
+// Anything that has no block to sit in is drawn on its own (with a time) or listed all day (without one).
+function ttItems(d, o = {}) {
+  const k = ymd(d), items = [], allday = [], cls = o.classes != null ? o.classes : S.settings.tt.classes !== false, off = typeof scOff === 'function' ? scOff(d) : null;
   for (const s of S.slots) if (s.days.includes(d.getDay())) items.push({ k: 'slot', s, a: toMin(s.start), b: Math.max(toMin(s.end), toMin(s.start) + 15), tasks: [] });
+  if (cls && typeof scDayLessons === 'function') for (const { p, l } of scDayLessons(d)) items.push({ k: 'lesson', l, p, s: scSubj(l.subjectId), a: toMin(p.start), b: Math.max(toMin(p.end), toMin(p.start) + 15), tasks: [] });
   for (const t of S.tasks) {
     if (t.deleted || t.status === 'wontdo' || t.due !== k) continue;
-    const host = t.slotId && items.find(o => o.k === 'slot' && o.s.id === t.slotId);
+    const host = (t.slotId && items.find(o => o.k === 'slot' && o.s.id === t.slotId))
+      || (cls && ((t.lessonId && items.find(o => o.k === 'lesson' && o.l.id === t.lessonId)) || (!t.time && t.subjectId && items.find(o => o.k === 'lesson' && o.l.subjectId === t.subjectId))));
     if (host) host.tasks.push(t);
     else if (t.time) { const a = toMin(t.time); items.push({ k: 'task', t, a, b: Math.min(1440, a + (t.dur || 30)) }); }
     else allday.push(t);
   }
-  return { items, allday };
+  return { items, allday, off };
 }
 // side-by-side columns for overlapping blocks; marks slots that overlap another slot
 function ttLayout(items, minMin = 0) {
@@ -707,7 +729,7 @@ function ttLayout(items, minMin = 0) {
     it.col = col; cluster.push(it); end = Math.max(end, it.eb);
   }
   flush();
-  const sl = items.filter(i => i.k === 'slot');
+  const sl = items.filter(i => i.k === 'slot' || i.k === 'lesson');
   sl.forEach(i => { i.clash = sl.some(o => o !== i && i.a < o.b && o.a < i.b); });
 }
 // px per hour so that the shown hours fill the space the grid has (never so tight a label or a block cannot be read)
@@ -746,14 +768,21 @@ function renderTimetablePlan() {
   data.forEach(x => ttLayout(x.items, TT_MINH() / ppm));
   const pos = it => `top:${(it.a - from) * ppm}px;height:${Math.max(TT_MINH(), (it.b - it.a) * ppm - 2)}px;left:calc(${(it.col / it.n) * 100}% + 1px);width:calc(${100 / it.n}% - 3px)`;
   const taskLine = t => `<div class="bl${t.status !== 'open' ? ' fin' : ''}" data-act="open" data-id="${t.id}"><button class="chk sm p${t.priority}${t.status === 'done' ? ' on' : ''}" data-act="toggle" data-id="${t.id}" aria-label="Complete task">${t.status === 'done' ? ic('check', 11) : ''}</button><span>${titleHtml(t)}</span></div>`;
-  const block = (it, d) => it.k === 'slot'
+  // a class lesson: drawn at its lesson time (start and end), not draggable (its times belong to Lesson times); its text wraps instead of sliding
+  const lessonBlock = (it, d) => {
+    const s = it.s, nm = s ? s.name : 'Lesson', room = scRoom(it.l, s), te = scTeacherOf(it.l, s), rng = fmtRange(it.a, it.b);
+    return `<div class="blk lsn${it.clash ? ' clash' : ''}" style="${pos(it)};--c:${scColor(s)}" data-act="sclesson" data-lid="${it.l.id}" data-date="${ymd(d)}" data-a="${it.a}" data-b="${it.b}" title="${esc(nm)} ${rng}${room ? ' · ' + esc(room) : ''}${it.clash ? ' (overlaps another block)' : ''}" tabindex="0" role="button" aria-label="${esc(nm)}, ${rng}${room ? ', ' + esc(room) : ''}${te ? ', ' + esc(te.name) : ''}">`
+      + `<div class="bt">${it.clash && it.n === 1 ? ic('alert', 12) + ' ' : ''}${s ? iconAny(s.icon || 'graduation', 13) + ' ' : ic('graduation', 13) + ' '}<span class="tt-t">${esc(nm)}</span><span class="tt-tm">${rng}</span></div>`
+      + `<div class="bm">${rng}${room ? ` · ${ic('pin', 11)} ${esc(room)}` : ''}${te ? ` · ${esc(te.name)}` : ''}</div>${it.tasks.map(taskLine).join('')}</div>`;
+  };
+  const block = (it, d) => it.k === 'lesson' ? lessonBlock(it, d) : it.k === 'slot'
     ? `<div class="blk slot${it.clash ? ' clash' : ''}${editedCls(it.s.id)}" style="${pos(it)};--c:${it.s.color}" data-act="ttslot" data-sid="${it.s.id}" data-day="${d.getDay()}" data-a="${it.a}" data-b="${it.b}"${dragAttr()} title="${esc(it.s.title)} ${fmtRange(it.a, it.b)}${it.clash ? ' (overlaps another slot)' : ''}" tabindex="0" role="button" aria-label="${esc(it.s.title)}, ${fmtRange(it.a, it.b)}${it.clash ? ', overlaps another slot' : ''}"><div class="bt">${it.clash && it.n === 1 ? ic('alert', 12) + ' ' : ''}<span class="tt-t">${it.s.icon ? iconAny(it.s.icon, 13) + " " : ""}${esc(it.s.title)}</span><span class="tt-tm">${fmtRange(it.a, it.b)}</span></div><div class="bm">${fmtRange(it.a, it.b)} · ${fmtDur(it.b - it.a)}${it.s.loc ? ` · ${ic('pin', 11)} ${esc(it.s.loc)}` : ''}</div>${it.tasks.map(taskLine).join('')}<i class="rz rz-t" data-e="top" data-k="slot" data-id="${it.s.id}"></i><i class="rz" data-k="slot" data-id="${it.s.id}"></i></div>`
     : `<div class="blk tk p${it.t.priority}${it.t.status !== 'open' ? ' fin' : ''}${U.sel === it.t.id ? ' sel' : ''}${editedCls(it.t.id)}" style="${pos(it)}" data-act="open" data-id="${it.t.id}" data-a="${it.a}" data-b="${it.b}"${dragAttr()} title="${esc(it.t.title)} ${fmtRange(it.a, it.b)}" tabindex="0" role="button" aria-label="${esc(it.t.title)}, ${fmtRange(it.a, it.b)}"><div class="bt"><button class="chk sm p${it.t.priority}${it.t.status === 'done' ? ' on' : ''}" data-act="toggle" data-id="${it.t.id}" aria-label="Complete task">${it.t.status === 'done' ? ic('check', 11) : ''}</button> <span class="tt-t">${titleHtml(it.t)}</span><span class="tt-tm">${fmtRange(it.a, it.b)}</span></div><div class="bm">${fmtRange(it.a, it.b)} · ${fmtDur(it.b - it.a)}</div><i class="rz rz-t" data-e="top" data-k="task" data-id="${it.t.id}"></i><i class="rz" data-k="task" data-id="${it.t.id}"></i></div>`;
   const head = `<div class="tt-row"><div class="tt-cor"></div>${data.map(x => `<button class="tt-dh${x.k === td ? ' today' : ''}" data-act="ttday" data-d="${x.k}" title="Open this day"><small>${DAYS[x.d.getDay()]}</small><b>${x.d.getDate()}</b></button>`).join('')}</div>`;
-  const adOpen = tt.adOpen !== false, adN = data.reduce((n, x) => n + x.allday.length, 0);
-  const allday = `<div class="tt-row tt-adrow${adOpen ? '' : ' closed'}"><div class="tt-cor"><button class="adtog" data-act="ttad" aria-expanded="${adOpen}" title="${adOpen ? 'Hide' : 'Show'} all-day tasks"><span>all day</span>${adN ? `<b>${adN}</b>` : ''}${ic(adOpen ? 'up' : 'down', 12)}</button></div>${data.map(x => `<div class="tt-ad" data-d="${x.k}">${x.allday.map(t => `<div class="chip adc p${t.priority}${t.status !== 'open' ? ' fin' : ''}${U.sel === t.id ? ' sel' : ''}${editedCls(t.id)}" data-act="open" data-id="${t.id}"${dragAttr()}><button class="chk sm p${t.priority}${t.status === 'done' ? ' on' : ''}" data-act="toggle" data-id="${t.id}" aria-label="Complete task">${t.status === 'done' ? ic('check', 13) : ''}</button><span class="adt">${titleHtml(t)}</span></div>`).join('')}</div>`).join('')}</div>`;
+  const adOpen = tt.adOpen !== false, adN = data.reduce((n, x) => n + x.allday.length + (x.off ? 1 : 0), 0);
+  const allday = `<div class="tt-row tt-adrow${adOpen ? '' : ' closed'}"><div class="tt-cor"><button class="adtog" data-act="ttad" aria-expanded="${adOpen}" title="${adOpen ? 'Hide' : 'Show'} all-day tasks"><span>all day</span>${adN ? `<b>${adN}</b>` : ''}${ic(adOpen ? 'up' : 'down', 12)}</button></div>${data.map(x => `<div class="tt-ad${x.off ? ' hasoff' : ''}" data-d="${x.k}">${x.off ? `<div class="chip offc" title="${esc(scName())}: day off">${ic('sun', 12)}<span class="adt">${esc(x.off.label || 'Day off')}</span></div>` : ''}${x.allday.map(t => `<div class="chip adc p${t.priority}${t.status !== 'open' ? ' fin' : ''}${U.sel === t.id ? ' sel' : ''}${editedCls(t.id)}" data-act="open" data-id="${t.id}"${dragAttr()}><button class="chk sm p${t.priority}${t.status === 'done' ? ' on' : ''}" data-act="toggle" data-id="${t.id}" aria-label="Complete task">${t.status === 'done' ? ic('check', 13) : ''}</button><span class="adt">${titleHtml(t)}</span></div>`).join('')}</div>`).join('')}</div>`;
   const hours = Array.from({ length: (to - from) / 60 }, (_, i) => `<span style="top:${i * TT_HH}px">${fmtHour(from / 60 + i)}</span>`).join('');
-  const cols = data.map(x => `<div class="tt-col${x.k === td ? ' today' : ''}" data-act="ttcell" data-d="${x.k}" data-from="${from}">${x.items.map(it => block(it, x.d)).join('')}${x.k === td && nowM >= from && nowM <= to ? `<div class="tt-now" style="top:${(nowM - from) * ppm}px"></div>` : ''}</div>`).join('');
+  const cols = data.map(x => `<div class="tt-col${x.k === td ? ' today' : ''}${x.off ? ' off' : ''}" data-act="ttcell" data-d="${x.k}" data-from="${from}">${x.items.map(it => block(it, x.d)).join('')}${x.k === td && nowM >= from && nowM <= to ? `<div class="tt-now" style="top:${(nowM - from) * ppm}px"></div>` : ''}</div>`).join('');
   const trayOn = ttTrayOn(), un = ttUnscheduled();
   const tray = trayOn ? `<aside class="tray"><div class="rs rs-l" data-rs="tray" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize · double-click to reset"></div><div class="trh"><b>Tasks</b><small>${un.length} without a time</small><button class="ib sm" data-act="tttray" title="Hide this panel">${ic('x', 14)}</button></div><input class="tradd" placeholder="+ New task  (try “Study 4pm for 90min”)" autocomplete="off"><div class="trl">${un.slice(0, 80).map(ttTrayItem).join('') || '<p class="hint">Nothing waiting — nice.</p>'}</div><p class="hint">Drag a task onto the grid, or press the clock to pick a time. Pull a block’s top or bottom edge to resize it.</p></aside>` : '';
   const seg = `<div class="seg">${[['day', 'Day'], ['3day', '3 days'], ['week', 'Week']].map(([v, n]) => `<button class="${view === v ? 'on' : ''}" data-act="ttview" data-v="${v}">${n}</button>`).join('')}</div>`;
@@ -761,7 +790,7 @@ function renderTimetablePlan() {
   const old = $('.tt-scroll'), keep = old && !U.ttRe ? old.scrollTop * (TT_HH / (prevHH || TT_HH)) : null;
   const draft = $('.tradd') ? $('.tradd').value : '';
   const hint = S.slots.length ? '' : `<p class="hint pad">${phone ? 'Tap' : 'Click, or drag across'} the grid to add a task or a weekly slot (a class, shift or routine). Tasks with a time appear here too.</p>`;
-  const legend = phone ? '' : `<div class="tt-legend"><span><i class="lg slot"></i>Weekly slot</span><span><i class="lg task"></i>Task with a time</span><span class="hint">Click or drag on the grid to add · drag a block to move it · pull its top or bottom edge to resize</span></div>`;
+  const legend = phone ? '' : `<div class="tt-legend"><span><i class="lg slot"></i>Weekly slot</span><span><i class="lg task"></i>Task with a time</span>${S.settings.tt.classes !== false && scHas() ? `<span><i class="lg lsn"></i>${esc(scName())} lesson</span>` : ''}<span class="hint">Click or drag on the grid to add · drag a block to move it · pull its top or bottom edge to resize</span></div>`;
   const strip = view === 'week' ? '' : ttStrip(days[0]);
   $('#main').innerHTML = topHtml(esc(ttRange(days)), tools) + strip + hint + legend
     + `<div class="tt"><div class="tt-scroll"><div class="tt-inner" style="--n:${data.length};--cw:${view === 'week' ? (phone ? 92 : 104) : 0}px;--hh:${TT_HH}px"><div class="tt-top">${view === 'day' ? '' : head}${allday}</div><div class="tt-body" style="height:${(to - from) * ppm}px"><div class="tt-gut">${hours}</div>${cols}</div></div></div>${tray}</div>`

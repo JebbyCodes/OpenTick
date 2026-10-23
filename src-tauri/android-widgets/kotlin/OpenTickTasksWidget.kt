@@ -38,8 +38,9 @@ class OpenTickTasksWidget : OtBaseWidget() {
         rv.setTextViewText(R.id.ot_title, "Today")
         rv.setTextViewText(R.id.ot_count, if (tasks.isEmpty()) "" else "${tasks.size} to do")
         rv.setTextColor(R.id.ot_empty, th.muted)
-        rv.setTextViewText(R.id.ot_empty, if (data == null) "Open OpenTick once to fill this widget" else "Nothing due today")
-        OtUi.show(rv, R.id.ot_empty, tasks.isEmpty())
+        val locked = data?.optBoolean("locked", false) == true
+        rv.setTextViewText(R.id.ot_empty, if (data == null) "Open OpenTick once to fill this widget" else if (locked) OtUi.LOCKED else "Nothing due today")
+        OtUi.show(rv, R.id.ot_empty, tasks.isEmpty() || locked)
         for (n in ROW.indices) {
             if (n < rowsFit && n < tasks.size) {
                 val t = tasks[n]

@@ -5,14 +5,15 @@
 // what a person would call their data, counted the way they see it (no Inbox, no trash, no finished repeats)
 function dataCounts() {
   const t = S.tasks.filter(x => !x.deleted && !x.log).length;
-  return { tasks: t, lists: S.lists.filter(l => l.id !== 'inbox').length, notes: S.notes.length, habits: S.habits.length, projects: S.projects.length, slots: S.slots.length, school: S.school.filter(r => r.k !== 'cfg' && r.k !== 'period').length,
+  return { tasks: t, lists: S.lists.filter(l => l.id !== 'inbox').length, notes: S.notes.length, habits: S.habits.length, projects: S.projects.length, slots: S.slots.length, school: S.school.filter(r => r.k !== 'cfg' && r.k !== 'period').length, classes: S.school.filter(r => r.k === 'subject').length, lessons: S.school.filter(r => r.k === 'lesson').length,
     files: [...S.tasks, ...S.notes, ...S.slots].reduce((n, o) => n + ((o.files || []).length), 0) };
 }
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 function dataCountsText(c = dataCounts()) {
   const out = [];
   if (c.tasks) out.push(plural(c.tasks, 'task')); if (c.lists) out.push(plural(c.lists, 'list')); if (c.projects) out.push(plural(c.projects, 'project'));
-  if (c.notes) out.push(plural(c.notes, 'note')); if (c.habits) out.push(plural(c.habits, 'habit')); if (c.slots) out.push(plural(c.slots, 'timetable slot')); if (c.school) out.push(plural(c.school, 'school item')); if (c.files) out.push(plural(c.files, 'attached file'));
+  if (c.notes) out.push(plural(c.notes, 'note')); if (c.habits) out.push(plural(c.habits, 'habit')); if (c.slots) out.push(plural(c.slots, 'timetable slot')); if (c.classes) out.push(`${c.classes} class${c.classes === 1 ? '' : 'es'}`); if (c.lessons) out.push(plural(c.lessons, 'lesson'));
+  { const rest = (c.school || 0) - (c.classes || 0) - (c.lessons || 0); if (rest > 0) out.push(plural(rest, 'other class item')); } if (c.files) out.push(plural(c.files, 'attached file'));
   return out.length ? out.join(', ') : 'nothing yet';
 }
 // the bytes of attachments live in IndexedDB; this drops every one of them
@@ -74,10 +75,22 @@ function backupMerge(d) {
   const before = dataCounts(); applyMerged(mergeData(snapshot(), d)); save(); flush();
   const after = dataCounts(); return { tasks: Math.max(0, after.tasks - before.tasks), notes: Math.max(0, after.notes - before.notes) };
 }
+// a backup file's text -> the data (null when the person cancels the passphrase). An encrypted backup is opened with this vault's key, or the passphrase / recovery key typed for it.
+async function backupParse(txt) {
+  let d; try { d = JSON.parse(txt); } catch (e) { throw new Error('not an OpenTick backup'); }
+  if (d && d.app === 'opentick' && d.enc) {
+    if (!vIsEnv(d)) throw new Error('this encrypted backup is damaged');
+    if (!vaultAvail()) throw new Error('this backup is encrypted, and this browser cannot decrypt it (that needs https)');
+    const plain = await vaultOpenFile(d, 'backup'); if (plain == null) return null;
+    d = JSON.parse(plain);
+  }
+  return d;
+}
 async function importData() {
   try {
     const txt = await pickText(); if (!txt) return;
-    const d = JSON.parse(txt); if (d) delete d._app;
+    const d = await backupParse(txt); if (d === null) return;
+    if (d) delete d._app;
     if (!d || !Array.isArray(d.tasks) || !Array.isArray(d.lists)) throw new Error('not an OpenTick backup');
     const n = d.tasks.filter(t => !t.deleted && !t.log).length, nn = (d.notes || []).length;
     const how = await new Promise(res => {

@@ -11,11 +11,14 @@ const NOTE_FMT = [
   ['task', 'check-square', 'Checklist'], ['quote', 'quote', 'Quote'], ['table', 'table', 'Insert a table'], ['img', 'image', 'Insert an image'], ['embed', 'embed', 'Embed a video, audio, PDF or music player (paste its link)'], ['nembed', 'sticky', 'Embed another note'], ['hr', 'minus', 'Divider'],
 ];
 const mdToolbar = target => NOTE_FMT.map(([k, l, tt]) => `<button class="fmt" data-act="nfmt" data-k="${k}" data-for="${target}" title="${tt}" aria-label="${esc(tt)}">${ic(l, 17)}</button>`).join('');
-const edModeSeg = (mode, pre) => `<div class="seg" role="tablist">${[['blocks', 'Edit'], ['write', 'Source'], ['split', 'Split'], ['preview', 'Preview']].map(([m, n]) => `<button class="${mode === m ? 'on' : ''}${m === 'split' ? ' hide-m' : ''}" data-ed="${pre}" data-mode="${m}" role="tab" title="${{ blocks: 'Edit with blocks: type / for a menu', write: 'Edit the Markdown text', split: 'Markdown beside a live preview', preview: 'Read it' }[m]}">${n}</button>`).join('')}</div>`;
+const edModeSeg = (mode, pre) => `<div class="seg" role="tablist">${[['blocks', 'Edit', 'pencil'], ['write', 'Source', 'code'], ['split', 'Split', 'columns'], ['preview', 'Preview', 'eye']].map(([m, n, i]) => `<button class="${mode === m ? 'on' : ''}${m === 'split' ? ' hide-m' : ''}" data-ed="${pre}" data-mode="${m}" role="tab" aria-label="${n}" title="${{ blocks: 'Edit with blocks: type / for a menu', write: 'Edit the Markdown text', split: 'Markdown beside a live preview', preview: 'Read it' }[m]}"><span class="sg-i">${ic(i, 17)}</span><span class="sg-t">${n}</span></button>`).join('')}</div>`;
 // the editing surface itself: a textarea and a rendered preview side by side (or one of them)
 const edBody = (pre, text, mode, field, ph) => `<div class="ed ed-${mode}" id="${pre}-ed"><div class="bed" id="${pre}-bed" data-ph="${esc(ph)}"></div><textarea id="${pre}-ta" data-md data-f="${field}" spellcheck="true" placeholder="${esc(ph)}">${esc(text)}</textarea><div class="md edprev" id="${pre}-pv">${previewHtml(text)}</div></div>`;
 const previewHtml = text => (String(text || '').trim() ? md(text) : '<p class="hint">Nothing to preview yet.</p>');
-const edStats = text => { const s = mdStats(text), w = wordCount(text); return `${w} word${w === 1 ? '' : 's'} · ${String(text || '').length} characters${w > 150 ? ` · ${Math.max(1, Math.round(w / 220))} min read` : ''}${s.total ? ` · ${s.done}/${s.total} done` : ''}`; };
+// the word count first, then the rest (a phone shows only the first part)
+const edStatsParts = text => { const s = mdStats(text), w = wordCount(text); return [`${w} word${w === 1 ? '' : 's'}`, ` · ${String(text || '').length} characters${w > 150 ? ` · ${Math.max(1, Math.round(w / 220))} min read` : ''}${s.total ? ` · ${s.done}/${s.total} done` : ''}`]; };
+const edStats = text => edStatsParts(text).join('');
+const noteFoot = n => { const [a, b] = edStatsParts(n.body); return `<span class="ne-st"><span class="ne-w">${a}</span><span class="ne-x">${b}</span></span><span class="ne-sv"><span class="sv" data-sv></span> <span id="n-when">${editedText(n, true)}</span></span>`; };
 // "split" needs room: on a narrow screen it quietly becomes "write"
 const edMode = pref => (pref === 'auto' || !pref ? 'blocks' : pref === 'split' && narrow(900) ? 'write' : pref);
 
@@ -78,25 +81,29 @@ ${S.projects.length ? '<div class="scg">Projects</div>' + S.projects.map(p => ro
     };
   }, 'wide');
 }
+// does the note have anything in its details (tags, a list or project, linked tasks, attachments)? a dot on the phone's details button says so
+const noteHasDetails = n => !!((n.tags || []).length || n.listId || n.projectId || (n.files || []).length || (typeof linkedTasks === 'function' && linkedTasks(n).length));
 function noteEditorHtml(n) {
   const mode = edMode(S.settings.notes.view);
   return `<div class="ne-head"><button class="ib mob2" data-act="noteback" aria-label="Back to the list">${ic('left', 20)}</button><button class="ib ne-ico" data-act="noteicon" title="Note icon" aria-label="Choose an icon for this note">${iconAny(n.icon, 20, 'file-text')}</button><input class="ne-title" data-f="ntitle" value="${esc(n.title)}" placeholder="Untitled note" autocomplete="off">`
+    + `<button class="ib ne-dt${U.nDet ? ' on' : ''}" data-act="notedet" title="Tags, list, links and attachments" aria-label="Details: tags, list, links and attachments" aria-expanded="${!!U.nDet}">${ic('sliders', 18)}${noteHasDetails(n) ? '<i class="ne-dot" aria-hidden="true"></i>' : ''}</button>`
     + `<button class="ib${n.pinned ? ' on' : ''}" data-act="notepin" title="${n.pinned ? 'Unpin' : 'Pin to the top'}">${ic('star', 18)}</button>${edModeSeg(mode, 'n')}<button class="ib hide-m ne-lt" data-act="notelist" title="${noteListOn() ? 'Hide the note list' : 'Show the note list'}" aria-label="Toggle the note list" aria-pressed="${!noteListOn()}">${ic(noteListOn() ? 'sidebar-close' : 'sidebar-open', 18)}</button><button class="ib ne-fs" data-act="notefull" title="${U.nFull ? 'Leave full screen (Esc)' : 'Full screen'}" aria-label="Full screen" aria-pressed="${!!U.nFull}">${ic(U.nFull ? 'minimize-2' : 'maximize-2', 18)}</button><button class="ib" data-act="notemenu" title="More">${ic('more', 18)}</button></div>`
-    + `<div class="ne-props"><div class="ne-tags"><span>${ic('tag', 14)}</span><input data-f="ntags" value="${esc(n.tags.map(g => '#' + g).join(' '))}" placeholder="#tags" autocomplete="off"></div><label class="ne-home" title="Where this note is filed"><span>${ic('folder', 14)}</span><select data-f="nhome" aria-label="List or project">${noteHomeOptions(noteHomeValue(n))}</select></label></div>`
+    + `<div class="ne-det" id="n-det"><div class="ne-props"><div class="ne-tags"><span>${ic('tag', 14)}</span><input data-f="ntags" value="${esc(n.tags.map(g => '#' + g).join(' '))}" placeholder="#tags" autocomplete="off"></div><label class="ne-home" title="Where this note is filed"><span>${ic('folder', 14)}</span><select data-f="nhome" aria-label="List or project">${noteHomeOptions(noteHomeValue(n))}</select></label></div>`
     + `<div class="ne-links" id="n-links">${noteLinksHtml(n)}</div>`
-    + `<details class="ne-att"${(n.files || []).length ? ' open' : ''}><summary>${ic('paperclip', 14)} Attachments${(n.files || []).length ? ` <span class="fcnt">${n.files.length}</span>` : ''}</summary>${filesHtml('note', n.id)}</details>`
+    + `<details class="ne-att"${(n.files || []).length ? ' open' : ''}><summary>${ic('paperclip', 14)} Attachments${(n.files || []).length ? ` <span class="fcnt">${n.files.length}</span>` : ''}</summary>${filesHtml('note', n.id)}</details></div>`
     + `<div class="ne-tool${mode === 'blocks' ? ' bm' : ''}" id="n-tool"${mode === 'preview' ? ' hidden' : ''}>${mdToolbar('#n-ta')}</div>`
     + edBody('n', n.body, mode, 'nbody', 'Start writing… Markdown is supported: # headings, **bold**, - lists, [[links to other notes]], tables and more.')
-    + `<div class="ne-foot" id="n-stat">${edStats(n.body)}<span><span class="sv" data-sv></span> <span id="n-when">${editedText(n, true)}</span></span></div>`;
+    + `<div class="ne-foot" id="n-stat">${noteFoot(n)}</div>`;
 }
 function renderNotes() {
   let n = U.noteSel && noteById(U.noteSel); if (!n) U.noteSel = null;
   if (!n && !narrow(820) && !U.nq) { const first = noteList()[0]; if (first) { n = first; U.noteSel = first.id; } }
+  if (U._nDetFor !== (n ? n.id : null)) { U._nDetFor = n ? n.id : null; U.nDet = false; } // the details fold away again when another note is opened
   const tools = `<button class="btn pri" data-act="noteadd">${ic('plus', 16)}<span class="hide-m"> New note</span></button><button class="ib" data-act="noteimport" title="Import a Markdown file">${ic('upload')}</button>`;
   $('#main').innerHTML = topHtml('Notes', tools)
     + `<div class="nt${n ? ' open' : ''}${noteListOn() ? '' : ' nolist'}"><aside class="nt-list"><button type="button" class="nt-scope${noteScope() ? ' on' : ''}" data-act="notescope" title="Show the notes of a list or project">${ic('folder', 14)}<span>${esc(noteScopeLabel())}</span><em>${noteScopeCount(noteScope())}</em>${ic('down', 12)}</button><div class="nt-search">${ic('search', 15)}<input id="nq" placeholder="Search notes" value="${esc(U.nq)}" autocomplete="off"></div><div class="nt-items" id="nt-items">${noteListHtml()}</div></aside>`
-    + `<section class="nt-ed${U.nFull && n ? ' full' : ''}" id="nt-ed">${n ? noteEditorHtml(n) : `<div class="empty">${ic('file-text', 44)}<p>${S.notes.length ? 'Pick a note to read or edit it' : 'Write your first note'}</p><button class="btn pri" data-act="noteadd">${ic('plus', 16)} New note</button></div>`}</section></div>`;
-  noteBedStart();
+    + `<section class="nt-ed${U.nFull && n ? ' full' : ''}${U.nDet && n ? ' det' : ''}" id="nt-ed">${n ? noteEditorHtml(n) : `<div class="empty">${ic('file-text', 44)}<p>${S.notes.length ? 'Pick a note to read or edit it' : 'Write your first note'}</p><button class="btn pri" data-act="noteadd">${ic('plus', 16)} New note</button></div>`}</section></div>`;
+  noteBedStart(); noteVV();
 }
 // start the block editor on the Notes page (when that is the chosen mode)
 function noteBedStart() {
@@ -111,7 +118,7 @@ function notePaint() {
   const n = noteById(U.noteSel); if (!n) return;
   const pv = $('#n-pv'), blocks = BE.cur && BE.cur.o.pre === 'n' && $('#n-ed') && $('#n-ed').classList.contains('ed-blocks');
   if (blocks) { if (BE.cur.cur !== n.body) bedReload(BE.cur); } else if (pv) pv.innerHTML = previewHtml(n.body);
-  const st = $('#n-stat'); if (st) st.innerHTML = `${edStats(n.body)}<span><span class="sv" data-sv></span> <span id="n-when">${editedText(n, true)}</span></span>`;
+  const st = $('#n-stat'); if (st) st.innerHTML = noteFoot(n);
   renderNoteList();
 }
 function noteInput(field, v) {
@@ -142,15 +149,21 @@ const NOTE_ACT = {
   noteadd: () => { const n = newNote(noteHomePatch(noteScope())); S.notes.push(n); U.noteSel = n.id; U.nq = ''; save(); sfx('add'); renderMain(); const t = $('.ne-title'); if (t) t.focus(); },
   noteopen: el => { U.noteSel = el.dataset.id; renderMain(); },
   noteback: () => { U.noteSel = null; renderMain(); },
+  // phones: tags, list or project, linked tasks and attachments are folded away until asked for, so the note itself gets the screen
+  notedet: () => { U.nDet = !U.nDet; const ed = $('#nt-ed'); if (ed) ed.classList.toggle('det', U.nDet); const b = $('.ne-dt'); if (b) { b.classList.toggle('on', U.nDet); b.setAttribute('aria-expanded', String(U.nDet)); } },
   notepin: () => { const n = noteById(U.noteSel); if (!n) return; n.pinned = !n.pinned; save(); renderMain(); },
   async notemenu() {
     const n = noteById(U.noteSel); if (!n) return;
-    const items = [{ label: 'Export as Markdown file…' }, { label: 'Copy as Markdown' }, { label: 'Duplicate' }, { label: 'Delete note', danger: true }];
+    const phone = narrow(820); // the header of a phone has room for the title, not for these two buttons
+    const items = [...(phone ? [{ k: 'pin', label: n.pinned ? 'Unpin from the top' : 'Pin to the top' }, { k: 'icon', label: 'Change the icon…' }] : []), { k: 'export', label: 'Export as Markdown file…' }, { k: 'copy', label: 'Copy as Markdown' }, { k: 'dup', label: 'Duplicate' }, { k: 'del', label: 'Delete note', danger: true }];
     const i = await askMenu(noteTitle(n), items); if (i == null) return;
-    if (i === 0) { try { if (await saveText(noteFile(n), noteMarkdown(n), 'text/markdown')) toast('Exported'); } catch (e) { toast('Export failed: ' + (e.message || e)); } }
-    else if (i === 1) { try { await navigator.clipboard.writeText(noteMarkdown(n)); toast('Copied'); } catch (e) { toast('Could not copy: ' + (e.message || e)); } }
-    else if (i === 2) { const c = newNote({ title: (n.title || noteTitle(n)) + ' (copy)', body: n.body, tags: [...n.tags], ...(n.listId ? { listId: n.listId } : {}), ...(n.projectId ? { projectId: n.projectId } : {}) }); S.notes.push(c); U.noteSel = c.id; save(); renderMain(); }
-    else if (i === 3 && await askConfirm(`Delete “${noteTitle(n)}”? This cannot be undone.`)) {
+    const k = items[i].k;
+    if (k === 'pin') NOTE_ACT.notepin();
+    else if (k === 'icon') NOTE_ACT.noteicon();
+    else if (k === 'export') { try { if (await saveText(noteFile(n), noteMarkdown(n), 'text/markdown')) toast('Exported'); } catch (e) { toast('Export failed: ' + (e.message || e)); } }
+    else if (k === 'copy') { try { await navigator.clipboard.writeText(noteMarkdown(n)); toast('Copied'); } catch (e) { toast('Could not copy: ' + (e.message || e)); } }
+    else if (k === 'dup') { const c = newNote({ title: (n.title || noteTitle(n)) + ' (copy)', body: n.body, tags: [...n.tags], ...(n.listId ? { listId: n.listId } : {}), ...(n.projectId ? { projectId: n.projectId } : {}) }); S.notes.push(c); U.noteSel = c.id; save(); renderMain(); }
+    else if (k === 'del' && await askConfirm(`Delete “${noteTitle(n)}”? This cannot be undone.`)) {
       const next = noteList().find(x => x.id !== n.id); S.tasks.forEach(t => { if ((t.links || []).includes(n.id)) t.links = t.links.filter(x => x !== n.id); }); S.notes = S.notes.filter(x => x !== n); U.noteSel = narrow(820) ? null : next ? next.id : null; save(); sfx('trash'); renderMain();
     }
   },
@@ -266,3 +279,14 @@ function openLinkPicker(kind, id) {
     };
   }, 'wide');
 }
+
+/* ---------- phones: the open note fills what is visible, above the on-screen keyboard ----------
+   When the keyboard opens the visual viewport gets shorter (and may be scrolled); the editor follows it, so the tools and the
+   cursor are never hidden behind the keyboard. Nothing is set unless a note is open on a phone. */
+function noteVV() {
+  const v = typeof window !== 'undefined' ? window.visualViewport : null, de = typeof document !== 'undefined' ? document.documentElement : null, st = de && de.style;
+  if (!st || !st.setProperty) return;
+  if (!v || !narrow(820) || U.page !== 'notes' || !U.noteSel) { st.removeProperty('--vvh'); st.removeProperty('--vvt'); return; }
+  st.setProperty('--vvh', Math.round(v.height) + 'px'); st.setProperty('--vvt', Math.round(v.offsetTop) + 'px');
+}
+if (typeof window !== 'undefined' && window.visualViewport && window.visualViewport.addEventListener) { window.visualViewport.addEventListener('resize', noteVV); window.visualViewport.addEventListener('scroll', noteVV); }

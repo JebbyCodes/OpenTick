@@ -22,16 +22,24 @@ const HELP = [
 <li><b>Times</b> are written the way the 12 / 24-hour clock setting says (Settings → Clock). Every block shows its start and end; short blocks put the time beside the title, narrow ones put it underneath.</li>
 <li><b>All day</b> tasks (a date but no time) sit in the row under the days. Press that row’s label to fold it away and free space; the count stays visible.</li>
 <li>The <b>sliders</b> button opens timetable options: hide the quiet hours (6:00–22:00 plus anything scheduled or the current time), choose your own first and last hour, <i>fit the day to the screen</i> so more hours show without scrolling, and show or hide weekends.</li>
-<li>Two slots that overlap are drawn side by side and outlined in red so a clash is easy to see.</li></ul>`],
-  ['school', 'School timetable', `
-<p>The cap icon in the Timetable header opens the <b>school timetable</b>, a classic school week kept apart from your tasks: nothing in it appears in Today, lists, the matrix or the calendar. The same button (now a grid) takes you back to the planner.</p>
-<ul><li><b>Lesson times:</b> start with <i>Use a standard school day</i> or enter your own periods and breaks (<i>sliders → Lesson times</i>).</li>
-<li><b>Subjects</b> have a colour, an icon, a usual room and a teacher; <b>Teachers</b> keep an email and phone number. Tap an empty cell in the weekly grid to put a subject in that lesson; tap a filled cell to change or remove it.</li>
-<li><b>A / B weeks:</b> turn on <i>Alternate between week A and week B</i> in the settings, then mark a lesson as every week, A only or B only. <i>Swap</i> flips which week is which. The arrows in the header look at other weeks.</li>
-<li><b>Today</b> shows the lesson on <i>now</i> and <i>next</i>, today’s lessons, homework due this week and exams in the next three weeks.</li>
-<li><b>Homework</b> can be ticked off; <b>Exams</b> count down; <b>Notes</b> are small jottings, optionally tied to a subject.</li>
+<li>Two slots that overlap are drawn side by side and outlined in red so a clash is easy to see.</li>
+<li><b>Lessons and exams:</b> classes from the Classes page are drawn in the grid at their times (outlined, with the room and teacher), and exams appear as timed tasks. A task that belongs to a lesson sits inside that lesson’s block. Tap a lesson for its tasks, to add one, or to cancel it for one day; days off hide lessons.</li></ul>`],
+  ['classes', 'Classes: lessons, exams and homework', `
+<p>The <b>Classes</b> button in the Timetable header (a graduation cap) opens a weekly lessons page: a school week, a university course list, a training rota. Call it what you like in <i>sliders → Name</i> (Classes, Lessons, Courses, Lectures, Schedule…). The grid button takes you back to the planner. <b>Lessons, exams, homework and tasks are all part of the same timetable:</b> the planner draws your lessons beside your slots and timed tasks, and Classes is the same data laid out for studying.</p>
+<ul><li><b>Pages:</b> <i>Today</i> (what is on now and next, and how long until it ends), <i>Day</i> (everything on one day as an agenda: lessons, slots, timed tasks and breaks, each with its start and end), <i>Week</i> (the whole grid at a glance), <i>Exams</i>, <i>Homework</i>, <i>Subjects</i>, <i>Teachers</i> and <i>Notes</i>. Nothing needs scrolling sideways, and names wrap instead of scrolling past: on a narrow phone a long name shrinks to its short name (set one under Subjects) so every lesson is readable.</li>
+<li><b>Lesson times:</b> start with <i>Use a standard school day</i> or enter your own periods and breaks (<i>sliders → Lesson times</i>). Lessons are placed by these times, and drawn at those times in the planner.</li>
+<li><b>Subjects</b> have a colour, an icon, a short name, a usual room and a teacher. Tap an empty cell in the week to put a class there; tap a lesson to see its tasks, change it, cancel it for just that day, or remove it.</li>
+<li><b>A / B weeks</b> and <b>days off:</b> in the settings turn on <i>Alternate between week A and week B</i>, and add holidays so lessons are hidden on those days.</li>
+<li><b>Exams and homework are ordinary tasks.</b> They live in a list (or sublist or project) you choose, can have subtasks, notes, a reminder and attachments, and show up in Today, the calendar and the matrix. Set a task’s <i>Type</i> to Exam or Homework, and its <i>Class</i> (and, for an exam, the room), in the task’s details, or type it in the quick-add box: <i>“Chapter 4 test /exam @physics friday 9am”</i> or <i>“Exercises 3 to 8 /hw @maths tomorrow”</i>.</li>
+<li><b>Tasks on top of a lesson:</b> a task can belong to a lesson. Choose <i>Lesson</i> in its details, or press <i>Next lesson</i> on homework to set the due date and the lesson in one tap. It then sits on that lesson in the planner and shows under it on the Day page.</li>
+<li>The <b>Add</b> menu makes a lesson, exam, homework, task, weekly slot or day off from wherever you are. Existing school data from older versions is converted for you: exams and homework become tasks in a list called <i>Classes</i>.</li>
 <li>A <b>reminder</b> arrives shortly before each lesson (settings → Remind me). OpenTick cannot silence your phone during lessons; use your system’s Do Not Disturb schedule for that.</li>
-<li>It is saved, backed up and synced like everything else.</li></ul>`],
+<li>It is saved, encrypted (when you turn that on), backed up and synced like everything else. <i>Show lessons on the main timetable</i> in the settings hides them from the planner if you would rather keep it to tasks and slots.</li></ul>`],
+  ['notes', 'Notes', `
+<p>Notes are Markdown pages that can be filed in a list or project, tagged, pinned, linked to tasks and given attachments. Write with blocks (type <code>/</code> for a menu), as plain Markdown, beside a live preview, or just read the result.</p>
+<ul><li><b>On a phone</b> the open note fills the screen. The slim header holds <i>Back</i>, the title, a <i>Details</i> button and the <i>Edit / Source / Preview</i> switch; the formatting tools are one row you can swipe, sitting right above the keyboard, and the footer is just the word count and when it was saved.</li>
+<li><b>Details</b> (the sliders button) opens tags, the list or project the note is filed in, linked tasks and attachments, and folds them away again. A small dot on the button says the note has some. Pin and the note’s icon are in the <i>⋯</i> menu.</li>
+<li><b>On a desktop</b> those details stay in view above the note; the expand button gives you a distraction-free full screen (${kbd('Esc')} leaves it) and the panel button hides the note list.</li></ul>`],
   ['embed', 'Embedding in notes', `
 <p>Notes and task notes can show other things in place.</p>
 <ul><li><b>Another note:</b> <code>![[Note title]]</code> on its own line shows that note inside this one. It goes two levels deep at most and a note is never shown inside itself.</li>
@@ -97,7 +105,17 @@ const HELP = [
 <ul><li><b>Backups:</b> Settings → Data has <b>Export</b> (a JSON file with everything) and <b>Import</b> (merge into, or replace, what you have). Automatic restore points are kept on the device and can be restored from the same place.</li>
 <li><b>Other apps:</b> you can import lists from other task apps.</li>
 <li><b>Sync:</b> optional. Choose a provider in Settings → Sync (WebDAV, a Git repository, S3-compatible storage, or a file in a folder you already sync). OpenTick merges changes from several devices; nothing leaves your device unless you set this up.</li>
+<li><b>Encryption:</b> optional, in Settings → Encryption. See the next section.</li>
 <li><b>Printing:</b> only this Help is formatted for paper. Other pages are not.</li></ul>`],
+  ['encryption', 'Encryption and privacy', `
+<p>Turn on <b>Settings → Encryption</b> to lock your data with a passphrase. OpenTick encrypts it (AES-256-GCM) <i>before</i> it is stored, backed up or synced, so a cloud provider, a stolen laptop or a copied backup file shows only scrambled bytes. Only you hold the passphrase; it never leaves your device.</p>
+<ul><li><b>You choose what is covered:</b> <i>This device</i> (the stored data, attachments, automatic backups and your sync login; OpenTick asks for the passphrase when it opens), <i>Backup files</i> (exports and downloaded backups) and <i>Cloud sync</i> (the file on your server). The cloud icon shows a small padlock while sync encryption is on, and turns red if something needs your attention.</li>
+<li><b>Recovery key:</b> turning encryption on makes a recovery key. Keep it somewhere safe: <b>there is no reset</b>, and without the passphrase or the recovery key encrypted data cannot be opened by anyone, including us.</li>
+<li><b>Several devices:</b> turn it on once, then on each other device connect to the same sync location and type the passphrase. Changing the passphrase keeps older backups and other devices working.</li>
+<li><b>Locking:</b> <i>Lock now</i>, lock automatically after a time away, or <i>Remember me on this device</i> to skip the prompt (the data stays encrypted in its files, but anyone using the unlocked device can read it).</li>
+<li><b>Opening an encrypted backup:</b> Import asks for the passphrase (or the recovery key) when a file is encrypted, and offers to merge or replace as usual.</li>
+<li><b>Android widgets</b> cannot decrypt anything. They show “Locked”, unless you allow a readable summary of today in the encryption settings.</li>
+<li><b>What stays readable:</b> the file names of your backups, when they were made, and how big they are. Sync also protects against a server quietly swapping your encrypted file for an unencrypted one: you are asked before it is accepted.</li></ul>`],
   ['trouble', 'Common problems', `
 <dl>
 <dt>“OpenTick is not allowed to read …” when adding a file</dt><dd>Choose the file again from the picker (try Downloads or Documents). If it still fails, copy the file to the device’s internal storage and attach that copy.</dd>

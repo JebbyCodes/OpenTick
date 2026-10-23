@@ -6,19 +6,44 @@
      read  → { status: 'ok'|'nochange'|'missing', text?, rev? }
      write → { rev } or { conflict: true }
    Device-local and never synced: settings, view preferences, reminder history, and the credentials below. */
-const SYNC_KEY = 'opentick.sync.v1', SYNC_FILE = 'opentick.json', SYNC_V = 3; // 2: adds tag colours + timetable slots; 3: adds notes (older apps refuse the file instead of silently dropping them)
+const SYNC_KEY = 'opentick.sync.v1', SYNC_FILE = 'opentick.json', SYNC_V = 4; // 2: adds tag colours + timetable slots; 3: adds notes; 4: encrypted files + classes in the planner (older apps refuse the file instead of silently dropping or exposing anything)
 const syncErr = msg => Object.assign(new Error(msg), { sync: true });
 
 /* ---------- config (kept out of S so credentials never end up in backups or on the server) ---------- */
 const syncDefaults = () => ({ provider: '', auto: true, device: uid(), rev: null, fp: null, last: 0, webdav: { url: '', folder: 'OpenTick', user: '', pass: '' }, file: { path: '', name: '' }, git: { base: 'https://api.github.com', repo: '', path: 'opentick.json', branch: '', token: '' }, s3: { endpoint: '', region: 'us-east-1', bucket: '', key: 'opentick.json', access: '', secret: '' } });
+const SYNC_SEC = SYNC_KEY + '.sec';
+let SYNC_SEC_OK = true; // false while the (encrypted) logins have not been read back yet: nothing may overwrite them
 function loadSyncCfg() {
+  try { SYNC_SEC_OK = !localStorage.getItem(SYNC_SEC); } catch (e) { SYNC_SEC_OK = true; }
   try {
     const c = JSON.parse(localStorage.getItem(SYNC_KEY)), d = syncDefaults();
     if (c && typeof c === 'object') return { ...d, ...c, webdav: { ...d.webdav, ...c.webdav }, file: { ...d.file, ...c.file }, git: { ...d.git, ...c.git }, s3: { ...d.s3, ...c.s3 } };
   } catch (e) { /* fall through */ }
   return syncDefaults();
 }
-const saveSyncCfg = () => { try { localStorage.setItem(SYNC_KEY, JSON.stringify(Sync.cfg)); } catch (e) { /* ignore */ } };
+/* The logins (WebDAV password, Git token, S3 secret) are the one secret in here. With device encryption on they are sealed into their own
+   entry and blanked in the readable one; they come back at unlock. */
+const syncSecrets = c => ({ webdav: { pass: c.webdav.pass }, git: { token: c.git.token }, s3: { secret: c.s3.secret } });
+let secBusy = Promise.resolve();
+const syncSecretsDrain = () => secBusy;
+function syncSecretsStore() {
+  const body = syncSecrets(Sync.cfg), any = body.webdav.pass || body.git.token || body.s3.secret;
+  secBusy = secBusy.then(async () => { try { if (any) localStorage.setItem(SYNC_SEC, JSON.stringify(await vSeal(JSON.stringify(body), 'cred'))); else localStorage.removeItem(SYNC_SEC); } catch (e) { /* the readable entry is still right */ } });
+}
+async function syncSecretsLoad() {
+  let raw = null; try { raw = localStorage.getItem(SYNC_SEC); } catch (e) { /* none */ }
+  if (!raw) { SYNC_SEC_OK = true; return; }
+  try { const b = JSON.parse(await vOpen(JSON.parse(raw), 'cred')), c = Sync.cfg; c.webdav.pass = (b.webdav || {}).pass || ''; c.git.token = (b.git || {}).token || ''; c.s3.secret = (b.s3 || {}).secret || ''; SYNC_SEC_OK = true; } catch (e) { /* stays locked: the logins are kept as they are */ }
+}
+function syncSecretsWipe() { const c = Sync.cfg; if (c && vaultOn()) { c.webdav.pass = ''; c.git.token = ''; c.s3.secret = ''; SYNC_SEC_OK = false; } }
+function saveSyncCfg() {
+  if (Vault.locked) return;
+  const c = Sync.cfg;
+  try {
+    if (vaultLocalOn()) { localStorage.setItem(SYNC_KEY, JSON.stringify({ ...c, webdav: { ...c.webdav, pass: '' }, git: { ...c.git, token: '' }, s3: { ...c.s3, secret: '' } })); if (SYNC_SEC_OK) syncSecretsStore(); }
+    else if (SYNC_SEC_OK) { localStorage.setItem(SYNC_KEY, JSON.stringify(c)); localStorage.removeItem(SYNC_SEC); }
+  } catch (e) { /* ignore */ }
+}
 
 /* ---------- transport: Tauri's HTTP plugin (no CORS) on desktop/mobile, plain fetch on the web ---------- */
 async function httpx(method, url, headers, body) {
@@ -189,27 +214,62 @@ const s3p = {
 const PROVIDERS = { webdav: dav, file: filep, git: gitp, s3: s3p };
 const DAV_PRESETS = [['', 'Other WebDAV server', ''], ['nextcloud', 'Nextcloud / ownCloud', 'https://YOUR-SERVER/remote.php/dav/files/USERNAME/'], ['box', 'Box', 'https://dav.box.com/dav'], ['pcloud', 'pCloud (EU)', 'https://ewebdav.pcloud.com'], ['pcloudus', 'pCloud (US)', 'https://webdav.pcloud.com'], ['koofr', 'Koofr', 'https://app.koofr.net/dav/Koofr'], ['yandex', 'Yandex Disk', 'https://webdav.yandex.com'], ['synology', 'Synology NAS', 'https://YOUR-NAS:5006/']];
 
-/* ---------- automatic local backups: one snapshot a day, the last 7 kept in this browser's IndexedDB ---------- */
+/* ---------- automatic local backups: one snapshot a day, the last 7 kept in this browser's IndexedDB ----------
+   With "Backups" encryption on, a copy is stored sealed: the data in one envelope and its little summary (task count, fingerprint) in
+   another, so the list can be drawn without opening every copy. Older plain copies stay readable and are sealed when encryption is turned on. */
 const SNAP_KEEP = 7;
 async function snapKeys() { try { return ((await idb('readonly', s => s.getAllKeys())) || []).filter(k => /^snap:/.test(k)).sort(); } catch (e) { return []; } }
+const snapSealOn = () => vaultScope('backup') && !!Vault.key;
+// -> the record to store
+async function snapPack(at, tag, tasks, fp, data) {
+  if (snapSealOn()) return { at, tag: tag || '', enc: 1, m: await vSeal(JSON.stringify({ tasks, fp }), 'snapm'), d: await vSeal(data, 'snap') };
+  return { at, tasks, fp, tag: tag || '', data };
+}
+// a stored record -> { at, tag, tasks, fp, sealed, data? } (`data` only when asked: it is the big part). A sealed copy this device cannot open says tasks = -1.
+async function snapUnpack(v, withData) {
+  if (!v) return null;
+  if (!v.enc) return { at: v.at, tag: v.tag || '', tasks: v.tasks, fp: v.fp, data: withData ? v.data : undefined, sealed: false };
+  const o = { at: v.at, tag: v.tag || '', tasks: -1, fp: '', sealed: true };
+  try { const m = JSON.parse(await vOpen(v.m, 'snapm')); o.tasks = m.tasks; o.fp = m.fp; if (withData) o.data = await vOpen(v.d, 'snap'); } catch (e) { if (withData) throw e; }
+  return o;
+}
 async function snapList() {
   const out = [];
-  for (const k of await snapKeys()) { try { const v = await idb('readonly', s => s.get(k)); if (v) out.push({ key: k, at: v.at, tasks: v.tasks, fp: v.fp, tag: v.tag || '' }); } catch (e) { /* skip */ } }
+  for (const k of await snapKeys()) { try { const v = await snapUnpack(await idb('readonly', s => s.get(k))); if (v) out.push({ key: k, at: v.at, tasks: v.tasks, fp: v.fp, tag: v.tag || '', sealed: v.sealed }); } catch (e) { /* skip */ } }
   return out.reverse();
 }
 // `tag` makes a separate restore point ("Before deleting everything") that the daily copy cannot overwrite; returns the key, or false
 async function snapSave(force, tag) {
   if (typeof WIDGET !== 'undefined' && WIDGET) return false;
+  if (Vault.locked || (vaultScope('backup') && !Vault.key)) return false; // nothing is backed up in the clear when it should be sealed
   try {
-    flush(); const key = 'snap:' + todayStr() + (tag ? '~' + tag + '-' + Date.now().toString(36) : ''), fp = fingerprint(snapshot()), cur = tag ? null : await idb('readonly', s => s.get(key));
+    flush(); const key = 'snap:' + todayStr() + (tag ? '~' + tag + '-' + Date.now().toString(36) : ''), fp = fingerprint(snapshot()), cur = tag ? null : await snapUnpack(await idb('readonly', s => s.get(key)));
     if (cur && cur.fp === fp && !force) return false;
-    await idb('readwrite', s => s.put({ at: Date.now(), tasks: S.tasks.filter(t => !t.deleted).length, fp, tag: tag || '', data: JSON.stringify({ ...S, history: [] }) }, key));
+    const rec = await snapPack(Date.now(), tag, S.tasks.filter(t => !t.deleted).length, fp, JSON.stringify({ ...S, history: [] }));
+    await idb('readwrite', s => s.put(rec, key));
     const keys = await snapKeys(); for (const k of keys.slice(0, Math.max(0, keys.length - SNAP_KEEP))) await idb('readwrite', s => s.delete(k));
     return key;
   } catch (e) { return false; }
 }
-async function snapRestore(key) { const v = await idb('readonly', s => s.get(key)); if (!v) throw new Error('That backup is gone'); await snapSave(true); replaceAll(JSON.parse(v.data)); histNote('import', 'Restored the automatic backup from ' + key.slice(5, 15)); save(); }
-async function snapDownload(key) { const v = await idb('readonly', s => s.get(key)); if (!v) return; const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([v.data], { type: 'application/json' })); a.download = `opentick-backup-${key.slice(5).replace(/[^\w-]+/g, '-')}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); }
+// bring one stored copy in line with the current settings (sealed or plain) and the current key; used when encryption is turned on, off or re-keyed
+async function snapReseal(key) {
+  const v = await idb('readonly', s => s.get(key)); if (!v) return;
+  const want = snapSealOn();
+  if (want === !!v.enc && (!want || (v.d && v.d.vid === Vault.cfg.id))) return;
+  const u = await snapUnpack(v, true); if (!u || u.data == null) return;
+  const rec = await snapPack(u.at, u.tag, u.tasks, u.fp, u.data);
+  await idb('readwrite', s => s.put(rec, key));
+}
+async function snapRestore(key) {
+  const v = await snapUnpack(await idb('readonly', s => s.get(key)), true); if (!v) throw new Error('That backup is gone');
+  await snapSave(true); replaceAll(JSON.parse(v.data)); histNote('import', 'Restored the automatic backup from ' + key.slice(5, 15)); save();
+}
+// the downloaded copy is a normal backup file: sealed (and openable with the passphrase anywhere) when Backups encryption is on
+async function snapDownload(key) {
+  const v = await snapUnpack(await idb('readonly', s => s.get(key)), true); if (!v) return;
+  const sealed = snapSealOn(), text = sealed ? await vFile(v.data, 'backup', SYNC_V) : v.data;
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' })); a.download = `opentick-backup-${key.slice(5).replace(/[^\w-]+/g, '-')}${sealed ? '-encrypted' : ''}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
 
 /* ---------- engine ---------- */
 const Sync = { cfg: loadSyncCfg(), state: 'off', msg: '', busy: false, queued: false, timer: 0, get on() { return !!(this.cfg.provider && PROVIDERS[this.cfg.provider]); } };
@@ -226,17 +286,77 @@ function parsePayload(text) {
   d.habits = d.habits || []; d.tags = d.tags || []; d.slots = d.slots || []; d.notes = d.notes || []; d.projects = d.projects || []; d.school = d.school || []; d.pomo = d.pomo || []; d.tomb = d.tomb || {};
   return d;
 }
+/* ---------- encrypted sync ----------
+   With "Sync" encryption on, the file on the server is { app, schema, enc, vault (the wrapped-key header), iv, ct }: only the header and the
+   time are readable. Reading: an encrypted file is opened with the vault's key (a device that does not have the vault yet is asked for the
+   passphrase and joins it). Writing: sealed whenever the vault says so, and always when the file there was already encrypted.
+   A file that WAS encrypted and suddenly is not is refused (someone may have swapped it); turning encryption off here is the one exception. */
+// -> { text (the plain sync JSON), enc, header }
+async function openRemote(text, manual) {
+  let d; try { d = JSON.parse(text); } catch (e) { throw syncErr('The remote file is not valid JSON — leaving it alone'); }
+  const c = Sync.cfg;
+  if (d && d.app === 'opentick' && d.enc) {
+    if (!vIsEnv(d)) throw syncErr('The encrypted cloud file is damaged — leaving it alone');
+    if ((d.schema || 1) > SYNC_V) throw syncErr('The remote data was written by a newer OpenTick — please update this app');
+    if (!vaultAvail()) throw syncErr('The cloud copy is encrypted, but this browser cannot decrypt it (that needs https). Use the app, or open OpenTick over https.');
+    await syncKeyFor(d, manual);
+    let plain; try { plain = await vOpen(d, 'sync'); } catch (e) { throw syncErr('The cloud copy could not be decrypted — it is damaged, or it belongs to another vault. Leaving it alone.'); }
+    c.encSeen = true;
+    return { text: plain, enc: true, header: d.vault };
+  }
+  if (c.encSeen && !c.downgrade) {
+    if (!(manual && typeof askConfirm === 'function' && await askConfirm('The cloud copy used to be encrypted but now it is not. If you turned encryption off on another device that is fine. If you did not, someone with access to your cloud storage may have replaced it. Use it anyway? (It is merged with your data and sealed again here.)', 'Use it'))) throw syncErr('The cloud copy is no longer encrypted — refusing to use it. Press “Sync now” to review.');
+    c.encSeen = false;
+  }
+  return { text, enc: false, header: null };
+}
+// make sure this device holds the key the cloud copy needs (it may adopt the vault, which can ask for the passphrase)
+async function syncKeyFor(d, manual) {
+  const id = d.vid;
+  if (Vault.cfg && Vault.cfg.id === id) {
+    if (!Vault.key && !(await vaultEnsureKey(!!manual))) throw syncErr('Locked: enter your passphrase to sync');
+    if (!Vault.cfg.scopes.sync && !Sync.cfg.downgrade) { Vault.cfg.scopes.sync = true; vaultSaveCfg(); } // the cloud copy is encrypted, so it stays that way
+    vaultAdoptHeader(d.vault);
+    return;
+  }
+  if (Sync.cfg.downgrade && Vault.keys.has(id)) return; // encryption was just turned off here: the key is still around to read the old copy once
+  if (!manual) throw syncErr('The cloud copy is encrypted with a passphrase this device does not know yet. Open Settings → Sync and press “Save & sync”.');
+  if (!(typeof vaultJoinPrompt === 'function' && await vaultJoinPrompt(d.vault))) throw syncErr('The cloud copy is encrypted and was not unlocked');
+}
+// what is uploaded
+const syncSealOn = () => vaultScope('sync');
+const syncSealTag = () => (vaultScope('sync') && Vault.cfg ? 'e' + Vault.cfg.id + ':' + (Vault.cfg.hv || 1) : 'p');
+async function sealPayload(out) { return syncSealOn() ? vFile(out.text, 'sync', SYNC_V) : out.text; }
+/* ---------- the safety copy made just before another device's changes are applied (Settings → Undo last merge) ---------- */
+const PREMERGE = KEY + '.premerge';
+function premergeSave() {
+  const json = JSON.stringify(S);
+  if (vaultLocalOn()) { vSeal(json, 'premerge').then(env => { try { localStorage.setItem(PREMERGE, JSON.stringify({ enc: 1, ...env })); } catch (e) { /* best effort */ } }).catch(() => {}); return; }
+  try { localStorage.setItem(PREMERGE, json); } catch (e) { /* best effort */ }
+}
+async function premergeLoad() {
+  let raw = null; try { raw = localStorage.getItem(PREMERGE); } catch (e) { /* none */ }
+  if (!raw) return null;
+  try { const o = JSON.parse(raw); return o && o.enc === 1 && o.iv && o.ct ? await vOpen(o, 'premerge') : raw; } catch (e) { return null; }
+}
+async function premergeReseal() {
+  const txt = await premergeLoad(); if (txt == null) return;
+  try { if (vaultLocalOn()) localStorage.setItem(PREMERGE, JSON.stringify({ enc: 1, ...(await vSeal(txt, 'premerge')) })); else localStorage.setItem(PREMERGE, txt); } catch (e) { /* best effort */ }
+}
 function setSync(state, msg = '') { Sync.state = state; Sync.msg = msg; paintSync(); }
 function scheduleSync(ms) { clearTimeout(Sync.timer); if (Sync.on && Sync.cfg.auto) Sync.timer = setTimeout(() => syncNow(), ms); }
 
 async function syncNow(manual) {
   if (!Sync.on) return;
+  if (Vault.locked) { if (manual) toast('Locked: unlock OpenTick to sync'); return; }
   if (Sync.busy) { Sync.queued = true; return; }
   clearTimeout(Sync.timer);
   Sync.busy = true; setSync('busy');
   const c = Sync.cfg, P = PROVIDERS[c.provider], pc = c[c.provider];
   let changed = false;
   try {
+    // sealed sync needs the key before anything is read or written; nothing is ever uploaded readable by mistake
+    if (vaultScope('sync') && !Vault.key && !(await vaultEnsureKey(!!manual))) throw syncErr('Locked: enter your passphrase to sync');
     for (let n = 0; ; n++) {
       if (n >= 4) throw syncErr('The server keeps changing underneath us — will try again shortly');
       flush();
@@ -244,28 +364,26 @@ async function syncNow(manual) {
       flush(); // anything typed while we were waiting on the network is stamped before we merge
       let pushRev = c.rev;
       if (r.status === 'ok') {
-        const remote = parsePayload(r.text), local = snapshot(), merged = mergeData(local, remote);
-        if (fingerprint(merged) !== fingerprint(local)) {
-          try { localStorage.setItem(KEY + '.premerge', JSON.stringify(S)); } catch (e) { /* best effort */ }
-          applyMerged(merged); changed = true;
-        }
-        if (fingerprint(merged) === fingerprint(remote)) { c.rev = r.rev; c.fp = fingerprint(merged); break; } // already identical, nothing to upload
+        const rm = await openRemote(r.text, manual), remote = parsePayload(rm.text), local = snapshot(), merged = mergeData(local, remote);
+        if (fingerprint(merged) !== fingerprint(local)) { premergeSave(); applyMerged(merged); changed = true; }
+        const sameForm = rm.enc ? vaultScope('sync') && Vault.cfg && (rm.header.hv || 1) === (Vault.cfg.hv || 1) : !vaultScope('sync');
+        if (fingerprint(merged) === fingerprint(remote) && sameForm) { c.rev = r.rev; c.fp = fingerprint(merged); c.seal = syncSealTag(); break; } // already identical, nothing to upload
         pushRev = r.rev;
-      } else if (r.status === 'nochange' && c.fp === fingerprint(snapshot())) break; // nobody changed anything
+      } else if (r.status === 'nochange' && c.fp === fingerprint(snapshot()) && (c.seal || 'p') === syncSealTag()) break; // nobody changed anything
       const out = buildPayload();
-      const w = await P.write(pc, out.text, pushRev, r.status === 'missing');
+      const w = await P.write(pc, await sealPayload(out), pushRev, r.status === 'missing');
       if (w.conflict) continue; // someone else wrote first: loop re-reads and re-merges
-      c.rev = w.rev || null; c.fp = out.fp; break;
+      c.rev = w.rev || null; c.fp = out.fp; c.seal = syncSealTag(); c.encSeen = vaultScope('sync'); if (!vaultScope('sync')) c.downgrade = false; break;
     }
     c.last = Date.now(); saveSyncCfg(); setSync('ok');
     if (changed) afterRemote();
     if (manual) toast(changed ? 'Synced — received changes from another device' : 'Synced');
   } catch (e) {
     const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
-    const msg = e && e.sync ? e.message : 'Sync failed: ' + ((e && e.message) || e);
+    const msg = e && e.sync ? e.message : e && e.vault ? e.message : 'Sync failed: ' + ((e && e.message) || e);
     setSync(offline ? 'offline' : 'error', msg);
     if (manual) toast(msg);
-    if (!offline && !(e && e.sync && /rejected the login|refusing/.test(e.message))) scheduleSync(60000);
+    if (!offline && !(e && (e.sync || e.vault) && /rejected the login|refusing|Locked|not unlocked|passphrase this device/.test(e.message))) scheduleSync(60000);
   } finally {
     Sync.busy = false;
     if (Sync.queued) { Sync.queued = false; scheduleSync(500); }
@@ -289,16 +407,19 @@ function startSync() {
 
 /* ---------- status badge (sidebar) ---------- */
 function syncStatusText() {
-  const s = Sync.state, last = Sync.cfg.last ? ` · last sync ${ago(Sync.cfg.last)}` : '';
+  const s = Sync.state, last = Sync.cfg.last ? ` · last sync ${ago(Sync.cfg.last)}` : '', lock = vaultScope('sync') ? ' · encrypted' : '';
   if (!Sync.on) return 'Not connected';
   if (s === 'busy') return 'Syncing…';
   if (s === 'error' || s === 'offline') return `<span class="bad">${esc(Sync.msg || 'Offline')}</span>${last}`;
-  return (Sync.cfg.last ? 'Up to date' : 'Connected') + last;
+  return (Sync.cfg.last ? 'Up to date' : 'Connected') + last + lock;
 }
+/* the little padlock on the cloud: shown whenever encryption is on (closed = unlocked and working, open = the key is missing, so sync is paused) */
+const encMark = () => (vaultOn() ? `<i class="encb${Vault.key ? '' : ' warn'}" aria-hidden="true">${ic(Vault.key ? 'lock' : 'unlock', 10)}</i>` : '');
+const encTip = () => (!vaultOn() ? '' : !Vault.key ? ' · Encryption is on but locked' : vaultScope('sync') ? ' · Encrypted end to end' : vaultScope('local') ? ' · Encrypted on this device' : ' · Encryption is on');
 function syncBadge() {
   if (!Sync.on) return '';
-  const s = Sync.state, tip = s === 'busy' ? 'Syncing…' : s === 'error' || s === 'offline' ? Sync.msg || 'Offline' : Sync.cfg.last ? 'Synced ' + ago(Sync.cfg.last) : 'Sync';
-  return `<button class="ib sync ${s}" id="syncb" data-act="syncnow" title="${esc(tip)}" aria-label="Sync now">${ic(s === 'error' || s === 'offline' ? 'cloud-off' : s === 'busy' ? 'refresh' : 'cloud', 18)}</button>`;
+  const s = Sync.state, tip = (s === 'busy' ? 'Syncing…' : s === 'error' || s === 'offline' ? Sync.msg || 'Offline' : Sync.cfg.last ? 'Synced ' + ago(Sync.cfg.last) : 'Sync') + encTip();
+  return `<button class="ib sync ${s}${vaultOn() ? ' enc' : ''}" id="syncb" data-act="syncnow" title="${esc(tip)}" aria-label="Sync now${esc(encTip())}">${ic(s === 'error' || s === 'offline' ? 'cloud-off' : s === 'busy' ? 'refresh' : 'cloud', 18)}${encMark()}</button>`;
 }
 function paintSync() {
   const b = $('#syncb'); if (b && b.outerHTML !== undefined) b.outerHTML = syncBadge();
@@ -326,13 +447,13 @@ async function connectSync(d) {
     if (!d.s3.bucket.trim() || !d.s3.access.trim() || !d.s3.secret.trim()) { toast('Bucket, access key and secret key are all needed'); return false; }
     if (!d.s3.key.trim()) d.s3.key = 'opentick.json';
   }
-  Object.assign(c, { provider: d.provider, auto: d.auto, webdav: d.webdav, file: d.file, git: d.git, s3: d.s3, rev: null, fp: null });
+  Object.assign(c, { provider: d.provider, auto: d.auto, webdav: d.webdav, file: d.file, git: d.git, s3: d.s3, rev: null, fp: null, encSeen: false, downgrade: false, seal: '' });
   saveSyncCfg(); setSync('busy'); renderSide();
   await syncNow(true);
   return true;
 }
 function disconnectSync() {
-  const c = Sync.cfg; c.provider = ''; c.rev = c.fp = null; c.webdav.pass = ''; c.git.token = ''; c.s3.secret = '';
+  const c = Sync.cfg; c.provider = ''; c.rev = c.fp = null; c.encSeen = c.downgrade = false; c.seal = ''; c.webdav.pass = ''; c.git.token = ''; c.s3.secret = '';
   saveSyncCfg(); clearTimeout(Sync.timer); setSync('off'); renderSide();
   return true;
 }
@@ -353,7 +474,7 @@ async function pickSyncFile(d) {
   } catch (e) { if (e.name !== 'AbortError') toast('Could not choose the file: ' + (e.message || e)); }
 }
 async function undoMerge() {
-  let raw = null; try { raw = localStorage.getItem(KEY + '.premerge'); } catch (e) { /* ignore */ }
+  const raw = await premergeLoad();
   if (!raw) { toast('Nothing to undo'); return; }
   if (!await askConfirm('Put your data back the way it was before the last sync brought in changes? Newer changes made since then are lost on this device and the other devices are updated to match.', 'Undo')) return;
   replaceAll(JSON.parse(raw)); histNote('import', 'Restored the data from before the last sync'); save(); U.sel = null; render(); toast('Restored'); syncNow();

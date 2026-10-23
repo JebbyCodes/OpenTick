@@ -10,10 +10,10 @@ with sync_playwright() as p:
     pg.click('[data-m="help"]'); pg.wait_for_selector('#help-doc')
     assert pg.evaluate("U.page") == 'help' and pg.evaluate("document.body.classList.contains('on-help')")
     heads = pg.evaluate("[...document.querySelectorAll('.help-s h2')].map(h=>h.textContent)")
-    assert len(heads) == 20, heads
+    assert len(heads) == 22, heads
     need = ['Getting started', 'Navigating', 'Timetable', 'matrix', 'Selecting several', 'Attachments', 'Habits', 'history graph', 'Time, dates', 'Notifications', 'Appearance', 'animated background', 'Keyboard, mouse', 'backups and sync', 'Common problems', 'About, source']
     for n in need: assert any(n.lower() in h.lower() for h in heads), n
-    assert pg.evaluate("document.querySelectorAll('.help-toc a').length") == 20
+    assert pg.evaluate("document.querySelectorAll('.help-toc a').length") == 22
     # contents link scrolls to the section and moves focus there
     pg.click('.help-toc a[data-t="h-habits"]'); pg.wait_for_timeout(1200)
     assert pg.evaluate("document.activeElement.closest('section')?.id") == 'h-habits' and pg.evaluate("document.getElementById('h-habits').getBoundingClientRect().top") < 300

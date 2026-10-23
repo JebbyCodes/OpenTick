@@ -61,7 +61,7 @@ assert.match(app.homeProjectCard(S.projects[0]), /Launch/);
   const own = app.treeSections(open, 'list:wk', ['wk'], true); assert.ok(own.indexOf('data-id="ttA"') < own.indexOf('gtog'), "a list's own tasks come before its sublists");
 }
 
-/* ---- school timetable ---- */
+/* ---- the classes timetable (still stored under S.school; test/classes.mjs covers it in depth) ---- */
 {
   const tasksBefore = S.tasks.length, n0 = S.school.length;
   assert.equal(app.schoolOn(), false); S.settings.tt.mode = 'school'; assert.equal(app.schoolOn(), true);
@@ -79,18 +79,18 @@ assert.match(app.homeProjectCard(S.projects[0]), /Launch/);
   const aDay = [mon, new Date(2026, 9, 26)].find(d => app.scWeekType(d) === 1); assert.equal(app.scLesson(1, lessonP.id, 1).id, 'lb', 'a week-A lesson wins in week A');
   app.scCfgSet({ ab: false });
   assert.equal(app.scDue(app.todayStr()), 'Today'); assert.equal(app.scDue(app.ymd(app.addDays(app.pYmd(app.todayStr()), 1))), 'Tomorrow');
-  // school things are not tasks
+  // lessons are not tasks
   assert.equal(S.tasks.length, tasksBefore, 'no tasks were made'); assert.ok(S.school.length > n0);
   assert.ok(!S.tasks.some(t => /Maths|lesson/i.test(t.title)));
   // they travel with the backup and the merge
   const snap = app.snapshot(); assert.ok(snap.school.length === S.school.length, 'in the snapshot');
-  const other = JSON.parse(JSON.stringify(snap)); other.school = [{ id: 'hw9', k: 'homework', title: 'Read ch 4', due: '2026-10-22', subjectId: 'su1', done: false, u: Date.now() + 5000 }];
-  const merged = app.mergeData(snap, other); assert.ok(merged.school.some(r => r.id === 'hw9') && merged.school.some(r => r.id === 'su1'), 'a merge keeps both sides');
+  const other = JSON.parse(JSON.stringify(snap)); other.school = [{ id: 'te9', k: 'teacher', name: 'Mr Okoro', u: Date.now() + 5000 }];
+  const merged = app.mergeData(snap, other); assert.ok(merged.school.some(r => r.id === 'te9') && merged.school.some(r => r.id === 'su1'), 'a merge keeps both sides');
   assert.match(app.dataCountsText ? String(app.dataCountsText(app.dataCounts())) : 'school item', /school item|task/);
-  // deleting a subject takes its lessons with it and unlinks homework
-  S.school.push({ id: 'hw1', k: 'homework', title: 'x', subjectId: 'su1', done: false });
-  app.scRemove(app.scGet('su1')); assert.ok(!S.school.some(r => r.k === 'lesson' && r.subjectId === 'su1')); assert.equal(app.scGet('hw1').subjectId, '');
-  app.renderSchool(); for (const t of ['week', 'today', 'hw', 'exam', 'subj', 'teach', 'note']) assert.equal(typeof app.scTabHtml(t), 'string');
+  // deleting a class takes its lessons with it and unlinks its homework (which stays, as a task)
+  const hwT = app.newTask({ title: 'x', kind: 'homework', subjectId: 'su1' }); S.tasks.push(hwT);
+  app.scRemove(app.scGet('su1')); assert.ok(!S.school.some(r => r.k === 'lesson' && r.subjectId === 'su1')); assert.equal(hwT.subjectId, ''); assert.ok(S.tasks.includes(hwT)); S.tasks.pop();
+  app.renderSchool(); for (const t of ['week', 'day', 'today', 'hw', 'exam', 'subj', 'teach', 'note']) assert.equal(typeof app.scTabHtml(t), 'string');
   S.settings.tt.mode = 'plan';
 }
 
@@ -103,7 +103,7 @@ assert.match(app.homeProjectCard(S.projects[0]), /Launch/);
   assert.equal(snap.mx.length, 4); assert.ok(snap.mx.every(q => Array.isArray(q.items) && q.items.length <= 3));
   assert.ok(snap.projects[0].pct >= 0 && snap.projects[0].n === 'Launch');
   const mine = snap.hb.find(h => h.id === 'h1'); assert.equal(mine.e, '', 'a drawn icon has no emoji'); assert.equal(mine.d, false); assert.ok(snap.hb.some(h => h.e), 'an emoji icon is passed on');
-  assert.ok(snap.cal.days && typeof snap.cal.ws === 'number'); assert.ok(snap.tt.kind === 'plan' || snap.tt.kind === 'school');
+  assert.ok(snap.cal.days && typeof snap.cal.ws === 'number'); assert.equal(snap.tt.kind, 'plan'); assert.ok(Array.isArray(snap.tt.items));
   assert.equal(typeof snap.fc.tot, 'number'); assert.ok(snap.notes.every(n => typeof n.t === 'string'));
   assert.ok(JSON.stringify(snap).length < 40000, 'small enough to read quickly');
   assert.equal(app.WG_KINDS.length, 9);

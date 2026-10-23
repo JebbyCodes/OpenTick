@@ -80,8 +80,15 @@ const WD = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
 const MO = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
 const WDRE = '(?:sun(?:day)?|mon(?:day)?|tue(?:s(?:day)?)?|wed(?:nesday)?|thu(?:r(?:s(?:day)?)?)?|fri(?:day)?|sat(?:urday)?)';
 const MORE = '(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)';
-function parseQuick(text, lists, base = new Date()) {
-  const o = { title: '', due: null, time: null, dur: null, priority: 0, tags: [], listId: null, repeat: null };
+// a class named in a quick-add (@maths): the exact name or short code, else the one class whose name starts with what was typed
+const classKey = s => String(s || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+function classByToken(subjects, tok) {
+  const k = classKey(tok); if (!k) return null;
+  const by = (subjects || []).filter(x => x && x.name);
+  return by.find(x => classKey(x.name) === k) || by.find(x => x.short && classKey(x.short) === k) || (by.filter(x => classKey(x.name).startsWith(k)).length === 1 ? by.find(x => classKey(x.name).startsWith(k)) : null);
+}
+function parseQuick(text, lists, base = new Date(), ctx = {}) {
+  const o = { title: '', due: null, time: null, dur: null, priority: 0, tags: [], listId: null, repeat: null, subjectId: null, kind: null };
   let s = ' ' + text + ' ';
   const bd = ymd(base);
   const take = (re, fn) => { s = s.replace(re, (...m) => (fn(m) === false ? m[0] : ' ')); };
@@ -91,6 +98,8 @@ function parseQuick(text, lists, base = new Date()) {
     const k = m[1].toLowerCase(), l = lists.find(x => x.name.toLowerCase().replace(/\s+/g, '') === k);
     if (!l) return false; o.listId = l.id;
   });
+  take(/\s@([^\s@]+)(?=\s)/g, m => { const c = classByToken(ctx.subjects, m[1]); if (!c) return false; o.subjectId = c.id; });
+  take(/\s\/(exam|test|homework|hw)(?=\s)/gi, m => { o.kind = /^(exam|test)$/i.test(m[1]) ? 'exam' : 'homework'; });
   take(/\s!(high|medium|med|low)(?=\s)/gi, m => { o.priority = { low: 1, med: 2, medium: 2, high: 3 }[m[1].toLowerCase()]; });
   take(/\sfor\s+(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes)(?=\s)/i, m => {
     const n = Math.round(parseFloat(m[1]) * (/^h/i.test(m[2]) ? 60 : 1)); if (n < 1 || n > 1440) return false; o.dur = n;
@@ -146,6 +155,32 @@ const KEY = 'opentick.v1';
 function localWeekStart() {
   try { const l = new Intl.Locale(navigator.language), w = l.getWeekInfo ? l.getWeekInfo() : l.weekInfo; return w.firstDay % 7; } catch (e) { return 1; }
 }
+/* Exams and homework used to be records of their own inside the classes timetable. They are ordinary tasks now, so a list, a project, the
+   calendar and the matrix all see them. Each old record becomes the task "sx-<id>" exactly once: the record is dropped and its id is
+   tombstoned, so a device that still has it (or syncs it back) cannot make a second copy, and a task you delete stays deleted.
+   It has to be a plain function: load() runs before the later scripts are defined. */
+function migrateClasses(r) {
+  const old = r.school.filter(x => x.k === 'exam' || x.k === 'homework');
+  if (!old.length) return;
+  const now = Date.now(), td = ymd(new Date()), have = new Set(r.tasks.map(t => t.id)), cfg = r.school.find(x => x.k === 'cfg');
+  let listId = 'inbox', top = Math.min(0, ...r.tasks.map(x => x.order || 0));
+  const mkList = () => {
+    if (r.tomb['list-classes'] && !r.lists.some(l => l.id === 'list-classes')) return 'inbox'; // it was deleted on purpose
+    if (!r.lists.some(l => l.id === 'list-classes')) r.lists.push({ id: 'list-classes', name: (cfg && cfg.name) || 'Classes', color: '#8e5cf7', sections: [], u: now });
+    return 'list-classes';
+  };
+  for (const x of old) {
+    const id = 'sx-' + x.id;
+    if (!have.has(id) && !r.tomb[id]) {
+      if (listId === 'inbox') listId = mkList();
+      const exam = x.k === 'exam', due = (exam ? x.date : x.due) || null, done = exam ? !!(due && due < td) : !!x.done;
+      const t = { id, title: x.title || (exam ? 'Exam' : 'Homework'), notes: x.notes || '', listId, due, time: exam && x.time ? x.time : null, ...(exam && x.time ? { dur: 60 } : {}), priority: 0, tags: [], subtasks: [], repeat: null, reminder: null, status: done ? 'done' : 'open', ...(done ? { doneAt: now } : {}), section: null, created: now, order: (top -= 1000), kind: x.k, ...(x.subjectId ? { subjectId: x.subjectId } : {}), ...(exam && x.room ? { room: x.room } : {}), u: now };
+      r.tasks.push(t); have.add(id);
+    }
+    r.tomb[x.id] = Math.max(r.tomb[x.id] || 0, now);
+  }
+  r.school = r.school.filter(x => x.k !== 'exam' && x.k !== 'homework');
+}
 function migrate(r) {
   r.lists = r.lists || [];
   if (!r.lists.some(l => l.id === 'inbox')) r.lists.unshift({ id: 'inbox', name: 'Inbox', color: '#4772fa', sections: [] });
@@ -153,6 +188,7 @@ function migrate(r) {
   r.tasks.forEach(t => { t.tags = t.tags || []; t.subtasks = t.subtasks || []; t.notes = t.notes || ''; t.status = t.status || 'open'; if (t.links && !Array.isArray(t.links)) t.links = []; });
   r.habits = r.habits || []; r.pomo = r.pomo || []; r.fired = r.fired || {}; r.tomb = r.tomb || {};
   r.tags = r.tags || []; r.slots = r.slots || []; r.school = Array.isArray(r.school) ? r.school.filter(x => x && x.id && x.k) : []; r.notes = Array.isArray(r.notes) ? r.notes : [];
+  migrateClasses(r);
   r.notes.forEach(n => { n.title = n.title || ''; n.body = n.body || ''; n.tags = n.tags || []; n.created = n.created || Date.now(); n.updated = n.updated || n.created; });
   r.slots.forEach(x => { x.days = x.days || []; });
   r.settings = { theme: DEFAULT_THEME, sort: 'manual', group: 'none', weekStart: localWeekStart(), ...(r.settings || {}) };
@@ -166,7 +202,7 @@ function migrate(r) {
   if (!r.settings.bg || typeof r.settings.bg !== 'object') r.settings.bg = { on: !/Android/i.test(typeof navigator !== 'undefined' ? navigator.userAgent || '' : ''), animate: true, style: 'accent', shape: 'blobs', intensity: 60, speed: 100 };
   { const sc = r.settings.ui.scale == null || r.settings.ui.scale === '' ? NaN : Number(r.settings.ui.scale); r.settings.ui.scale = Number.isFinite(sc) ? Math.min(1.5, Math.max(0.8, Math.round(sc * 20) / 20)) : 1; }
   { const t0 = r.settings.tt || {}; // `auto` hides the quiet hours; anyone who had already narrowed the range keeps their own hours
-    r.settings.tt = { from: 0, to: 24, view: 'week', weekends: true, fit: true, adOpen: true, ...t0 };
+    r.settings.tt = { from: 0, to: 24, view: 'week', weekends: true, fit: true, adOpen: true, classes: true, ...t0 };
     if (typeof t0.auto !== 'boolean') r.settings.tt.auto = !(t0.from > 0 || (t0.to != null && t0.to < 24)); }
   // the grid used to default to 07:00–21:00; the whole day is now shown unless the range was chosen deliberately after that change
   if (r.settings.tt.v !== 2) { if (r.settings.tt.from === 7 && r.settings.tt.to === 21) { r.settings.tt.from = 0; r.settings.tt.to = 24; } r.settings.tt.v = 2; }
@@ -208,7 +244,8 @@ function seed() {
   });
 }
 function load() {
-  try { const r = JSON.parse(localStorage.getItem(KEY)); if (r && r.v && Array.isArray(r.tasks)) return migrate(r); } catch (e) { /* fall through */ }
+  if (Vault.locked) return vaultPlaceholder(); // encrypted and not unlocked yet: an empty stand-in that is never written anywhere
+  try { const r = JSON.parse(localStorage.getItem(KEY)); if (r && r.v && Array.isArray(r.tasks) && !r.enc) return migrate(r); } catch (e) { /* fall through */ }
   return seed();
 }
 /* ---------- change tracking for sync ----------
@@ -308,8 +345,9 @@ let saveTimer;
 const hooks = { change() {} }; // sync.js hooks in here
 function flush() {
   clearTimeout(saveTimer);
+  if (Vault.locked) return; // locked: S is only a placeholder, so nothing is stamped, saved or synced
   const changed = stamp();
-  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('Could not save — storage is full'); }
+  persist();
   if (changed) { hooks.change(); if (typeof dockSaved === 'function') dockSaved(); if (typeof editedPaint === 'function') editedPaint(); if (typeof widgetPush === 'function') widgetPush(); }
   else if (typeof dockSaved === 'function') dockSaved(true);
 }
@@ -370,7 +408,7 @@ function mergeData(L, R) {
 function applyMerged(m) {
   S.tasks = m.tasks; S.lists = m.lists; S.habits = m.habits; S.tags = m.tags; S.slots = m.slots; S.notes = m.notes; S.projects = m.projects; S.school = m.school; S.pomo = m.pomo; S.tomb = m.tomb;
   migrate(S); initSeen();
-  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* keep going: memory copy is still right */ }
+  persist(true); // if storage is full the copy in memory is still right
 }
 // Replace everything (import / undo) in a way that sync treats as a deliberate edit: gone records become tombstones, kept ones are re-stamped
 function replaceAll(d) {

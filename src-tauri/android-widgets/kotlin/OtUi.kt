@@ -16,6 +16,8 @@ import android.widget.RemoteViews
 /** Small helpers shared by every OpenTick widget: intents, colours, and the few things that are drawn (progress bars and rings). */
 object OtUi {
     const val ACTION_ACT = "__PACKAGE__.WIDGET_ACT"
+    /** Shown instead of data while encryption is on and the person has not allowed a readable summary for widgets. */
+    const val LOCKED = "Locked: open OpenTick"
 
     private fun flags(): Int =
         if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE else PendingIntent.FLAG_UPDATE_CURRENT

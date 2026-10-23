@@ -85,7 +85,7 @@ class OpenTickCalendarWidget : OtBaseWidget() {
             if (isToday) todayCount = n
         }
         val info = if (off == 0) (if (todayCount > 0) "$todayCount task${if (todayCount == 1) "" else "s"} today" else "Nothing due today") else "Tap the month name to come back to today"
-        rv.setTextViewText(R.id.ot_cal_info, if (data == null) "Open OpenTick once to fill this widget" else info)
+        rv.setTextViewText(R.id.ot_cal_info, if (data == null) "Open OpenTick once to fill this widget" else if (data.optBoolean("locked", false)) OtUi.LOCKED else info)
         rv.setTextColor(R.id.ot_cal_info, th.muted)
         rv.setOnClickPendingIntent(R.id.ot_cal_info, OtUi.appIntent(context, "page", "calendar", id * 11 + 8))
         rv.setOnClickPendingIntent(R.id.ot_cal_root, OtUi.appIntent(context, "page", "calendar", id * 11 + 9))

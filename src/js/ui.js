@@ -60,13 +60,14 @@ const editedText = (o, note) => { const mine = EDITED.has(o.id) && Date.now() - 
 function paintDock() {
   const el = document.getElementById ? document.getElementById('dsync') : null; if (!el) return;
   const s = Sync.state, saved = Date.now() - DOCK.saved < 1750; let icon, cls, tip, txt = '';
-  if (!Sync.on) { icon = 'cloud'; cls = 'off'; tip = 'Sync is off — everything is saved on this device. Click to set up sync.'; }
+  if (!Sync.on) { icon = 'cloud'; cls = 'off'; tip = vaultScope('local') ? 'Sync is off — everything is saved on this device, encrypted. Click to set up sync.' : 'Sync is off — everything is saved on this device. Click to set up sync.'; }
   else if (s === 'busy') { icon = 'refresh'; cls = 'busy'; tip = 'Syncing…'; txt = 'Syncing…'; }
   else if (s === 'error' || s === 'offline') { icon = 'cloud-off'; cls = 'err'; tip = Sync.msg || 'Offline'; txt = s === 'offline' ? 'Offline' : 'Sync problem'; }
   else { icon = 'cloud-check'; cls = 'ok'; tip = Sync.cfg.last ? 'Synced ' + ago(Sync.cfg.last) + ' — click to sync now' : 'Sync is on — click to sync now'; }
   if (DOCK.pending && !txt) txt = 'Saving…';
   else if (saved && !txt) txt = 'Saved';
-  const html = `<span class="dtxt${txt ? ' show' : ''}${txt === 'Saved' ? ' saved' : ''}${txt === 'Saving…' ? ' saving' : ''}" aria-live="polite">${txt === 'Saved' ? ic('check', 12) : ''}${esc(txt)}</span><button class="ib dsb ${cls}" data-act="syncdock" title="${esc(tip)}" aria-label="${esc(tip)}">${ic(icon, 18)}</button>`;
+  if (Sync.on) tip += encTip(); // "· Encrypted end to end"
+  const html = `<span class="dtxt${txt ? ' show' : ''}${txt === 'Saved' ? ' saved' : ''}${txt === 'Saving…' ? ' saving' : ''}" aria-live="polite">${txt === 'Saved' ? ic('check', 12) : ''}${esc(txt)}</span><button class="ib dsb ${cls}${vaultOn() ? ' enc' : ''}" data-act="syncdock" title="${esc(tip)}" aria-label="${esc(tip)}">${ic(icon, 18)}${encMark()}</button>`;
   if (el._h !== html) { el._h = html; el.innerHTML = html; }
 }
 

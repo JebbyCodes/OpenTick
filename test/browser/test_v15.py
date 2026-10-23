@@ -1,5 +1,5 @@
 """0.3 in a real browser: mouse drag in the matrix (no HTML5 drag), full-screen notes, folding sections, the Projects home screen as the start
-screen, auto-scrolling names, embeds, the school timetable, and every widget view."""
+screen, auto-scrolling names, embeds, the Classes timetable, and every widget view."""
 from lib import *
 KINDS = ['tasks', 'lists', 'projects', 'notes', 'calendar', 'timetable', 'matrix', 'habits', 'focus']
 with sync_playwright() as p:
@@ -59,16 +59,17 @@ with sync_playwright() as p:
     assert pg.evaluate("document.querySelector('iframe').getAttribute('sandbox')").startswith('allow-scripts')
     assert not pg.errs, pg.errs; b.close()
 
-    # the school timetable
+    # the Classes timetable (its exams and homework are ordinary tasks)
     b, ctx, pg = launch(p, mobile=False)
     n0 = pg.evaluate("S.tasks.length"); pg.evaluate("U.page='timetable'; render()"); pg.wait_for_timeout(150)
     pg.click('[data-act=scmode][data-m=school]'); pg.click('[data-act=scsetup]'); pg.click('[data-act=sctab][data-t=subj]'); pg.click('[data-act=scadd]')
     pg.fill('[data-k=name]', 'Maths'); pg.click('.mbox [data-m=save]'); pg.click('[data-act=sctab][data-t=week]'); pg.click('.sc-c >> nth=0')
     pg.select_option('[data-k=subjectId]', index=1); pg.click('.mbox [data-m=save]'); pg.wait_for_timeout(200)
     assert pg.evaluate("S.school.filter(r=>r.k==='lesson').length") == 1 and pg.locator('.sc-c.has').count() == 1
-    pg.click('[data-act=sctab][data-t=hw]'); pg.click('[data-act=scadd]'); pg.fill('[data-k=title]', 'Read chapter 3'); pg.click('.mbox [data-m=save]'); pg.wait_for_timeout(150)
-    assert pg.locator('.sc-row.hw').count() == 1; pg.click('.sc-row.hw .chk'); pg.wait_for_timeout(100); assert pg.evaluate("S.school.find(r=>r.k==='homework').done") is True
-    assert pg.evaluate("S.tasks.length") == n0, 'school items are not tasks'
+    pg.click('[data-act=sctab][data-t=hw]'); pg.click('[data-act=scadd]'); pg.fill('#sw-title', 'Read chapter 3'); pg.click('.mbox [data-m=ok]'); pg.wait_for_timeout(200)
+    assert pg.evaluate("S.tasks.filter(t=>t.kind==='homework').length") == 1 and pg.evaluate("S.tasks.length") == n0 + 1, 'homework is a real task'
+    assert pg.locator('.sc-list .chk').count() == 1; pg.click('.sc-list .chk'); pg.wait_for_timeout(150)
+    assert pg.evaluate("S.tasks.find(t=>t.kind==='homework').status") == 'done'
     pg.click('[data-act=scmode][data-m=plan]'); pg.wait_for_timeout(150); assert pg.locator('.tt-scroll').count() == 1, 'the planner is still there'
     assert not pg.errs, pg.errs; b.close()
 

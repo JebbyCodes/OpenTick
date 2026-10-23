@@ -13,7 +13,7 @@ import java.util.Date
 import java.util.Locale
 import __PACKAGE__.R
 
-/** Today's timetable: your school lessons when the school timetable is on, otherwise the day's slots and timed tasks. The lesson on now is highlighted. */
+/** Today's timetable: classes, weekly slots and timed tasks in one list, each with its start and end. The one on now is highlighted. */
 class OpenTickTimetableWidget : OtBaseWidget() {
     override val layout = R.layout.ot_widget_timetable
     private val ROWS = 8
@@ -22,9 +22,9 @@ class OpenTickTimetableWidget : OtBaseWidget() {
         val tt = data?.optJSONObject("tt")
         val arr = tt?.optJSONArray("items")
         val total = arr?.length() ?: 0
-        head(context, id, rv, th, "ot_tt", if (tt?.optString("kind") == "school") "School" else "Timetable", tt?.optString("sub", "") ?: "", "page", "timetable", "page", "timetable")
+        head(context, id, rv, th, "ot_tt", tt?.optString("title", "Timetable")?.ifEmpty { "Timetable" } ?: "Timetable", tt?.optString("sub", "") ?: "", "page", "timetable", "page", "timetable")
         val rowsFit = fit(manager, id, 47, 60, ROWS)
-        emptyText(context, rv, th, "ot_tt", data, total == 0, if (tt?.optString("kind") == "school") "No lessons today" else "Nothing scheduled today")
+        emptyText(context, rv, th, "ot_tt", data, total == 0, tt?.optString("off", "")?.ifEmpty { null } ?: "Nothing scheduled today")
         val nowCal = Calendar.getInstance()
         val nowMin = nowCal.get(Calendar.HOUR_OF_DAY) * 60 + nowCal.get(Calendar.MINUTE)
         for (n in 0 until ROWS) {
@@ -46,7 +46,8 @@ class OpenTickTimetableWidget : OtBaseWidget() {
             rv.setTextColor(name, if (past) th.muted else th.text)
             val s = OtUi.rid(context, "ot_tt_s$n")
             val sub = o.optString("s", "")
-            rv.setTextViewText(s, if (sub.isNotEmpty()) sub else o.optString("a") + " – " + o.optString("b"))
+            val range = o.optString("a") + " – " + o.optString("b")
+            rv.setTextViewText(s, if (sub.isNotEmpty()) "$range · $sub" else range)
             rv.setTextColor(s, th.muted)
             rv.setOnClickPendingIntent(r, OtUi.appIntent(context, "page", "timetable", (n + 1) * 97 + id))
         }

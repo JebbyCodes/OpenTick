@@ -125,7 +125,14 @@ async function pickText(exts = ['json'], label = 'JSON', named = false) {
   if (T && T.dialog && T.fs) { const p = pathOf(await T.dialog.open({ multiple: false, filters: [{ name: label, extensions: exts }] })); if (!p) return null; const text = await T.fs.readTextFile(p); return named ? { text, name: String(p).split(/[\\/]/).pop() } : text; }
   return new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = exts.map(x => '.' + x).join(','); i.onchange = async () => res(i.files[0] ? (named ? { text: await i.files[0].text(), name: i.files[0].name } : await i.files[0].text()) : null); i.click(); });
 }
-async function exportData() { try { if (await saveText(`opentick-${todayStr()}.json`, JSON.stringify({ ...S, _app: { name: 'OpenTick', version: APP_VERSION, exported: new Date().toISOString() } }, null, 1))) toast('Exported'); } catch (e) { toast('Export failed: ' + (e.message || e)); } }
+// With "Backups" encryption on the file is sealed (and carries the wrapped key, so the passphrase opens it on any device)
+async function exportData() {
+  try {
+    const body = JSON.stringify({ ...S, _app: { name: 'OpenTick', version: APP_VERSION, exported: new Date().toISOString() } }, null, 1), sealed = vaultScope('backup');
+    if (sealed && !(await vaultEnsureKey(true))) return;
+    if (await saveText(`opentick-${todayStr()}${sealed ? '-encrypted' : ''}.json`, sealed ? await vFile(body, 'backup', SYNC_V) : body)) toast(sealed ? 'Exported, encrypted' : 'Exported');
+  } catch (e) { toast('Export failed: ' + (e.message || e)); }
+}
 
 /* ---------- notifications, sound, reminders ---------- */
 async function ensureNotify() {
@@ -275,7 +282,7 @@ function playBtn(b) {
 async function loadSnaps(m) {
   const box = $('#snaps', m); if (!box) return;
   const list = await snapList(), fmt = t => new Date(t).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-  box.innerHTML = (list.length ? list.map(x => `<div class="snap"><span><b>${esc(fmt(x.at))}</b><small>${x.tag ? 'Before deleting everything · ' : ''}${x.tasks} task${x.tasks === 1 ? '' : 's'}</small></span><button data-snaprs="${esc(x.key)}">Restore</button><button class="ib" data-snapdl="${esc(x.key)}" title="Download this backup" aria-label="Download this backup">${ic('download', 15)}</button></div>`).join('') : '<p class="hint">The first automatic backup is made a few seconds after you open the app.</p>')
+  box.innerHTML = (list.length ? list.map(x => `<div class="snap"><span><b>${esc(fmt(x.at))}</b><small>${x.tag ? 'Before deleting everything · ' : ''}${x.tasks < 0 ? 'Encrypted' : `${x.tasks} task${x.tasks === 1 ? '' : 's'}${x.sealed ? ' · encrypted' : ''}`}</small></span><button data-snaprs="${esc(x.key)}">Restore</button><button class="ib" data-snapdl="${esc(x.key)}" title="Download this backup" aria-label="Download this backup">${ic('download', 15)}</button></div>`).join('') : '<p class="hint">The first automatic backup is made a few seconds after you open the app.</p>')
     + `<div class="snapfoot"><button data-m="snapnow">${ic('refresh', 14)} Back up now</button><span class="hint">One copy a day, the last ${SNAP_KEEP} kept, on this device only.</span></div>`;
 }
 function openSettings() {
@@ -292,6 +299,7 @@ function openSettings() {
 <div class="mrow tight" style="margin-top:10px"><label class="chkl"><input type="checkbox" data-bnr="on"${s.banners !== false ? ' checked' : ''}> Show banners on lists and projects</label></div>
 <details class="gtd" style="margin-top:12px"><summary>Sidebar views</summary><div id="sbv">${uiSidebarSettings()}</div></details>
 <h4 class="mh">Data, sync &amp; backup</h4><div class="dgrid">
+<button data-m="vault">${ic(vaultOn() ? 'lock' : 'shield', 18)}<span><b>Encryption</b><small>${!vaultAvail() ? 'Needs https or the app' : vaultOn() ? 'On · ' + esc(vScopeLine(Vault.cfg)) + (Vault.key ? '' : ' · locked') : 'Off — protect your data with a passphrase'}</small></span></button>
 <button data-m="sync">${ic('cloud', 18)}<span><b>Sync</b><small>${Sync.on ? 'On · ' + esc((PROVIDERS[Sync.cfg.provider] || {}).label || '') : 'Off — WebDAV, Git, S3 or a file'}</small></span></button>
 <button data-m="export">${ic('download', 18)}<span><b>Export backup</b><small>Everything as one JSON file</small></span></button>
 <button data-m="impapps">${ic('upload', 18)}<span><b>Import from another app</b><small>TickTick, Todoist, Anytype, Trello…</small></span></button>
@@ -328,6 +336,7 @@ function openSettings() {
       if (!b) { if (e.target.classList.contains('mback')) { closeModal(); render(); } return; }
       const a = b.dataset.m;
       if (a === 'ok') { closeModal(); render(); }
+      else if (a === 'vault') { closeModal(); openVault(); }
       else if (a === 'export') exportData();
       else if (a === 'import') { closeModal(); importData(); }
       else if (a === 'widget') { if (isAndroidApp()) { widgetPush(true); toast('Long-press the home screen, choose Widgets, then OpenTick'); } else openMiniWidget(b.dataset.w || 'tasks'); }
@@ -361,8 +370,9 @@ function addCtx() {
   return {};
 }
 function quickAdd(text, ctx = {}) {
-  const p = parseQuick(text, S.lists);
-  const t = newTask({ title: p.title, due: p.due || ctx.due || null, time: p.time, ...(p.dur || ctx.dur ? { dur: p.dur || ctx.dur } : {}), priority: p.priority || ctx.priority || 0, tags: [...new Set([...(ctx.tags || []), ...p.tags])], listId: p.listId || ctx.listId || 'inbox', repeat: p.repeat, section: ctx.section || null });
+  const p = parseQuick(text, S.lists, new Date(), { subjects: scOf('subject') }), kind = p.kind || ctx.kind || '', sj = p.subjectId || ctx.subjectId || '';
+  const dur = p.dur || ctx.dur || (kind === 'exam' && p.time ? 60 : 0);
+  const t = newTask({ title: p.title, due: p.due || ctx.due || null, time: p.time, ...(dur ? { dur } : {}), priority: p.priority || ctx.priority || 0, tags: [...new Set([...(ctx.tags || []), ...p.tags])], listId: p.listId || ctx.listId || (kind ? scWorkList() : 'inbox'), repeat: p.repeat, section: ctx.section || null, ...(kind ? { kind } : {}), ...(sj ? { subjectId: sj } : {}), ...(ctx.lessonId ? { lessonId: ctx.lessonId } : {}) });
   S.tasks.push(t); save(); sfx('add'); fx(rowSel(t.id), 'enter'); return t;
 }
 function reorder(dragId, beforeId) {
@@ -476,7 +486,7 @@ function ttDrop(e, el) {
     sl.days = sl.days.length === 1 ? [nd] : [...new Set(sl.days.map(x => (x === +day ? nd : x)))].sort((a, b) => a - b);
   } else {
     const t = getT(U.drag); if (!t) return;
-    t.due = date; t.slotId = null;
+    t.due = date; t.slotId = null; t.lessonId = null;
     if (isAd) t.time = null; else { t.time = fromMin(m); t.dur = t.dur || 30; }
   }
   save(); sfx('sched'); const dropped = String(U.drag).startsWith('slot:') ? `.blk[data-sid="${U.drag.split(':')[1]}"]` : rowSel(U.drag); fx(dropped, 'enter'); renderSide(); renderMain(); renderDetail();
@@ -486,9 +496,10 @@ function ttDrop(e, el) {
 function openTTCreate(pre = {}) {
   const ws = +S.settings.weekStart, order = Array.from({ length: 7 }, (_, i) => (ws + i) % 7), date = pre.date || ymd(U.ttDate || new Date());
   const st = { kind: U.ttKind || 'task', title: '', date, days: [pYmd(date).getDay()], start: pre.start || '09:00', end: pre.end || '10:00', color: COLORS[S.slots.length % COLORS.length][0] };
-  openModal(`<h3>Add to timetable</h3><div class="seg full" id="tc-kind"><button type="button" data-k="task">Task</button><button type="button" data-k="slot">Weekly slot</button></div>
+  openModal(`<h3>Add to timetable</h3><div class="seg full" id="tc-kind"><button type="button" data-k="task">Task</button><button type="button" data-k="exam">Exam</button><button type="button" data-k="slot">Weekly slot</button>${scPeriods().some(p => !p.brk) && scOf('subject').length ? `<button type="button" data-k="lesson">${esc(scName())} lesson</button>` : ''}</div>
 <div class="form one tc" id="tc"><label>Title<input id="tc-title" autocomplete="off"></label>
 <label class="only-task">Date<input type="date" id="tc-date" value="${st.date}"></label>
+${scOf('subject').length ? `<label class="only-task">Class (optional)<select id="tc-subj">${opts(scSubjOpts(), '')}</select></label>` : ''}<label class="only-exam">Room or place<input id="tc-room" autocomplete="off"></label>
 <div class="lbl only-slot">Repeats every<div class="dayp">${order.map(n => `<button type="button" class="dp${st.days.includes(n) ? ' on' : ''}" data-d="${n}">${DAYS[n]}</button>`).join('')}</div></div>
 <div class="two"><label>Start<input type="time" id="tc-start" value="${st.start}"></label><label>End<input type="time" id="tc-end" value="${st.end}"></label></div>
 <div class="chips tc-dur">${[15, 30, 45, 60, 90, 120].map(m => `<button type="button" class="btn sm" data-dur="${m}">${fmtDur(m)}</button>`).join('')}</div>
@@ -497,9 +508,10 @@ function openTTCreate(pre = {}) {
 <div class="mact"><button data-m="more">More options…</button><span class="sp"></span><button data-m="no">Cancel</button><button class="pri" data-m="add">Add</button></div>`, m => {
     const read = () => { st.title = $('#tc-title').value.trim(); st.start = $('#tc-start').value || st.start; st.end = $('#tc-end').value || st.end; st.date = $('#tc-date').value || st.date; };
     const kind = k => {
+      if (k === 'lesson') { read(); closeModal(); scLessonDlg(pYmd(st.date).getDay(), null, { pick: true }); return; } // lessons sit in the lesson times, so they have their own form
       st.kind = U.ttKind = k; $('#tc').className = 'form one tc k-' + k;
       $$('#tc-kind button', m).forEach(b => b.classList.toggle('on', b.dataset.k === k));
-      $('#tc-title').placeholder = k === 'task' ? 'e.g. Write essay !high #uni' : 'e.g. Maths, Gym, Deep work';
+      $('#tc-title').placeholder = k === 'task' ? 'e.g. Write essay !high #uni' : k === 'exam' ? 'e.g. Chapter 4 test @maths' : 'e.g. Maths, Gym, Deep work';
     };
     const warn = () => { read(); $('#tc-warn').innerHTML = toMin(st.end) <= toMin(st.start) ? '<span class="bad">End must be after the start.</span>' : ''; };
     const make = more => {
@@ -507,8 +519,9 @@ function openTTCreate(pre = {}) {
       if (toMin(st.end) <= toMin(st.start)) { toast('End must be after the start'); return; }
       if (more && st.kind === 'slot') { closeModal(); openSlot(null, { title: st.title, days: st.days, start: st.start, end: st.end, color: st.color }); return; }
       if (!st.title) { toast('Give it a title'); $('#tc-title').focus(); return; }
-      if (st.kind === 'task') {
-        const p = parseQuick(st.title, S.lists), t = newTask({ title: p.title, due: st.date, time: st.start, dur: toMin(st.end) - toMin(st.start), priority: p.priority, tags: p.tags, listId: p.listId || 'inbox' });
+      if (st.kind === 'task' || st.kind === 'exam') {
+        const exam = st.kind === 'exam', p = parseQuick(st.title, S.lists, new Date(), { subjects: scOf('subject') }), sj = p.subjectId || ($('#tc-subj') || {}).value || '', room = exam ? $('#tc-room').value.trim() : '';
+        const t = newTask({ title: p.title, due: st.date, time: st.start, dur: toMin(st.end) - toMin(st.start), priority: p.priority, tags: p.tags, listId: p.listId || (exam || p.kind ? scWorkList() : 'inbox'), ...(exam || p.kind ? { kind: exam ? 'exam' : p.kind } : {}), ...(sj ? { subjectId: sj } : {}), ...(room ? { room } : {}) });
         S.tasks.push(t); if (more) U.sel = t.id; save(); closeModal(); sfx('add'); U.ttDate = pYmd(st.date); refresh();
       } else {
         if (!st.days.length) { toast('Pick at least one day'); return; }
@@ -544,7 +557,7 @@ function openTTSchedule(id) {
     m.onclick = e => {
       const dp = e.target.closest('[data-dp]'); if (dp) { durSet(box, +dp.dataset.dp || 0); return; }
       const b = e.target.closest('[data-m]'); if (!b) { if (e.target.classList.contains('mback')) closeModal(); return; }
-      if (b.dataset.m === 'ok') { t.due = $('#ts-date').value || t.due || todayStr(); t.time = $('#ts-time').value || '09:00'; t.dur = durRead(box) || 30; t.slotId = null; U.ttDate = pYmd(t.due); sfx('sched'); }
+      if (b.dataset.m === 'ok') { t.due = $('#ts-date').value || t.due || todayStr(); t.time = $('#ts-time').value || '09:00'; t.dur = durRead(box) || 30; t.slotId = null; t.lessonId = null; U.ttDate = pYmd(t.due); sfx('sched'); }
       else if (b.dataset.m === 'clear') { t.time = null; t.dur = null; }
       closeModal(); if (b.dataset.m !== 'no') { save(); refresh(); }
     };
@@ -965,6 +978,10 @@ document.addEventListener('change', async e => {
     else if (t.status === 'done') { t.status = 'open'; delete t.doneAt; sfx('undo'); }
   }
   else if (f === 'slot') { t.slotId = v || null; const sl = v && slotById(v); if (sl && !t.due) t.due = ymd(nextSlotDate(sl)); }
+  else if (f === 'kind') { if (v) t.kind = v; else delete t.kind; if (v === 'exam' && t.time && !t.dur) t.dur = 60; }
+  else if (f === 'subject') { t.subjectId = v || null; const l = t.lessonId && scGet(t.lessonId); if (l && l.subjectId !== v) t.lessonId = null; }
+  else if (f === 'lesson') { if (!v) t.lessonId = null; else { const [lid, date] = v.split('|'), l = scGet(lid); if (l) { t.lessonId = lid; t.due = date; if (!t.subjectId) t.subjectId = l.subjectId; t.slotId = null; } } }
+  else if (f === 'room') { if (v.trim()) t.room = v.trim(); else delete t.room; }
   else if (f === 'tags') t.tags = [...new Set(v.split(/[\s,]+/).map(x => x.replace(/^#/, '').toLowerCase()).filter(Boolean))];
   else return;
   save(); refresh();
@@ -1206,27 +1223,55 @@ document.addEventListener('touchend', e => { if (!swipe) return; const t = e.cha
   document.addEventListener('touchcancel', finish);
 })();
 
-/* ---------- startup ---------- */
-if (!WIDGET) homeApply();
-motionApply();
-applyTheme();
-applyScale(null, { quiet: true });
-bgApply();
-uiInit();
-render();
-mqStart();
-checkReminders();
-setInterval(checkReminders, 20000);
-setInterval(clockPaint, 1000); setInterval(editedSweep, 20000); setTimeout(filesGC, 25000);
-setTimeout(() => snapSave(), 8000); setInterval(() => snapSave(), 30 * 60000); // one automatic local backup a day
-// keep the timetable's "now" line moving (not while typing, in a dialog, or mid-drag)
-setInterval(() => { if (U.page === 'timetable' && !U.drag && !$('#modal.on') && !/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '')) renderMain(); }, 60000);
-window.addEventListener('storage', e => { if (e.key === WCMD && e.newValue) { wgRunCommand(e.newValue); return; } if (e.key === KEY) { S = load(); initSeen(); applyTheme(); render(); } });
+/* ---------- startup ----------
+   Everything that needs the data runs in appStart(): straight away, or (when the data is encrypted) right after the unlock, so nothing
+   is drawn, scheduled or synced from the empty stand-in that is shown while locked. appResume() picks the screen up again after a re-lock. */
+let APP_STARTED = false;
+function appStart() {
+  APP_STARTED = true;
+  if (!WIDGET) homeApply();
+  motionApply();
+  applyTheme();
+  applyScale(null, { quiet: true });
+  bgApply();
+  uiInit();
+  render();
+  mqStart();
+  checkReminders();
+  setInterval(checkReminders, 20000);
+  setInterval(clockPaint, 1000); setInterval(editedSweep, 20000); setTimeout(filesGC, 25000);
+  setTimeout(() => snapSave(), 8000); setInterval(() => snapSave(), 30 * 60000); // one automatic local backup a day
+  // keep the timetable's "now" line moving (not while typing, in a dialog, or mid-drag)
+  setInterval(() => { if (!Vault.locked && U.page === 'timetable' && !U.drag && !$('#modal.on') && !/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '')) renderMain(); }, 60000);
+  if (S.settings.pomo.faceDown) { try { if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission !== 'function') fdEnable(); else if (typeof DeviceOrientationEvent !== 'undefined') { window.addEventListener('deviceorientation', fdHandler); FD.on = true; } } catch (e) { /* no sensor */ } }
+  startSync();
+  if (!WIDGET) { setTimeout(widgetPull, 900); window.addEventListener('focus', widgetPull); widgetPush(); }
+}
+// the data is open again (unlocked after a lock, or switched to another vault): show it, and bring the reminders and sync back
+function appResume() {
+  if (!WIDGET) homeApply();
+  motionApply(); applyTheme(); applyScale(null, { quiet: true }); bgApply(); uiApply(); clockPaint(); paintDock();
+  render(); checkReminders(); widgetPush(true);
+  if (Sync.on) setTimeout(() => syncNow(), 400);
+}
+// a change made in another window of the app (a mini widget, a second tab) arrives through storage; encrypted data is opened first
+async function storageReload() {
+  try {
+    if (Vault.cfg && Vault.cfg.scopes.local) { if (Vault.locked || !Vault.key) return; S = migrate(await vaultLoadLocal()); }
+    else S = load();
+    initSeen(); applyTheme(); render();
+  } catch (e) { /* the other window is mid-write: the next change brings us up to date */ }
+}
+window.addEventListener('storage', e => {
+  if (e.key === WCMD && e.newValue) { wgRunCommand(e.newValue); return; }
+  if (Vault.locked) return;
+  if (e.key === VAULT_ENC && e.newValue) storageReload();
+  else if (e.key === KEY && !(Vault.cfg && Vault.cfg.scopes.local)) storageReload();
+});
 window.addEventListener('pagehide', flush);
-if (S.settings.pomo.faceDown) { try { if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission !== 'function') fdEnable(); else if (typeof DeviceOrientationEvent !== 'undefined') { window.addEventListener('deviceorientation', fdHandler); FD.on = true; } } catch (e) { /* no sensor */ } }
-startSync();
-widgetWire(); if (!WIDGET) { setTimeout(widgetPull, 900); window.addEventListener('focus', widgetPull); widgetPush(); }
-document.addEventListener('visibilitychange', () => { if (document.hidden) widgetPush(true); else widgetPull(); if (!document.hidden) { wlSync(); checkReminders(); if (!document.activeElement || !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) render(); } });
+widgetWire();
+document.addEventListener('visibilitychange', () => { if (Vault.locked) return; if (document.hidden) widgetPush(true); else widgetPull(); if (!document.hidden) { wlSync(); checkReminders(); if (!document.activeElement || !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) render(); } });
+vaultStart(appStart); // no encryption: straight in. Encrypted: the lock screen first (or a quiet unlock), then appStart().
 if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !window.__TAURI__) navigator.serviceWorker.register('sw.js').catch(() => {});
 
 /* timetable blocks are real controls: Enter / Space opens one, and a changed window (rotation, split screen, resizing) refits the hours */

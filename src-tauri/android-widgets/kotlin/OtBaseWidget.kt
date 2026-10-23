@@ -78,8 +78,9 @@ abstract class OtBaseWidget : AppWidgetProvider() {
     fun emptyText(context: Context, rv: RemoteViews, th: OtTheme, k: String, data: JSONObject?, empty: Boolean, msg: String) {
         val e = OtUi.rid(context, k + "_empty")
         rv.setTextColor(e, th.muted)
-        rv.setTextViewText(e, if (data == null) "Open OpenTick once to fill this widget" else msg)
-        OtUi.show(rv, e, empty || data == null)
+        val locked = data?.optBoolean("locked", false) == true
+        rv.setTextViewText(e, if (data == null) "Open OpenTick once to fill this widget" else if (locked) OtUi.LOCKED else msg)
+        OtUi.show(rv, e, empty || data == null || locked)
     }
 
     fun moreText(context: Context, rv: RemoteViews, th: OtTheme, k: String, hidden: Int, id: Int, openOp: String, openId: String) {

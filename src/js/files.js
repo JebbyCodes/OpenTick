@@ -29,13 +29,38 @@ const fileSize = n => (n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(n 
 
 /* ---------- storage ---------- */
 const FILE_URL = new Map(); // id -> blob URL (kept while the page is open)
+// With device encryption on, a file is stored as { enc, at, m (name, type, size: sealed), d (the bytes: sealed) }. The bytes are not compressed
+// (attachments already are) and never leave this device. An older plain record ({ blob, name, … }) stays readable until it is sealed.
+const fileSealOn = () => vaultScope('local') && !!Vault.key;
+async function fileRecord(blob, meta, at) {
+  if (!fileSealOn()) return { blob, name: meta.name, type: meta.type, size: meta.size, at };
+  return { enc: 1, at, m: await vSeal(JSON.stringify(meta), 'filem'), d: await vSealBin(new Uint8Array(await blob.arrayBuffer()), 'file') };
+}
 async function filePut(file) {
-  const id = uid(); await idb('readwrite', s => s.put({ blob: file, name: file.name, type: file.type || '', size: file.size, at: Date.now() }, 'file:' + id));
+  const id = uid(), rec = await fileRecord(file, { name: file.name, type: file.type || '', size: file.size }, Date.now());
+  await idb('readwrite', s => s.put(rec, 'file:' + id));
   const back = await fileGet(id); // never keep a record whose bytes did not make it into storage
   if (!back || back.size !== file.size) { try { await idb('readwrite', s => s.delete('file:' + id)); } catch (e) { /* nothing to clean */ } throw new Error('the file was not saved completely'); }
   return { id, name: file.name || 'file', type: file.type || '', size: file.size, added: Date.now() };
 }
-async function fileGet(id) { try { const v = await idb('readonly', s => s.get('file:' + id)); return v ? v.blob : null; } catch (e) { return null; } }
+// a stored record -> a Blob (null when it is gone, or sealed with a key this device does not hold)
+async function fileOpen(v) {
+  if (!v) return null;
+  if (!v.enc) return v.blob || null;
+  const m = JSON.parse(await vOpen(v.m, 'filem')), bytes = await vOpenBin(v.d, 'file');
+  return new Blob([bytes], { type: m.type || '' });
+}
+async function fileGet(id) { try { return await fileOpen(await idb('readonly', s => s.get('file:' + id))); } catch (e) { return null; } }
+// bring one stored file in line with the current settings and key (sealed or plain): used when encryption is turned on, off or re-keyed
+async function fileReseal(key) {
+  const v = await idb('readonly', s => s.get(key)); if (!v) return;
+  const want = fileSealOn();
+  if (want === !!v.enc && (!want || (v.d && v.d.vid === Vault.cfg.id))) return;
+  const blob = await fileOpen(v); if (!blob) return;
+  const meta = v.enc ? JSON.parse(await vOpen(v.m, 'filem')) : { name: v.name, type: v.type, size: v.size };
+  const rec = await fileRecord(blob, meta, v.at);
+  await idb('readwrite', s => s.put(rec, key));
+}
 async function fileUrl(id) { if (FILE_URL.has(id)) return FILE_URL.get(id); const b = await fileGet(id); if (!b) return null; const u = URL.createObjectURL(b); FILE_URL.set(id, u); return u; }
 // forget bytes no record points at any more (only ones older than a day, so nothing in the middle of being attached is lost)
 async function filesGC() {
