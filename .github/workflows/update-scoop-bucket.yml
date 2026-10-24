@@ -21,10 +21,10 @@ jobs:
 
     steps:
       - name: Check out OpenTick
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Check out Scoop bucket
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: JebbyCodes/OpenTick-Scoop
           ref: main
@@ -89,4 +89,5 @@ jobs:
             - Updates the automatic-update URL.
 
             Please review the manifest and confirm the installer and checksum before merging.
+
 
