@@ -73,7 +73,7 @@ jobs:
           Write-Host "Manifest updated for OpenTick $version."
 
       - name: Create or update review pull request
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.OPENTICK_SCOOP_TOKEN }}
           path: scoop-bucket
@@ -89,5 +89,6 @@ jobs:
             - Updates the automatic-update URL.
 
             Please review the manifest and confirm the installer and checksum before merging.
+
 
 
