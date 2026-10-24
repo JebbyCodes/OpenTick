@@ -192,6 +192,26 @@ Download the installer for your platform from [Releases](https://github.com/Jebb
 
 Or install the PWA straight from your browser once `dist/` is hosted over HTTPS.
 
+### Windows via Scoop
+
+Install OpenTick using [Scoop](https://scoop.sh/) and the OpenTick community bucket.
+
+**Requirements:** Windows and [Scoop](https://scoop.sh/) installed.
+
+```powershell
+scoop bucket add opentick https://github.com/JebbyCodes/OpenTick-Scoop
+scoop install opentick
+```
+
+To update OpenTick later:
+
+```powershell
+scoop update
+scoop update opentick
+```
+
+See the [OpenTick Scoop bucket](https://github.com/JebbyCodes/OpenTick-Scoop) for the manifest and installation details.
+
 ### From source
 
 See Building from source.
