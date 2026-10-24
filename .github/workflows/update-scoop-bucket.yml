@@ -3,6 +3,12 @@ name: Update Scoop Bucket
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Existing release tag to test, e.g. v0.4.0"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -83,3 +89,4 @@ jobs:
             - Updates the automatic-update URL.
 
             Please review the manifest and confirm the installer and checksum before merging.
+
