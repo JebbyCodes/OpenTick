@@ -1,0 +1,192 @@
+name: Publish Chocolatey Package
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Stable release tag to package (for example v0.5.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chocolatey-publish-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    # Never publish GitHub prereleases to Chocolatey.
+    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
+    runs-on: windows-latest
+
+    steps:
+      - name: Select and validate release tag
+        id: release
+        shell: pwsh
+        env:
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+          MANUAL_TAG: ${{ inputs.tag }}
+          EVENT_IS_PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') {
+            $tag = $env:MANUAL_TAG.Trim()
+          } else {
+            if ($env:EVENT_IS_PRERELEASE -eq 'true') {
+              throw 'Refusing to publish a GitHub prerelease to Chocolatey.'
+            }
+            $tag = $env:EVENT_TAG.Trim()
+          }
+
+          if ($tag -notmatch '^v?(\d+\.\d+\.\d+)$') {
+            throw "Tag '$tag' is not a stable x.y.z version (optional leading v)."
+          }
+
+          $version = $Matches[1]
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Host "Preparing OpenTick $version from release tag $tag"
+
+      - name: Download MSI and calculate SHA-256
+        id: installer
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $url = "https://github.com/JebbyCodes/OpenTick/releases/download/$env:RELEASE_TAG/OpenTick_$($env:VERSION)_x64_en-US.msi"
+          $msiPath = Join-Path $env:RUNNER_TEMP "OpenTick_$($env:VERSION)_x64_en-US.msi"
+
+          Invoke-WebRequest -Uri $url -OutFile $msiPath
+          if (!(Test-Path $msiPath) -or (Get-Item $msiPath).Length -eq 0) {
+            throw "The release MSI could not be downloaded or is empty: $url"
+          }
+
+          $checksum = (Get-FileHash -Path $msiPath -Algorithm SHA256).Hash
+          "url=$url" >> $env:GITHUB_OUTPUT
+          "checksum=$checksum" >> $env:GITHUB_OUTPUT
+          Write-Host "MSI URL: $url"
+          Write-Host "SHA-256: $checksum"
+
+      - name: Generate Chocolatey package files
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          MSI_URL: ${{ steps.installer.outputs.url }}
+          MSI_SHA256: ${{ steps.installer.outputs.checksum }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $packageDir = Join-Path $env:RUNNER_TEMP 'opentick-chocolatey'
+          $toolsDir = Join-Path $packageDir 'tools'
+          New-Item -ItemType Directory -Path $toolsDir -Force | Out-Null
+
+          # Preserve the existing package metadata; only release-dependent values change.
+          $nuspec = @"
+          <?xml version="1.0" encoding="utf-8"?>
+          <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+            <metadata>
+              <id>opentick</id>
+              <version>$($env:VERSION)</version>
+              <title>OpenTick</title>
+              <authors>JebbyCodes</authors>
+              <owners>JebbyCodes</owners>
+              <projectUrl>https://github.com/JebbyCodes/OpenTick</projectUrl>
+              <licenseUrl>https://unlicense.org/</licenseUrl>
+              <requireLicenseAcceptance>false</requireLicenseAcceptance>
+              <copyright>Copyright 2026 JebbyCodes</copyright>
+              <tags>opentick task-manager productivity ticktick open-source</tags>
+              <summary>Open-source task manager inspired by TickTick.</summary>
+              <description>
+          OpenTick is a free, open-source task manager inspired by TickTick. This package installs the Windows x64 desktop application. OpenTick does not require a paid licence or trial activation. It is under active development, so features and behaviour may change between releases.
+              </description>
+              <releaseNotes>https://github.com/JebbyCodes/OpenTick/releases/tag/$($env:RELEASE_TAG)</releaseNotes>
+            </metadata>
+          </package>
+          "@
+
+          # Keep XML indentation tidy and use UTF-8 without a BOM.
+          $nuspec = $nuspec -replace '(?m)^          ', ''
+          Set-Content -Path (Join-Path $packageDir 'opentick.nuspec') -Value $nuspec -Encoding utf8
+
+          # This deliberately does not create or package VERIFICATION.txt.
+          $installScript = @'
+          $ErrorActionPreference = 'Stop'
+
+          $packageName = 'opentick'
+          $url64 = '__MSI_URL__'
+          $checksum64 = '__MSI_SHA256__'
+
+          $packageArgs = @{
+              packageName    = $packageName
+              fileType       = 'msi'
+              url64bit       = $url64
+              checksum64     = $checksum64
+              checksumType64 = 'sha256'
+              silentArgs     = '/qn /norestart'
+              validExitCodes = @(0, 3010, 1641)
+          }
+
+          Install-ChocolateyPackage @packageArgs
+          '@
+
+          $installScript = $installScript.Replace('__MSI_URL__', $env:MSI_URL)
+          $installScript = $installScript.Replace('__MSI_SHA256__', $env:MSI_SHA256)
+          Set-Content -Path (Join-Path $toolsDir 'chocolateyinstall.ps1') -Value $installScript -Encoding utf8
+
+          "PACKAGE_DIR=$packageDir" >> $env:GITHUB_ENV
+          Write-Host 'Generated opentick.nuspec and tools/chocolateyinstall.ps1.'
+          Write-Host 'VERIFICATION.txt has not been created.'
+
+      - name: Build and validate package
+        id: pack
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          choco pack (Join-Path $env:PACKAGE_DIR 'opentick.nuspec') --outputdirectory="$env:PACKAGE_DIR"
+          if ($LASTEXITCODE -ne 0) {
+            throw "choco pack failed with exit code $LASTEXITCODE"
+          }
+
+          $nupkg = Join-Path $env:PACKAGE_DIR "opentick.${{ steps.release.outputs.version }}.nupkg"
+          if (!(Test-Path $nupkg)) {
+            throw "Expected package was not created: $nupkg"
+          }
+
+          $contents = & tar -tf $nupkg
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not inspect the generated .nupkg archive.'
+          }
+          if ($contents -match '(^|/)VERIFICATION\.txt$') {
+            throw 'Package unexpectedly contains VERIFICATION.txt; refusing to publish.'
+          }
+
+          "nupkg=$nupkg" >> $env:GITHUB_OUTPUT
+          Write-Host "Validated package: $nupkg"
+          Write-Host ($contents -join "`n")
+
+      - name: Publish to Chocolatey Community Repository
+        shell: pwsh
+        env:
+          CHOCO_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
+          NUPKG_PATH: ${{ steps.pack.outputs.nupkg }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          if ([string]::IsNullOrWhiteSpace($env:CHOCO_API_KEY)) {
+            throw 'Missing GitHub Actions secret CHOCOLATEY_API_KEY.'
+          }
+
+          choco push "$env:NUPKG_PATH" --source="'https://push.chocolatey.org/'" --api-key="'$env:CHOCO_API_KEY'"
+          if ($LASTEXITCODE -ne 0) {
+            throw "choco push failed with exit code $LASTEXITCODE"
+          }
