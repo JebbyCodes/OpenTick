@@ -35,6 +35,13 @@ jobs:
       - name: Build OpenTick web app
         run: npm run build:app
 
+      - name: Publish privacy policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f docs/privacy-policy.md
+          mkdir -p dist
+          npx --yes marked --gfm --output dist/privacy-policy.html docs/privacy-policy.md
       - name: Verify website output
         shell: bash
         run: |
