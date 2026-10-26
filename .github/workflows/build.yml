@@ -20,6 +20,10 @@ on:
         type: boolean
         default: true
 
+  # Validate pull requests without publishing release assets.
+  pull_request:
+    branches: [main]
+
   # Build all platforms and publish a release when a version tag is pushed.
   push:
     tags:
@@ -394,6 +398,9 @@ jobs:
       - name: Build Android APK
         run: npx tauri android build --apk
 
+      - name: Build Android App Bundle for Google Play
+        run: npx tauri android build
+
       # versionName / versionCode are generated from the version in tauri.conf.json: prove they still equal package.json's
       - name: Check the Android version matches package.json
         run: node scripts/check-android-version.mjs --generated
@@ -429,11 +436,28 @@ jobs:
             echo "APK signature verified: $apk"
           done
 
-      - name: Upload Android APK
+      - name: Verify Android App Bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -d '' bundles < <(find src-tauri/gen/android/app/build/outputs/bundle -type f -name '*.aab' -print0)
+          if [ "${#bundles[@]}" -eq 0 ]; then
+            echo "::error::No Android App Bundle was generated."
+            find src-tauri/gen/android/app/build/outputs -type f -print | sort
+            exit 1
+          fi
+          for bundle in "${bundles[@]}"; do
+            jarsigner -verify "$bundle"
+            echo "Verified Android App Bundle: $bundle"
+          done
+
+      - name: Upload Android APK and App Bundle
         uses: actions/upload-artifact@v7
         with:
-          name: OpenTick-Android-APK
-          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          name: OpenTick-Android
+          path: |
+            src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+            src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
           if-no-files-found: error
           retention-days: 14
 
@@ -612,6 +636,7 @@ jobs:
           mapfile -d '' packages < <(
             find release-assets -type f \( \
               -iname '*.apk' -o \
+              -iname '*.aab' -o \
               -iname '*.exe' -o \
               -iname '*.msi' -o \
               -iname '*.msix' -o \
