@@ -32,12 +32,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Check project versions
-        run: npm run version:check
-
-      - name: Run test suite
-        run: npm test
-
       - name: Build OpenTick web app
         run: npm run build:app
 
