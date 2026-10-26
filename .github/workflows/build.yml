@@ -496,7 +496,7 @@ jobs:
           sudo env "PATH=$PATH" "CARGO_HOME=${CARGO_HOME:-$HOME/.cargo}" "RUSTUP_HOME=${RUSTUP_HOME:-$HOME/.rustup}" "$SNAPCRAFT_BIN" pack --destructive-mode --verbosity=brief
           SNAP_FILE="$(find . -maxdepth 1 -type f -name '*.snap' -print -quit)"
           if [[ -z "$SNAP_FILE" ]]; then echo "::error::Snapcraft did not produce a .snap file."; exit 1; fi
-          chmod a+r "$SNAP_FILE"
+          sudo chmod a+r "$SNAP_FILE"
           echo "snap=$SNAP_FILE" >> "$GITHUB_OUTPUT"
       - name: Upload Snap package
         uses: actions/upload-artifact@v7
