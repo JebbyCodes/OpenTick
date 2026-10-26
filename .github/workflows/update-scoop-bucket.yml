@@ -80,7 +80,7 @@ jobs:
           path: scoop-bucket
           branch: automation/update-opentick-release
           delete-branch: true
-          commit-message: "Update OpenTick to ${{ github.event.release.tag_name }}"
+          commit-message: "Update OpenTick Scoop manifest"
           title: "Update OpenTick release manifest"
           body: |
             Automated Scoop manifest update for the newly published OpenTick release.
