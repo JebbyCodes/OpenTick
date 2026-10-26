@@ -16,7 +16,7 @@ permissions:
 jobs:
   update-scoop:
     name: Prepare Scoop update pull request
-    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false }}
     runs-on: windows-latest
     timeout-minutes: 10
 
