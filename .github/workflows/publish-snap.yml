@@ -34,7 +34,7 @@ concurrency:
 jobs:
   publish:
     name: Publish release Snap
-    if: ${{ github.event_name == 'release' || inputs.publish_to_store }}
+    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     steps:
