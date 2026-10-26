@@ -549,7 +549,7 @@ jobs:
             <releaseNotes>https://github.com/JebbyCodes/OpenTick/releases/tag/v$version</releaseNotes>
           </metadata></package>
           "@ | Set-Content (Join-Path $root 'opentick.nuspec') -Encoding utf8
-          @'
+          $installScript = @'
           $ErrorActionPreference = 'Stop'
           $packageArgs = @{
               packageName    = 'opentick'
@@ -561,8 +561,9 @@ jobs:
               validExitCodes = @(0, 3010, 1641)
           }
           Install-ChocolateyPackage @packageArgs
-          '@.Replace('__URL__', $url).Replace('__SHA256__', $checksum) |
-            Set-Content (Join-Path $tools 'chocolateyinstall.ps1') -Encoding utf8
+          '@
+          $installScript = $installScript.Replace('__URL__', $url).Replace('__SHA256__', $checksum)
+          Set-Content (Join-Path $tools 'chocolateyinstall.ps1') -Value $installScript -Encoding utf8
           choco pack (Join-Path $root 'opentick.nuspec') --outputdirectory="$root"
           if ($LASTEXITCODE -ne 0) { throw "choco pack failed with exit code $LASTEXITCODE" }
           $nupkg = Join-Path $root "opentick.$version.nupkg"
