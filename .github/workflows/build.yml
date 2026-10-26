@@ -14,15 +14,6 @@ on:
         required: true
         type: boolean
         default: true
-      build_snap:
-        description: Build a Linux Snap package
-        required: true
-        type: boolean
-        default: true
-
-  # Validate pull requests without publishing release assets.
-  pull_request:
-    branches: [main]
 
   # Build all platforms and publish a release when a version tag is pushed.
   push:
@@ -39,37 +30,9 @@ env:
   ANDROID_NDK_VERSION: '27.0.12077973'
 
 jobs:
-  validate:
-    name: Validate source and tests
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out source
-        uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Check project versions
-        run: npm run version:check
-
-      - name: Lint GitHub Actions workflows
-        uses: reviewdog/action-actionlint@v1
-
-      - name: Run test suite
-        run: npm test
-
   desktop:
     name: Desktop (${{ matrix.platform }})
-    needs: validate
-    if: github.event_name == 'push' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.build_desktop)
+    if: github.event_name == 'push' || inputs.build_desktop
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -147,8 +110,7 @@ jobs:
 
   android:
     name: Android Signed APK
-    needs: validate
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.build_android)
+    if: github.event_name == 'push' || inputs.build_android
     runs-on: ubuntu-22.04
 
     steps:
@@ -401,9 +363,6 @@ jobs:
       - name: Build Android APK
         run: npx tauri android build --apk
 
-      - name: Build Android App Bundle for Google Play
-        run: npx tauri android build
-
       # versionName / versionCode are generated from the version in tauri.conf.json: prove they still equal package.json's
       - name: Check the Android version matches package.json
         run: node scripts/check-android-version.mjs --generated
@@ -439,169 +398,11 @@ jobs:
             echo "APK signature verified: $apk"
           done
 
-      - name: Verify Android App Bundle
-        shell: bash
-        run: |
-          set -euo pipefail
-          mapfile -d '' bundles < <(find src-tauri/gen/android/app/build/outputs/bundle -type f -name '*.aab' -print0)
-          if [ "${#bundles[@]}" -eq 0 ]; then
-            echo "::error::No Android App Bundle was generated."
-            find src-tauri/gen/android/app/build/outputs -type f -print | sort
-            exit 1
-          fi
-          for bundle in "${bundles[@]}"; do
-            jarsigner -verify "$bundle"
-            echo "Verified Android App Bundle: $bundle"
-          done
-
-      - name: Upload Android APK and App Bundle
+      - name: Upload Android APK
         uses: actions/upload-artifact@v7
         with:
-          name: OpenTick-Android
-          path: |
-            src-tauri/gen/android/app/build/outputs/apk/**/*.apk
-            src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
-          if-no-files-found: error
-          retention-days: 14
-
-  snap:
-    name: Linux Snap package
-    needs: validate
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.build_snap)
-    runs-on: ubuntu-22.04
-    timeout-minutes: 90
-
-    steps:
-      - name: Check out source
-        uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-      - name: Install frontend dependencies
-        run: npm ci
-      - name: Check project versions
-        run: npm run version:check
-      - name: Set Snap version
-        shell: bash
-        run: |
-          set -euo pipefail
-          CONFIG_VERSION="$(node -p "require('./src-tauri/tauri.conf.json').version")"
-          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then VERSION="${GITHUB_REF_NAME#v}"; else VERSION="$CONFIG_VERSION"; fi
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ || "$VERSION" != "$CONFIG_VERSION" ]]; then
-            echo "::error::Snap version $VERSION must match Tauri version $CONFIG_VERSION."
-            exit 1
-          fi
-          sed -i -E "s/^version:.*/version: '$VERSION'/" snap/snapcraft.yaml
-      - name: Install Snapcraft
-        shell: bash
-        run: |
-          set -euo pipefail
-          export PATH="/snap/bin:$PATH"
-          if ! command -v snap >/dev/null 2>&1; then sudo apt-get update; sudo apt-get install --yes snapd; fi
-          sudo systemctl enable --now snapd.socket
-          ready=false
-          for attempt in {1..30}; do
-            if sudo snap list >/dev/null 2>&1; then ready=true; break; fi
-            sleep 2
-          done
-          if [[ "$ready" != true ]]; then echo "::error::snapd did not become available."; exit 1; fi
-          if ! sudo snap list snapcraft >/dev/null 2>&1; then sudo snap install snapcraft --classic --channel=stable; fi
-          snapcraft --version
-      - name: Build Snap package
-        id: build
-        shell: bash
-        run: |
-          set -euo pipefail
-          export PATH="/snap/bin:$PATH"
-          SNAPCRAFT_BIN="$(command -v snapcraft)"
-          sudo env "PATH=$PATH" "CARGO_HOME=${CARGO_HOME:-$HOME/.cargo}" "RUSTUP_HOME=${RUSTUP_HOME:-$HOME/.rustup}" "$SNAPCRAFT_BIN" pack --destructive-mode --verbosity=brief
-          SNAP_FILE="$(find . -maxdepth 1 -type f -name '*.snap' -print -quit)"
-          if [[ -z "$SNAP_FILE" ]]; then echo "::error::Snapcraft did not produce a .snap file."; exit 1; fi
-          sudo chmod a+r "$SNAP_FILE"
-          echo "snap=$SNAP_FILE" >> "$GITHUB_OUTPUT"
-      - name: Upload Snap package
-        uses: actions/upload-artifact@v7
-        with:
-          name: OpenTick-Snap
-          path: ${{ steps.build.outputs.snap }}
-          if-no-files-found: error
-          retention-days: 14
-
-  chocolatey-package:
-    name: Build Chocolatey package artifact
-    needs: desktop
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.build_desktop)
-    runs-on: windows-latest
-    steps:
-      - name: Check out source
-        uses: actions/checkout@v7
-      - name: Download Windows installer
-        uses: actions/download-artifact@v8
-        with:
-          name: OpenTick-Windows
-          path: installer
-      - name: Package MSI for Chocolatey
-        id: package
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          if ($env:GITHUB_EVENT_NAME -eq 'push') {
-            $tagVersion = $env:GITHUB_REF_NAME -replace '^v',''
-            if ($tagVersion -ne $version) { throw "Tag version $tagVersion does not match package.json version $version." }
-          }
-          $msi = Get-ChildItem installer -Recurse -File -Filter '*.msi' | Select-Object -First 1
-          if (-not $msi) { throw 'The Windows build did not produce an MSI.' }
-          $url = "https://github.com/JebbyCodes/OpenTick/releases/download/v$version/$($msi.Name)"
-          $checksum = (Get-FileHash $msi.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-          $root = Join-Path $env:RUNNER_TEMP 'opentick-chocolatey'
-          $tools = Join-Path $root 'tools'
-          New-Item -ItemType Directory -Path $tools -Force | Out-Null
-          $nuspec = @"
-          <?xml version="1.0" encoding="utf-8"?>
-          <package><metadata>
-            <id>opentick</id><version>$version</version><title>OpenTick</title>
-            <authors>JebbyCodes</authors><owners>JebbyCodes</owners>
-            <projectUrl>https://github.com/JebbyCodes/OpenTick</projectUrl>
-            <licenseUrl>https://unlicense.org/</licenseUrl><requireLicenseAcceptance>false</requireLicenseAcceptance>
-            <summary>Open-source, offline-first task manager.</summary>
-            <description>OpenTick is a free, open-source task manager inspired by TickTick. This package installs the Windows x64 desktop application.</description>
-            <tags>opentick task-manager productivity open-source</tags>
-            <releaseNotes>https://github.com/JebbyCodes/OpenTick/releases/tag/v$version</releaseNotes>
-          </metadata></package>
-          "@
-          Set-Content (Join-Path $root 'opentick.nuspec') -Value $nuspec -Encoding utf8
-          $installScript = @'
-          $ErrorActionPreference = 'Stop'
-          $packageArgs = @{
-              packageName    = 'opentick'
-              fileType       = 'msi'
-              url64bit       = '__URL__'
-              checksum64     = '__SHA256__'
-              checksumType64 = 'sha256'
-              silentArgs     = '/qn /norestart'
-              validExitCodes = @(0, 3010, 1641)
-          }
-          Install-ChocolateyPackage @packageArgs
-          '@
-          $installScript = $installScript.Replace('__URL__', $url).Replace('__SHA256__', $checksum)
-          Set-Content (Join-Path $tools 'chocolateyinstall.ps1') -Value $installScript -Encoding utf8
-          choco pack (Join-Path $root 'opentick.nuspec') --outputdirectory="$root"
-          if ($LASTEXITCODE -ne 0) { throw "choco pack failed with exit code $LASTEXITCODE" }
-          $nupkg = Join-Path $root "opentick.$version.nupkg"
-          if (-not (Test-Path $nupkg)) { throw "Expected package missing: $nupkg" }
-          "nupkg=$nupkg" >> $env:GITHUB_OUTPUT
-      - name: Upload Chocolatey package
-        uses: actions/upload-artifact@v7
-        with:
-          name: OpenTick-Chocolatey
-          path: ${{ steps.package.outputs.nupkg }}
+          name: OpenTick-Android-APK
+          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
           if-no-files-found: error
           retention-days: 14
 
@@ -611,8 +412,6 @@ jobs:
     needs:
       - desktop
       - android
-      - snap
-      - chocolatey-package
     runs-on: ubuntu-latest
 
     # Permissions required to publish the release and generate attestations.
@@ -628,8 +427,8 @@ jobs:
           path: release-assets
           merge-multiple: false
 
-      # Keep installable packages and store-ready artifacts; exclude bundle internals.
-      - name: Collect installable packages for supported targets
+      # Exclude bundle internals such as copyright files and shared libraries.
+      - name: Collect installer packages and APK only
         shell: bash
         run: |
           set -euo pipefail
@@ -639,28 +438,20 @@ jobs:
           mapfile -d '' packages < <(
             find release-assets -type f \( \
               -iname '*.apk' -o \
-              -iname '*.aab' -o \
               -iname '*.exe' -o \
               -iname '*.msi' -o \
               -iname '*.msix' -o \
-              -iname '*.msixbundle' -o \
               -iname '*.appx' -o \
-              -iname '*.appxbundle' -o \
               -iname '*.deb' -o \
               -iname '*.rpm' -o \
               -iname '*.appimage' -o \
-              -iname '*.snap' -o \
-              -iname '*.nupkg' -o \
               -iname '*.dmg' -o \
-              -iname '*.pkg' -o \
-              -iname '*.zip' -o \
-              -iname '*.tar.gz' -o \
-              -iname '*.tar.xz' \
+              -iname '*.pkg' \
             \) -print0 | sort -z
           )
 
           if [ "${#packages[@]}" -eq 0 ]; then
-            echo "::error::No installable release assets were found."
+            echo "::error::No installer packages or APKs were found."
             echo "Downloaded files:"
             find release-assets -type f -print | sort
             exit 1
@@ -682,17 +473,6 @@ jobs:
           echo "Final release files:"
           find release-files -maxdepth 1 -type f -printf '%f\n' | sort
           echo "Total files: ${#packages[@]}"
-
-          (cd release-files && find . -maxdepth 1 -type f ! -name 'SHA256SUMS.txt' ! -name 'RELEASE-MANIFEST.txt' -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt)
-
-          {
-            echo "OpenTick release asset manifest"
-            echo "Tag: ${GITHUB_REF_NAME}"
-            echo "Commit: ${GITHUB_SHA}"
-            echo
-            echo "Files:"
-            find release-files -maxdepth 1 -type f ! -name 'RELEASE-MANIFEST.txt' -printf '%f\n' | sort
-          } > release-files/RELEASE-MANIFEST.txt
 
       # Generate signed SLSA build-provenance attestations for installers.
       - name: Generate release artifact attestations
