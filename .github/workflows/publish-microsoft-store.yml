@@ -1,156 +1,40 @@
-name: Publish OpenTick to Microsoft Store
+name: Microsoft Store publishing (manual preflight only)
 
+# Deliberately manual-only: submission is disabled until the Partner Center schema and CLI flow are verified.
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Existing GitHub release tag, e.g. v0.4.1
+        description: Stable GitHub Release tag to preflight (for example v0.4.0)
         required: true
         type: string
 
 permissions:
   contents: read
 
-concurrency:
-  group: microsoft-store-publish
-  cancel-in-progress: false
-
 jobs:
-  publish:
-    name: Submit Store update
-    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
+  preflight:
+    name: Verify Microsoft Store release asset (no submission)
     runs-on: windows-latest
-
+    timeout-minutes: 10
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Microsoft Store CLI
-        uses: microsoft/microsoft-store-apppublisher@v1.4
-
-      - name: Configure Store credentials
-        shell: pwsh
-        env:
-          AZURE_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
-          STORE_SELLER_ID: ${{ secrets.SELLER_ID }}
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          msstore reconfigure `
-            --tenantId $env:AZURE_TENANT_ID `
-            --sellerId $env:STORE_SELLER_ID `
-            --clientId $env:AZURE_CLIENT_ID `
-            --clientSecret $env:AZURE_CLIENT_SECRET
-
-          if ($LASTEXITCODE -ne 0) {
-            throw "Microsoft Store CLI configuration failed."
-          }
-
-      - name: Update and submit Store package
+      - name: Validate tag and locate matching installer
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          STORE_PRODUCT_ID: "00014150904955425480"
-          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          $ErrorActionPreference = "Stop"
-
-          $repo = "JebbyCodes/OpenTick"
-          $tag = $env:RELEASE_TAG
-
-          if ([string]::IsNullOrWhiteSpace($tag)) {
-            throw "No release tag was provided."
-          }
-
-          if ($tag -notmatch '^v?\d+\.\d+\.\d+$') {
-            throw "Refusing to submit a non-stable version to Microsoft Store: $tag"
-          }
-
-          # Find the public GitHub Release and its installer assets.
-          $headers = @{
-            Authorization = "Bearer $env:GH_TOKEN"
-            Accept = "application/vnd.github+json"
-            "X-GitHub-Api-Version" = "2022-11-28"
-          }
-
-          $encodedTag = [uri]::EscapeDataString($tag)
-          $releaseUrl = "https://api.github.com/repos/$repo/releases/tags/$encodedTag"
-          $release = Invoke-RestMethod -Uri $releaseUrl -Headers $headers
-
-          if ($release.draft) {
-            throw "The GitHub Release is still a draft."
-          }
-
-          # Get the existing Store package JSON. Do not invent its schema.
-          $packagePath = Join-Path $env:RUNNER_TEMP "store-package.json"
-
-          msstore submission get $env:STORE_PRODUCT_ID |
-            Out-File -FilePath $packagePath -Encoding utf8
-
-          if ($LASTEXITCODE -ne 0) {
-            throw "Could not retrieve the existing Store package metadata."
-          }
-
-          $package = Get-Content -Raw $packagePath |
-            ConvertFrom-Json
-
-          if (-not $package.packages -or $package.packages.Count -ne 1) {
-            throw "Expected exactly one existing Store package. No submission was made; inspect the package JSON before adapting this workflow."
-          }
-
-          $currentUrl = [string]$package.packages[0].packageUrl
-          $extension = [IO.Path]::GetExtension(([uri]$currentUrl).AbsolutePath).ToLowerInvariant()
-
-          if ($extension -notin @(".msi", ".exe")) {
-            throw "The current Store package URL is not an MSI or EXE. No submission was made."
-          }
-
-          # Match the installer format already registered in Partner Center.
+          $ErrorActionPreference = 'Stop'
+          $tag = $env:RELEASE_TAG.Trim()
+          if ($tag -notmatch '^v?\d+\.\d+\.\d+$') { throw "Expected a stable x.y.z tag, got '$tag'." }
           $version = $tag -replace '^v', ''
-
-          if ($extension -eq ".msi") {
-            $assetName = "OpenTick_${version}_x64_en-US.msi"
-          } else {
-            $assetName = "OpenTick_${version}_x64-setup.exe"
-          }
-
-          $asset = @($release.assets | Where-Object {
-            $_.name -eq $assetName
-          })
-
-          if ($asset.Count -ne 1) {
-            $available = ($release.assets | ForEach-Object { $_.name }) -join ", "
-            throw "Expected exactly one asset named '$assetName'. Available assets: $available"
-          }
-
-          $installerUrl = [string]$asset[0].browser_download_url
-
-          if (-not $installerUrl.StartsWith("https://")) {
-            throw "The installer URL is not HTTPS."
-          }
-
-          Write-Host "Release tag: $tag"
-          Write-Host "Installer asset: $assetName"
-          Write-Host "Updating the Store package URL."
-
-          # Preserve all existing package metadata except the installer URL.
-          $package.packages[0].packageUrl = $installerUrl
-          $updatedPackage = $package | ConvertTo-Json -Depth 100 -Compress
-
-          msstore submission update $env:STORE_PRODUCT_ID $updatedPackage
-
-          if ($LASTEXITCODE -ne 0) {
-            throw "Updating the Store submission failed."
-          }
-
-          msstore submission publish $env:STORE_PRODUCT_ID
-
-          if ($LASTEXITCODE -ne 0) {
-            throw "Publishing the Store submission failed."
-          }
-
-          Write-Host "Store submission completed. Microsoft certification may still be required."
+          $headers = @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = 'application/vnd.github+json'; 'X-GitHub-Api-Version' = '2022-11-28' }
+          $encodedTag = [uri]::EscapeDataString($tag)
+          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/JebbyCodes/OpenTick/releases/tags/$encodedTag" -Headers $headers
+          if ($release.draft -or $release.prerelease) { throw "Refusing draft or prerelease: $tag" }
+          $assetName = 'OpenTick_' + $version + '_x64_en-US.msi'
+          $asset = @($release.assets | Where-Object { $_.name -eq $assetName })
+          if ($asset.Count -ne 1) { $available = ($release.assets | ForEach-Object { $_.name }) -join ', '; throw "Expected one MSI named '$assetName'. Available assets: $available" }
+          Write-Host "Preflight passed: $($asset[0].name)"
+          Write-Host "URL: $($asset[0].browser_download_url)"
+          Write-Host 'No Microsoft Store submission was made. Store publishing remains disabled until its API schema and CLI flow are verified.'
