@@ -21,10 +21,10 @@ jobs:
 
     steps:
       - name: Check out OpenTick
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Check out Scoop bucket
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           repository: JebbyCodes/OpenTick-Scoop
           ref: main
