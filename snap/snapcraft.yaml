@@ -52,7 +52,13 @@ parts:
       - libwebkit2gtk-4.1-0
       - libayatana-appindicator3-1
     override-build: |
-      set -eu
+      set -eux
+
+      export PATH="$HOME/.cargo/bin:$PATH"
+      rustup default stable
+      rustup toolchain install stable --profile minimal
+      cargo --version
+
       npm ci
       npm run tauri build -- --bundles deb
 
