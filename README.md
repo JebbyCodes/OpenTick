@@ -1,6 +1,5 @@
-# OpenTick
-
 <div align="center">
+  <h1>OpenTick</h1>
   <img src="docs/images/banner.png" alt="OpenTick" width="180">
 
   **A TickTick-style task manager for web, desktop and mobile.**
