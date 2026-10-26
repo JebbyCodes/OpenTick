@@ -1,0 +1,43 @@
+name: Test OpenTick Snap Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-snap:
+    name: Validate and build Snap
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check project versions
+        run: npm run version:check
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build Snap package
+        id: build
+        uses: snapcore/action-build@v1
+
+      - name: Upload test Snap
+        uses: actions/upload-artifact@v4
+        with:
+          name: opentick-snap-test
+          path: ${{ steps.build.outputs.snap }}
+          if-no-files-found: error
+          retention-days: 7

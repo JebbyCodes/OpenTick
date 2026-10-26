@@ -5,3 +5,14 @@ src-tauri/gen/schemas/
 .build/msix/
 Assets-backup-*/
 Package.appxmanifest.bak
+# Snapcraft-generated build output
+/parts/
+/stage/
+/prime/
+/.snapcraft/
+
+# Built Snap packages
+*.snap
+
+# Snap Store credentials (never commit these)
+snapcraft-login*.txt

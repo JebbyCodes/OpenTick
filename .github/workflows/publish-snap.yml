@@ -1,0 +1,73 @@
+name: Publish OpenTick to Snap Store
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish, for example 0.4.0'
+        required: true
+        default: '0.4.0'
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Build and publish Snap
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies and run checks
+        run: |
+          npm ci
+          npm run version:check
+          npm test
+
+      - name: Set Snap version
+        shell: bash
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            VERSION="$INPUT_VERSION"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid release version: $VERSION"
+            exit 1
+          fi
+
+          CONFIG_VERSION="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+
+          if [[ "$CONFIG_VERSION" != "$VERSION" ]]; then
+            echo "Release version $VERSION does not match Tauri version $CONFIG_VERSION."
+            echo "Synchronise the project versions before publishing."
+            exit 1
+          fi
+
+          sed -i -E "s/^version:.*/version: '$VERSION'/" snap/snapcraft.yaml
+
+      - name: Build Snap
+        id: build
+        uses: snapcore/action-build@v1
+
+      - name: Publish to candidate channel
+        uses: snapcore/action-publish@v1
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        with:
+          snap: ${{ steps.build.outputs.snap }}
+          release: candidate
