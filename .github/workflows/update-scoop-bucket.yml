@@ -40,7 +40,7 @@ jobs:
           $ErrorActionPreference = "Stop"
 
           $version = $env:RELEASE_TAG -replace '^v', ''
-          if ($version -notmatch '^\d+\.\d+\.\d+
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
             throw "Unexpected release tag: $($env:RELEASE_TAG)"
           }
 
