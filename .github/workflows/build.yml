@@ -640,14 +640,19 @@ jobs:
               -iname '*.exe' -o \
               -iname '*.msi' -o \
               -iname '*.msix' -o \
+              -iname '*.msixbundle' -o \
               -iname '*.appx' -o \
+              -iname '*.appxbundle' -o \
               -iname '*.deb' -o \
               -iname '*.rpm' -o \
               -iname '*.appimage' -o \
               -iname '*.snap' -o \
               -iname '*.nupkg' -o \
               -iname '*.dmg' -o \
-              -iname '*.pkg' \
+              -iname '*.pkg' -o \
+              -iname '*.zip' -o \
+              -iname '*.tar.gz' -o \
+              -iname '*.tar.xz' \
             \) -print0 | sort -z
           )
 
