@@ -1,31 +1,20 @@
-name: Publish OpenTick to Snap Store
+name: Snap Store publishing preflight (upload disabled)
 
 # Manual-only until the Snap Store listing, credentials, and publishing path are verified.
 on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Stable GitHub Release tag (for example v0.4.0)
+        description: Stable GitHub Release tag to preflight (for example v0.4.0)
         required: true
         type: string
-      publish_to_store:
-        description: Explicitly request Snap Store publishing (currently disabled)
-        required: true
-        type: boolean
-        default: false
-      channel:
-        description: Snap Store channel
-        required: true
-        type: choice
-        options: [edge, candidate, stable]
-        default: candidate
 
 permissions:
   contents: read
 
 jobs:
   validate:
-    name: Validate release Snap
+    name: Validate release Snap asset
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     steps:
@@ -43,15 +32,5 @@ jobs:
           gh release download "$TAG" --repo JebbyCodes/OpenTick --pattern '*.snap' --dir release-snap
           mapfile -t snaps < <(find release-snap -maxdepth 1 -type f -name '*.snap' -print)
           if [[ "${#snaps[@]}" -ne 1 ]]; then echo "::error::Expected exactly one .snap asset; found ${#snaps[@]}."; find release-snap -maxdepth 1 -type f -print; exit 1; fi
-          echo "Validated release Snap: ${snaps[0]}"
-
-  publish:
-    name: Store publishing disabled pending end-to-end verification
-    needs: validate
-    if: inputs.publish_to_store == true
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Stop safely rather than make an unverified external submission
-        run: |
-          echo '::error::Snap Store publishing is intentionally disabled until Snapcraft authentication and upload are tested end-to-end.'
-          exit 1
+          echo "Preflight passed: ${snaps[0]}"
+          echo 'No upload to the Snap Store was attempted. Store publishing remains disabled until authentication and upload are verified.'
