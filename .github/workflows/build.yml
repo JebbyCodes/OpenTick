@@ -536,7 +536,7 @@ jobs:
           $root = Join-Path $env:RUNNER_TEMP 'opentick-chocolatey'
           $tools = Join-Path $root 'tools'
           New-Item -ItemType Directory -Path $tools -Force | Out-Null
-          @"
+          $nuspec = @"
           <?xml version="1.0" encoding="utf-8"?>
           <package><metadata>
             <id>opentick</id><version>$version</version><title>OpenTick</title>
@@ -548,7 +548,8 @@ jobs:
             <tags>opentick task-manager productivity open-source</tags>
             <releaseNotes>https://github.com/JebbyCodes/OpenTick/releases/tag/v$version</releaseNotes>
           </metadata></package>
-          "@ | Set-Content (Join-Path $root 'opentick.nuspec') -Encoding utf8
+          "@
+          Set-Content (Join-Path $root 'opentick.nuspec') -Value $nuspec -Encoding utf8
           $installScript = @'
           $ErrorActionPreference = 'Stop'
           $packageArgs = @{
