@@ -452,7 +452,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: \${{ env.NODE_VERSION }}
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -465,7 +465,7 @@ jobs:
         run: |
           set -euo pipefail
           CONFIG_VERSION="$(node -p "require('./src-tauri/tauri.conf.json').version")"
-          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then VERSION="\${GITHUB_REF_NAME#v}"; else VERSION="$CONFIG_VERSION"; fi
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then VERSION="${GITHUB_REF_NAME#v}"; else VERSION="$CONFIG_VERSION"; fi
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ || "$VERSION" != "$CONFIG_VERSION" ]]; then
             echo "::error::Snap version $VERSION must match Tauri version $CONFIG_VERSION."
             exit 1
@@ -493,7 +493,7 @@ jobs:
           set -euo pipefail
           export PATH="/snap/bin:$PATH"
           SNAPCRAFT_BIN="$(command -v snapcraft)"
-          sudo env "PATH=$PATH" "CARGO_HOME=\${CARGO_HOME:-$HOME/.cargo}" "RUSTUP_HOME=\${RUSTUP_HOME:-$HOME/.rustup}" "$SNAPCRAFT_BIN" pack --destructive-mode --verbosity=brief
+          sudo env "PATH=$PATH" "CARGO_HOME=${CARGO_HOME:-$HOME/.cargo}" "RUSTUP_HOME=${RUSTUP_HOME:-$HOME/.rustup}" "$SNAPCRAFT_BIN" pack --destructive-mode --verbosity=brief
           SNAP_FILE="$(find . -maxdepth 1 -type f -name '*.snap' -print -quit)"
           if [[ -z "$SNAP_FILE" ]]; then echo "::error::Snapcraft did not produce a .snap file."; exit 1; fi
           chmod a+r "$SNAP_FILE"
@@ -502,7 +502,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: OpenTick-Snap
-          path: \${{ steps.build.outputs.snap }}
+          path: ${{ steps.build.outputs.snap }}
           if-no-files-found: error
           retention-days: 14
 
@@ -584,7 +584,7 @@ jobs:
             echo "Commit: ${GITHUB_SHA}"
             echo
             echo "Files:"
-            find release-files -maxdepth 1 -type f -printf '%f\\n' | sort
+            find release-files -maxdepth 1 -type f ! -name 'RELEASE-MANIFEST.txt' -printf '%f\n' | sort
           } > release-files/RELEASE-MANIFEST.txt
 
       # Generate signed SLSA build-provenance attestations for installers.
