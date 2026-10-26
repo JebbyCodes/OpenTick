@@ -1,20 +1,16 @@
-
 name: Publish OpenTick to Snap Store
 
 on:
-  push:
-    tags:
-      - 'v*'
-
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
-      version:
-        description: Version to build, matching the Tauri config (for example 0.4.0)
+      release_tag:
+        description: Existing GitHub release tag (for example v0.5.0)
         required: true
         type: string
-        default: '0.4.0'
       publish_to_store:
-        description: Publish the built Snap to the Store
+        description: Publish the release's Snap to the Store
         required: true
         type: boolean
         default: false
@@ -32,201 +28,82 @@ permissions:
   contents: read
 
 concurrency:
-  group: publish-snap-${{ github.ref }}
+  group: publish-snap-${{ github.event.release.tag_name || inputs.release_tag }}
   cancel-in-progress: false
 
 jobs:
   publish:
-    name: Build and publish Snap
+    name: Publish release Snap
+    if: ${{ github.event_name == 'release' || inputs.publish_to_store }}
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
-
+    timeout-minutes: 20
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '22'
-          cache: npm
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Check project versions
-        run: npm run version:check
-
-      - name: Run tests
-        run: npm test
-
-      - name: Validate version and configure Snap
+      - name: Select and validate release
+        id: release
         shell: bash
         env:
-          INPUT_VERSION: ${{ inputs.version }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+          MANUAL_TAG: ${{ inputs.release_tag }}
+          IS_PRERELEASE: ${{ github.event.release.prerelease }}
         run: |
           set -euo pipefail
-
-          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
-            VERSION="${GITHUB_REF_NAME#v}"
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            TAG="$MANUAL_TAG"
           else
-            VERSION="$INPUT_VERSION"
-          fi
-
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "ERROR: Invalid release version: $VERSION"
-            exit 1
-          fi
-
-          CONFIG_VERSION="$(node -p "require('./src-tauri/tauri.conf.json').version")"
-
-          if [[ "$CONFIG_VERSION" != "$VERSION" ]]; then
-            echo "ERROR: Requested version $VERSION does not match Tauri version $CONFIG_VERSION."
-            echo "Synchronise the project versions before publishing."
-            exit 1
-          fi
-
-          if ! grep -q '^version:' snap/snapcraft.yaml; then
-            echo "ERROR: snap/snapcraft.yaml has no top-level version field."
-            exit 1
-          fi
-
-          sed -i -E \
-            "s/^version:.*/version: '$VERSION'/" \
-            snap/snapcraft.yaml
-
-          echo "Building OpenTick Snap version $VERSION"
-
-      - name: Install Snapcraft
-        shell: bash
-        run: |
-          set -euo pipefail
-          export PATH="/snap/bin:$PATH"
-
-          if ! command -v snap >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install --yes snapd
-          fi
-
-          sudo systemctl enable --now snapd.socket
-
-          SNAP_READY=false
-
-          for attempt in {1..30}; do
-            if sudo snap list >/dev/null 2>&1; then
-              SNAP_READY=true
-              break
+            if [[ "$IS_PRERELEASE" == "true" ]]; then
+              echo "::error::Automatic Snap Store publishing is disabled for prereleases."
+              exit 1
             fi
-            sleep 2
-          done
-
-          if [[ "$SNAP_READY" != "true" ]]; then
-            echo "ERROR: snapd did not become available."
-            sudo systemctl status snapd.socket --no-pager || true
-            sudo systemctl status snapd.service --no-pager || true
+            TAG="$EVENT_TAG"
+          fi
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Expected a stable vX.Y.Z release tag, got '$TAG'."
             exit 1
           fi
-
-          if ! sudo snap list snapcraft >/dev/null 2>&1; then
-            sudo snap install snapcraft --classic --channel=stable
-          fi
-
-          export PATH="/snap/bin:$PATH"
-          snapcraft --version
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Verify Snap Store credentials
-        if: github.event_name == 'push' || inputs.publish_to_store == true
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
         shell: bash
         run: |
           set -euo pipefail
-          export PATH="/snap/bin:$PATH"
-
           if [[ -z "${SNAPCRAFT_STORE_CREDENTIALS:-}" ]]; then
-            echo "ERROR: Missing SNAPCRAFT_STORE_CREDENTIALS repository secret."
+            echo "::error::Missing SNAPCRAFT_STORE_CREDENTIALS repository secret."
             exit 1
           fi
 
-          snapcraft whoami
-
-      - name: Build Snap package
-        id: build
+      - name: Download the exact Snap attached to the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
         shell: bash
         run: |
           set -euo pipefail
-          export PATH="/snap/bin:$PATH"
-
-          SNAPCRAFT_BIN="$(command -v snapcraft)"
-          BUILD_PATH="$PATH"
-          CARGO_DIR="${CARGO_HOME:-$HOME/.cargo}"
-          RUSTUP_DIR="${RUSTUP_HOME:-$HOME/.rustup}"
-
-          echo "Building Snap with destructive mode; LXD is not used."
-
-          sudo env \
-            "PATH=$BUILD_PATH" \
-            "CARGO_HOME=$CARGO_DIR" \
-            "RUSTUP_HOME=$RUSTUP_DIR" \
-            "SNAPCRAFT_BUILD_INFO=1" \
-            "$SNAPCRAFT_BIN" pack \
-              --destructive-mode \
-              --verbosity=brief
-
-          SNAP_FILE="$(find . -maxdepth 1 -type f \
-            -name '*.snap' -print -quit)"
-
-          if [[ -z "$SNAP_FILE" ]]; then
-            echo "ERROR: Snapcraft did not produce a .snap file."
-            find . -maxdepth 3 -type f -name '*.snap' -print || true
+          mkdir -p release-snap
+          gh release download "$RELEASE_TAG" --repo JebbyCodes/OpenTick --pattern '*.snap' --dir release-snap
+          mapfile -t snaps < <(find release-snap -maxdepth 1 -type f -name '*.snap' -print)
+          if [[ "${#snaps[@]}" -ne 1 ]]; then
+            echo "::error::Expected exactly one .snap asset on $RELEASE_TAG; found ${#snaps[@]}."
+            find release-snap -maxdepth 1 -type f -print
             exit 1
           fi
-
-          chmod a+r "$SNAP_FILE"
-
-          echo "Built Snap: $SNAP_FILE"
-          echo "snap=$SNAP_FILE" >> "$GITHUB_OUTPUT"
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: opentick-snap-${{ github.ref_name }}
-          path: ${{ steps.build.outputs.snap }}
-          if-no-files-found: error
-          retention-days: 14
+          echo "Using release asset: ${snaps[0]}"
 
       - name: Publish Snap to Store
-        if: github.event_name == 'push' || inputs.publish_to_store == true
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
-          SNAP_FILE: ${{ steps.build.outputs.snap }}
-          SNAP_CHANNEL: ${{ github.event_name == 'push' && 'candidate' || inputs.channel }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          SNAP_CHANNEL: ${{ github.event_name == 'release' && 'candidate' || inputs.channel }}
         shell: bash
         run: |
           set -euo pipefail
           export PATH="/snap/bin:$PATH"
-
-          if [[ ! -f "$SNAP_FILE" ]]; then
-            echo "ERROR: Snap package not found: $SNAP_FILE"
-            exit 1
-          fi
-
+          sudo snap install snapcraft --classic --channel=stable
+          SNAP_FILE="$(find release-snap -maxdepth 1 -type f -name '*.snap' -print -quit)"
           case "$SNAP_CHANNEL" in
-            edge|candidate|stable)
-              ;;
-            *)
-              echo "ERROR: Unsupported Snap Store channel: $SNAP_CHANNEL"
-              exit 1
-              ;;
+            edge|candidate|stable) ;;
+            *) echo "::error::Unsupported Snap Store channel: $SNAP_CHANNEL"; exit 1 ;;
           esac
-
-          echo "Publishing $SNAP_FILE to the $SNAP_CHANNEL channel."
-
+          echo "Publishing $SNAP_FILE from $RELEASE_TAG to $SNAP_CHANNEL."
           snapcraft upload --release="$SNAP_CHANNEL" "$SNAP_FILE"
-
-          echo "Snap upload and release command completed."
