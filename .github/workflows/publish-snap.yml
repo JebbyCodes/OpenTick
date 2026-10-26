@@ -99,7 +99,24 @@ jobs:
         run: |
           set -euo pipefail
           export PATH="/snap/bin:$PATH"
-          sudo snap install snapcraft --classic --channel=stable
+          if ! command -v snap >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install --yes snapd
+          fi
+          sudo systemctl enable --now snapd.socket
+          ready=false
+          for attempt in {1..30}; do
+            if sudo snap list >/dev/null 2>&1; then ready=true; break; fi
+            sleep 2
+          done
+          if [[ "$ready" != true ]]; then
+            echo "::error::snapd did not become available."
+            sudo systemctl status snapd.socket --no-pager || true
+            exit 1
+          fi
+          if ! sudo snap list snapcraft >/dev/null 2>&1; then
+            sudo snap install snapcraft --classic --channel=stable
+          fi
           SNAP_FILE="$(find release-snap -maxdepth 1 -type f -name '*.snap' -print -quit)"
           case "$SNAP_CHANNEL" in
             edge|candidate|stable) ;;
