@@ -625,8 +625,8 @@ jobs:
           path: release-assets
           merge-multiple: false
 
-      # Exclude bundle internals such as copyright files and shared libraries.
-      - name: Collect installer packages and APK only
+      # Keep installable packages and store-ready artifacts; exclude bundle internals.
+      - name: Collect installable packages for supported targets
         shell: bash
         run: |
           set -euo pipefail
@@ -657,7 +657,7 @@ jobs:
           )
 
           if [ "${#packages[@]}" -eq 0 ]; then
-            echo "::error::No installer packages or APKs were found."
+            echo "::error::No installable release assets were found."
             echo "Downloaded files:"
             find release-assets -type f -print | sort
             exit 1
