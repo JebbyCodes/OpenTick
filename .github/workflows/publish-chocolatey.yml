@@ -38,6 +38,7 @@ jobs:
           }
           if ($tag -notmatch '^v?(\d+\.\d+\.\d+)$') { throw "Not a stable x.y.z tag: $tag" }
           $version = $Matches[1]
+          $tag = "v$version"
           $asset = "opentick.$version.nupkg"
           $url = "https://github.com/JebbyCodes/OpenTick/releases/download/$tag/$asset"
           $path = Join-Path $env:RUNNER_TEMP $asset
