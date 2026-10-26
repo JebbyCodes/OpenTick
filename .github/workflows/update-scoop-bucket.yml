@@ -16,7 +16,6 @@ permissions:
 jobs:
   update-scoop:
     name: Prepare Scoop update pull request
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false }}
     runs-on: windows-latest
     timeout-minutes: 10
 
@@ -40,61 +39,11 @@ jobs:
           $ErrorActionPreference = "Stop"
 
           $version = $env:RELEASE_TAG -replace '^v', ''
-          if ($version -notmatch '^\d+\.\d+\.\d+
-          $download = Join-Path $env:RUNNER_TEMP "OpenTick-setup.exe"
-
-          Write-Host "Downloading $url"
-          Invoke-WebRequest -Uri $url -OutFile $download
-
-          $hash = (Get-FileHash $download -Algorithm SHA256).Hash.ToLowerInvariant()
-          Write-Host "Verified download exists. SHA-256: $hash"
-
-          $manifestPath = Join-Path $env:GITHUB_WORKSPACE "scoop-bucket\bucket\opentick.json"
-          $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
-
-          $manifest.version = $version
-          $manifest.architecture.'64bit'.url = $url
-          $manifest.architecture.'64bit'.hash = $hash
-          $manifest.autoupdate.architecture.'64bit'.url = 'https://github.com/JebbyCodes/OpenTick/releases/download/v$version/OpenTick_$version_x64-setup.exe'
-
-          $manifest | ConvertTo-Json -Depth 30 |
-            Set-Content $manifestPath -Encoding utf8
-
-          # Confirm the generated manifest parses and contains the intended values.
-          $check = Get-Content $manifestPath -Raw | ConvertFrom-Json
-          if ($check.version -ne $version -or
-              $check.architecture.'64bit'.hash -ne $hash) {
-            throw "Manifest verification failed."
-          }
-
-          Write-Host "Manifest updated for OpenTick $version."
-
-      - name: Create or update review pull request
-        uses: peter-evans/create-pull-request@v7
-        with:
-          token: ${{ secrets.OPENTICK_SCOOP_TOKEN }}
-          path: scoop-bucket
-          branch: automation/update-opentick-release
-          delete-branch: true
-          commit-message: "Update OpenTick Scoop manifest"
-          title: "Update OpenTick release manifest"
-          body: |
-            Automated Scoop manifest update for the newly published OpenTick release.
-
-            - Updates the version and Windows installer URL.
-            - Calculates the SHA-256 hash from the downloaded installer.
-            - Updates the automatic-update URL.
-
-            Please review the manifest and confirm the installer and checksum before merging.
-
-
-
-) {
+          if ($version -notmatch '^\d+\.\d+\.\d+([.-][0-9A-Za-z.-]+)?$') {
             throw "Unexpected release tag: $($env:RELEASE_TAG)"
           }
-          $tag = "v$version"
 
-          $url = "https://github.com/JebbyCodes/OpenTick/releases/download/$tag/OpenTick_${version}_x64-setup.exe"
+          $url = "https://github.com/JebbyCodes/OpenTick/releases/download/$($env:RELEASE_TAG)/OpenTick_${version}_x64-setup.exe"
           $download = Join-Path $env:RUNNER_TEMP "OpenTick-setup.exe"
 
           Write-Host "Downloading $url"
@@ -130,8 +79,8 @@ jobs:
           path: scoop-bucket
           branch: automation/update-opentick-release
           delete-branch: true
-          commit-message: "Update OpenTick Scoop manifest"
-          title: "Update OpenTick release manifest"
+          commit-message: "Update OpenTick to ${{ github.event.release.tag_name }}"
+          title: "Update OpenTick to ${{ github.event.release.tag_name }}"
           body: |
             Automated Scoop manifest update for the newly published OpenTick release.
 
