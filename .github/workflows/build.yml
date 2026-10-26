@@ -506,6 +506,76 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  chocolatey-package:
+    name: Build Chocolatey package artifact
+    needs: desktop
+    if: github.event_name == 'push' || inputs.build_desktop
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+      - name: Download Windows installer
+        uses: actions/download-artifact@v8
+        with:
+          name: OpenTick-Windows
+          path: installer
+      - name: Package MSI for Chocolatey
+        id: package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($env:GITHUB_EVENT_NAME -eq 'push') {
+            $tagVersion = $env:GITHUB_REF_NAME -replace '^v',''
+            if ($tagVersion -ne $version) { throw "Tag version $tagVersion does not match package.json version $version." }
+          }
+          $msi = Get-ChildItem installer -Recurse -File -Filter '*.msi' | Select-Object -First 1
+          if (-not $msi) { throw 'The Windows build did not produce an MSI.' }
+          $url = "https://github.com/JebbyCodes/OpenTick/releases/download/v$version/$($msi.Name)"
+          $checksum = (Get-FileHash $msi.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          $root = Join-Path $env:RUNNER_TEMP 'opentick-chocolatey'
+          $tools = Join-Path $root 'tools'
+          New-Item -ItemType Directory -Path $tools -Force | Out-Null
+          @"
+          <?xml version="1.0" encoding="utf-8"?>
+          <package><metadata>
+            <id>opentick</id><version>$version</version><title>OpenTick</title>
+            <authors>JebbyCodes</authors><owners>JebbyCodes</owners>
+            <projectUrl>https://github.com/JebbyCodes/OpenTick</projectUrl>
+            <licenseUrl>https://unlicense.org/</licenseUrl><requireLicenseAcceptance>false</requireLicenseAcceptance>
+            <summary>Open-source, offline-first task manager.</summary>
+            <description>OpenTick is a free, open-source task manager inspired by TickTick. This package installs the Windows x64 desktop application.</description>
+            <tags>opentick task-manager productivity open-source</tags>
+            <releaseNotes>https://github.com/JebbyCodes/OpenTick/releases/tag/v$version</releaseNotes>
+          </metadata></package>
+          "@ | Set-Content (Join-Path $root 'opentick.nuspec') -Encoding utf8
+          @'
+          $ErrorActionPreference = 'Stop'
+          $packageArgs = @{
+              packageName    = 'opentick'
+              fileType       = 'msi'
+              url64bit       = '__URL__'
+              checksum64     = '__SHA256__'
+              checksumType64 = 'sha256'
+              silentArgs     = '/qn /norestart'
+              validExitCodes = @(0, 3010, 1641)
+          }
+          Install-ChocolateyPackage @packageArgs
+          '@.Replace('__URL__', $url).Replace('__SHA256__', $checksum) |
+            Set-Content (Join-Path $tools 'chocolateyinstall.ps1') -Encoding utf8
+          choco pack (Join-Path $root 'opentick.nuspec') --outputdirectory="$root"
+          if ($LASTEXITCODE -ne 0) { throw "choco pack failed with exit code $LASTEXITCODE" }
+          $nupkg = Join-Path $root "opentick.$version.nupkg"
+          if (-not (Test-Path $nupkg)) { throw "Expected package missing: $nupkg" }
+          "nupkg=$nupkg" >> $env:GITHUB_OUTPUT
+      - name: Upload Chocolatey package
+        uses: actions/upload-artifact@v7
+        with:
+          name: OpenTick-Chocolatey
+          path: ${{ steps.package.outputs.nupkg }}
+          if-no-files-found: error
+          retention-days: 14
+
   release:
     name: Publish GitHub Release
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
@@ -513,6 +583,7 @@ jobs:
       - desktop
       - android
       - snap
+      - chocolatey-package
     runs-on: ubuntu-latest
 
     # Permissions required to publish the release and generate attestations.
@@ -547,6 +618,7 @@ jobs:
               -iname '*.rpm' -o \
               -iname '*.appimage' -o \
               -iname '*.snap' -o \
+              -iname '*.nupkg' -o \
               -iname '*.dmg' -o \
               -iname '*.pkg' \
             \) -print0 | sort -z
