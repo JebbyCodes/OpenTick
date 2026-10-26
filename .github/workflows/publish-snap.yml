@@ -29,7 +29,7 @@ on:
         default: candidate
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: publish-snap-${{ github.ref }}
@@ -199,6 +199,30 @@ jobs:
           path: ${{ steps.build.outputs.snap }}
           if-no-files-found: error
           retention-days: 14
+
+      # The main build workflow creates the GitHub Release. Wait for it before attaching this workflow's Snap.
+      - name: Attach Snap package to GitHub Release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          SNAP_FILE: ${{ steps.build.outputs.snap }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..60}; do
+            if gh release view "$RELEASE_TAG" --repo JebbyCodes/OpenTick >/dev/null 2>&1; then
+              break
+            fi
+            if [[ "$attempt" -eq 60 ]]; then
+              echo "::error::GitHub Release $RELEASE_TAG did not appear within 10 minutes."
+              exit 1
+            fi
+            sleep 10
+          done
+          test -s "$SNAP_FILE"
+          gh release upload "$RELEASE_TAG" "$SNAP_FILE" --repo JebbyCodes/OpenTick --clobber
+          echo "Attached $(basename "$SNAP_FILE") to GitHub Release $RELEASE_TAG."
 
       - name: Publish Snap to Store
         if: github.event_name == 'push' || inputs.publish_to_store == true
