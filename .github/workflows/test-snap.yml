@@ -1,3 +1,4 @@
+
 name: Test OpenTick Snap Build
 
 on:
@@ -24,6 +25,9 @@ jobs:
           node-version: '22'
           cache: npm
 
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Install dependencies
         run: npm ci
 
@@ -33,7 +37,7 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Set Snap version from Tauri configuration
+      - name: Set Snap version
         shell: bash
         run: |
           set -euo pipefail
@@ -46,7 +50,7 @@ jobs:
           fi
 
           if ! grep -q '^version:' snap/snapcraft.yaml; then
-            echo "ERROR: Could not find the version field in snap/snapcraft.yaml"
+            echo "ERROR: snap/snapcraft.yaml has no version field."
             exit 1
           fi
 
@@ -54,12 +58,14 @@ jobs:
             "s/^version:.*/version: '$VERSION'/" \
             snap/snapcraft.yaml
 
-          echo "Building OpenTick Snap version $VERSION"
+          echo "Snap version: $VERSION"
 
-      - name: Install Snapcraft and LXD
+      - name: Install Snapcraft
         shell: bash
         run: |
           set -euo pipefail
+
+          export PATH="/snap/bin:$PATH"
 
           if ! command -v snap >/dev/null 2>&1; then
             sudo apt-get update
@@ -68,8 +74,6 @@ jobs:
 
           sudo systemctl enable --now snapd.socket
 
-          echo "Waiting for snapd..."
-
           SNAP_READY=false
 
           for attempt in {1..30}; do
@@ -77,50 +81,54 @@ jobs:
               SNAP_READY=true
               break
             fi
-
             sleep 2
           done
 
-          if [ "$SNAP_READY" != "true" ]; then
+          if [[ "$SNAP_READY" != "true" ]]; then
             echo "ERROR: snapd did not become available."
             sudo systemctl status snapd.socket --no-pager || true
-            sudo systemctl status snapd.service --no-pager || true
             exit 1
           fi
 
-          if ! sudo snap list lxd >/dev/null 2>&1; then
-            sudo snap install lxd --channel=stable
-          fi
-
-          if ! sudo snap list snapcraft >/dev/null 2>&1; then
+          if sudo snap list snapcraft >/dev/null 2>&1; then
+            sudo snap refresh snapcraft --channel=stable
+          else
             sudo snap install snapcraft --classic --channel=stable
           fi
 
-          sudo usermod --append --groups lxd "$USER"
-          sudo lxd init --auto
-
-          echo "Checking LXD access..."
-          sg lxd -c 'lxc info >/dev/null'
-
-          echo "Checking Snapcraft..."
+          export PATH="/snap/bin:$PATH"
           snapcraft --version
 
-      - name: Build Snap package
+      - name: Build Snap package without LXD
         id: build
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "Building with the LXD provider..."
+          export PATH="/snap/bin:$PATH"
 
-          sg lxd -c \
-            'SNAPCRAFT_BUILD_ENVIRONMENT=lxd snapcraft --verbosity=brief'
+          SNAPCRAFT_BIN="$(command -v snapcraft)"
+          BUILD_PATH="$PATH"
+          CARGO_DIR="${CARGO_HOME:-$HOME/.cargo}"
+          RUSTUP_DIR="${RUSTUP_HOME:-$HOME/.rustup}"
+
+          echo "Building directly on the Ubuntu 22.04 CI runner."
+          echo "LXD is deliberately not used."
+
+          sudo env \
+            "PATH=$BUILD_PATH" \
+            "CARGO_HOME=$CARGO_DIR" \
+            "RUSTUP_HOME=$RUSTUP_DIR" \
+            "SNAPCRAFT_BUILD_INFO=1" \
+            "$SNAPCRAFT_BIN" pack \
+              --destructive-mode \
+              --verbosity=brief
 
           SNAP_FILE="$(find . -maxdepth 1 -type f \
             -name '*.snap' -print -quit)"
 
-          if [ -z "$SNAP_FILE" ]; then
-            echo "ERROR: Snapcraft completed without producing a .snap file."
+          if [[ -z "$SNAP_FILE" ]]; then
+            echo "ERROR: Snapcraft did not produce a .snap file."
             find . -maxdepth 3 -type f -name '*.snap' -print || true
             exit 1
           fi
