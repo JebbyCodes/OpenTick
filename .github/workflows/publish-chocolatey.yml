@@ -11,7 +11,7 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: chocolatey-publish-${{ github.event.release.tag_name || inputs.tag }}
@@ -173,6 +173,24 @@ jobs:
           "nupkg=$nupkg" >> $env:GITHUB_OUTPUT
           Write-Host "Validated package: $nupkg"
           Write-Host ($contents -join "`n")
+
+      # The release already exists when this workflow runs. Attach the validated package to it too.
+      - name: Attach Chocolatey package to GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          NUPKG_PATH: ${{ steps.pack.outputs.nupkg }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (!(Test-Path $env:NUPKG_PATH) -or (Get-Item $env:NUPKG_PATH).Length -eq 0) {
+            throw "Chocolatey package is missing or empty: $env:NUPKG_PATH"
+          }
+          gh release upload $env:RELEASE_TAG $env:NUPKG_PATH --repo JebbyCodes/OpenTick --clobber
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not attach the Chocolatey package to GitHub Release $env:RELEASE_TAG."
+          }
+          Write-Host "Attached $(Split-Path $env:NUPKG_PATH -Leaf) to GitHub Release $env:RELEASE_TAG."
 
       - name: Publish to Chocolatey Community Repository
         shell: pwsh
