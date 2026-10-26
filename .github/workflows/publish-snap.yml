@@ -1,126 +1,57 @@
 name: Publish OpenTick to Snap Store
 
+# Manual-only until the Snap Store listing, credentials, and publishing path are verified.
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Existing GitHub release tag (for example v0.5.0)
+        description: Stable GitHub Release tag (for example v0.4.0)
         required: true
         type: string
       publish_to_store:
-        description: Publish the release's Snap to the Store
+        description: Explicitly request Snap Store publishing (currently disabled)
         required: true
         type: boolean
         default: false
       channel:
-        description: Store channel for manual publication
+        description: Snap Store channel
         required: true
         type: choice
-        options:
-          - edge
-          - candidate
-          - stable
+        options: [edge, candidate, stable]
         default: candidate
 
 permissions:
   contents: read
 
-concurrency:
-  group: publish-snap-${{ github.event.release.tag_name || inputs.release_tag }}
-  cancel-in-progress: false
-
 jobs:
-  publish:
-    name: Publish release Snap
-    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
+  validate:
+    name: Validate release Snap
     runs-on: ubuntu-22.04
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
-      - name: Select and validate release
-        id: release
+      - name: Validate tag and download exact release asset
         shell: bash
-        env:
-          EVENT_TAG: ${{ github.event.release.tag_name }}
-          MANUAL_TAG: ${{ inputs.release_tag }}
-          IS_PRERELEASE: ${{ github.event.release.prerelease }}
-        run: |
-          set -euo pipefail
-          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
-            TAG="$MANUAL_TAG"
-          else
-            if [[ "$IS_PRERELEASE" == "true" ]]; then
-              echo "::error::Automatic Snap Store publishing is disabled for prereleases."
-              exit 1
-            fi
-            TAG="$EVENT_TAG"
-          fi
-          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::Expected a stable vX.Y.Z release tag, got '$TAG'."
-            exit 1
-          fi
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-
-      - name: Verify Snap Store credentials
-        env:
-          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -z "${SNAPCRAFT_STORE_CREDENTIALS:-}" ]]; then
-            echo "::error::Missing SNAPCRAFT_STORE_CREDENTIALS repository secret."
-            exit 1
-          fi
-
-      - name: Download the exact Snap attached to the GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ steps.release.outputs.tag }}
-        shell: bash
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           set -euo pipefail
+          TAG="$RELEASE_TAG"
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo '::error::Expected a stable vX.Y.Z tag.'; exit 1; fi
+          gh release view "$TAG" --repo JebbyCodes/OpenTick --json isDraft,isPrerelease,assets
           mkdir -p release-snap
-          gh release download "$RELEASE_TAG" --repo JebbyCodes/OpenTick --pattern '*.snap' --dir release-snap
+          gh release download "$TAG" --repo JebbyCodes/OpenTick --pattern '*.snap' --dir release-snap
           mapfile -t snaps < <(find release-snap -maxdepth 1 -type f -name '*.snap' -print)
-          if [[ "${#snaps[@]}" -ne 1 ]]; then
-            echo "::error::Expected exactly one .snap asset on $RELEASE_TAG; found ${#snaps[@]}."
-            find release-snap -maxdepth 1 -type f -print
-            exit 1
-          fi
-          echo "Using release asset: ${snaps[0]}"
+          if [[ "${#snaps[@]}" -ne 1 ]]; then echo "::error::Expected exactly one .snap asset; found ${#snaps[@]}."; find release-snap -maxdepth 1 -type f -print; exit 1; fi
+          echo "Validated release Snap: ${snaps[0]}"
 
-      - name: Publish Snap to Store
-        env:
-          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
-          RELEASE_TAG: ${{ steps.release.outputs.tag }}
-          SNAP_CHANNEL: ${{ github.event_name == 'release' && 'candidate' || inputs.channel }}
-        shell: bash
+  publish:
+    name: Store publishing disabled pending end-to-end verification
+    needs: validate
+    if: inputs.publish_to_store == true
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Stop safely rather than make an unverified external submission
         run: |
-          set -euo pipefail
-          export PATH="/snap/bin:$PATH"
-          if ! command -v snap >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install --yes snapd
-          fi
-          sudo systemctl enable --now snapd.socket
-          ready=false
-          for attempt in {1..30}; do
-            if sudo snap list >/dev/null 2>&1; then ready=true; break; fi
-            sleep 2
-          done
-          if [[ "$ready" != true ]]; then
-            echo "::error::snapd did not become available."
-            sudo systemctl status snapd.socket --no-pager || true
-            exit 1
-          fi
-          if ! sudo snap list snapcraft >/dev/null 2>&1; then
-            sudo snap install snapcraft --classic --channel=stable
-          fi
-          SNAP_FILE="$(find release-snap -maxdepth 1 -type f -name '*.snap' -print -quit)"
-          case "$SNAP_CHANNEL" in
-            edge|candidate|stable) ;;
-            *) echo "::error::Unsupported Snap Store channel: $SNAP_CHANNEL"; exit 1 ;;
-          esac
-          echo "Publishing $SNAP_FILE from $RELEASE_TAG to $SNAP_CHANNEL."
-          snapcraft upload --release="$SNAP_CHANNEL" "$SNAP_FILE"
+          echo '::error::Snap Store publishing is intentionally disabled until Snapcraft authentication and upload are tested end-to-end.'
+          exit 1
