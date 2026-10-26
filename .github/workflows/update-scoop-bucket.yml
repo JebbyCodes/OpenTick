@@ -16,6 +16,7 @@ permissions:
 jobs:
   update-scoop:
     name: Prepare Scoop update pull request
+    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
     runs-on: windows-latest
     timeout-minutes: 10
 
@@ -80,7 +81,7 @@ jobs:
           branch: automation/update-opentick-release
           delete-branch: true
           commit-message: "Update OpenTick to ${{ github.event.release.tag_name }}"
-          title: "Update OpenTick to ${{ github.event.release.tag_name }}"
+          title: "Update OpenTick release manifest"
           body: |
             Automated Scoop manifest update for the newly published OpenTick release.
 
