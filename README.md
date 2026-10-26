@@ -102,7 +102,7 @@ npm run dev
 
 ### Desktop
 
-```npm
+```sh
 npm run icons
 npm run tauri dev
 npm run tauri build
