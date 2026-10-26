@@ -20,6 +20,7 @@ concurrency:
 jobs:
   publish:
     name: Submit Store update
+    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
     runs-on: windows-latest
 
     steps:
