@@ -33,7 +33,7 @@ package-repositories:
 parts:
   build-app:
     plugin: dump
-    source: ..
+    source: .
     build-snaps:
       - node/20/stable
       - rustup/latest/stable
