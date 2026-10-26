@@ -2,7 +2,7 @@
   <h1>OpenTick</h1>
   <img src="docs/images/banner.png" alt="OpenTick" width="180">
 
-  **A TickTick-style task manager for web, desktop and mobile.**
+  **A TickTick-style task manager that runs everywhere from one codebase.**
 
   Plan your day, manage projects and track habits from one codebase. OpenTick is local-first, works offline, and does not require an account, subscription or hosted sync server.
 
