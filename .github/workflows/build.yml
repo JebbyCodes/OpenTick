@@ -60,6 +60,9 @@ jobs:
       - name: Check project versions
         run: npm run version:check
 
+      - name: Lint GitHub Actions workflows
+        uses: reviewdog/action-actionlint@v1
+
       - name: Run test suite
         run: npm test
 
