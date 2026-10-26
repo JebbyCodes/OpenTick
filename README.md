@@ -1,10 +1,14 @@
 <div align="center">
-  <h1>OpenTick</h1>
-  <img src="docs/images/banner.png" alt="OpenTick" width="180">
+  <img src="docs/images/banner.png" alt="OpenTick" width="250">
 
   **A TickTick-style task manager that runs everywhere from one codebase.**
 
   Plan your day, manage projects and track habits from one codebase. OpenTick is local-first, works offline, and does not require an account, subscription or hosted sync server.
+  
+---
+***Currently AI generated***;
+- I intend on one-day "reverting" this project and human-tweaking it until eventually the AI work is subdued (like the ship of Theseus in a way).
+---
 
   <a href="https://unlicense.org"><img src="https://img.shields.io/badge/license-Unlicense-blue.svg" alt="Unlicense"></a>
   <a href="https://tauri.app"><img src="https://img.shields.io/badge/Tauri-2-24C8DB?logo=tauri&logoColor=white" alt="Tauri 2"></a>
@@ -20,9 +24,10 @@
 </p>
 
 ## Download
-
 Get the latest version from [GitHub Releases](https://github.com/JebbyCodes/OpenTick/releases/latest), or choose a platform-specific option below.
 
+<div align="center">
+  
 ### Windows
 
 | Microsoft Store | GitHub Releases |
@@ -54,6 +59,7 @@ Get the latest version from [GitHub Releases](https://github.com/JebbyCodes/Open
 | GitHub Releases |
 |:---:|
 | <a href="https://github.com/JebbyCodes/OpenTick/releases/latest"><img src="docs/images/get-it-on-github.png" alt="Get it on GitHub" height="70"></a> |
+</div>
 
 ## Features
 
