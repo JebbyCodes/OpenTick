@@ -9,20 +9,20 @@ permissions:
 jobs:
   build-snap:
     name: Validate and build Snap
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
 
       - name: Install dependencies
         run: npm ci
@@ -33,12 +33,103 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Set Snap version from Tauri configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "ERROR: Invalid Tauri version: $VERSION"
+            exit 1
+          fi
+
+          if ! grep -q '^version:' snap/snapcraft.yaml; then
+            echo "ERROR: Could not find the version field in snap/snapcraft.yaml"
+            exit 1
+          fi
+
+          sed -i -E \
+            "s/^version:.*/version: '$VERSION'/" \
+            snap/snapcraft.yaml
+
+          echo "Building OpenTick Snap version $VERSION"
+
+      - name: Install Snapcraft and LXD
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! command -v snap >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install --yes snapd
+          fi
+
+          sudo systemctl enable --now snapd.socket
+
+          echo "Waiting for snapd..."
+
+          SNAP_READY=false
+
+          for attempt in {1..30}; do
+            if sudo snap list >/dev/null 2>&1; then
+              SNAP_READY=true
+              break
+            fi
+
+            sleep 2
+          done
+
+          if [ "$SNAP_READY" != "true" ]; then
+            echo "ERROR: snapd did not become available."
+            sudo systemctl status snapd.socket --no-pager || true
+            sudo systemctl status snapd.service --no-pager || true
+            exit 1
+          fi
+
+          if ! sudo snap list lxd >/dev/null 2>&1; then
+            sudo snap install lxd --channel=stable
+          fi
+
+          if ! sudo snap list snapcraft >/dev/null 2>&1; then
+            sudo snap install snapcraft --classic --channel=stable
+          fi
+
+          sudo usermod --append --groups lxd "$USER"
+          sudo lxd init --auto
+
+          echo "Checking LXD access..."
+          sg lxd -c 'lxc info >/dev/null'
+
+          echo "Checking Snapcraft..."
+          snapcraft --version
+
       - name: Build Snap package
         id: build
-        uses: snapcore/action-build@v1
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Building with the LXD provider..."
+
+          sg lxd -c \
+            'SNAPCRAFT_BUILD_ENVIRONMENT=lxd snapcraft --verbosity=brief'
+
+          SNAP_FILE="$(find . -maxdepth 1 -type f \
+            -name '*.snap' -print -quit)"
+
+          if [ -z "$SNAP_FILE" ]; then
+            echo "ERROR: Snapcraft completed without producing a .snap file."
+            find . -maxdepth 3 -type f -name '*.snap' -print || true
+            exit 1
+          fi
+
+          echo "Built Snap: $SNAP_FILE"
+          echo "snap=$SNAP_FILE" >> "$GITHUB_OUTPUT"
 
       - name: Upload test Snap
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: opentick-snap-test
           path: ${{ steps.build.outputs.snap }}

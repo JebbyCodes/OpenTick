@@ -3,9 +3,12 @@ base: core22
 version: '0.4.0'
 summary: Open-source, offline-first task manager
 description: |
-  OpenTick is an open-source task manager for desktop and mobile.
-  Organise tasks, projects, notes, calendars, timetables and Gantt
-  plans. Your data stays local by default, with optional sync.
+  OpenTick is an open-source, offline-first task manager.
+  Organise tasks, projects, notes, timetables and Gantt plans
+  with a cross-platform interface.
+
+icon: src-tauri/icons/128x128@2x.png
+
 grade: stable
 confinement: strict
 
@@ -17,26 +20,22 @@ apps:
   opentick:
     command: usr/bin/opentick
     desktop: usr/share/applications/opentick.desktop
-    extensions: [gnome]
+    extensions:
+      - gnome
     plugs:
-      - network
       - home
+      - network
       - removable-media
-
-package-repositories:
-  - type: apt
-    components: [main]
-    suites: [noble]
-    key-id: 78E1918602959B9C59103100F1831DDAFC42E99D
-    url: http://ppa.launchpad.net/snappy-dev/snapcraft-daily/ubuntu
 
 parts:
   build-app:
     plugin: dump
     source: .
+
     build-snaps:
-      - node/20/stable
+      - node/22/stable
       - rustup/latest/stable
+
     build-packages:
       - libwebkit2gtk-4.1-dev
       - build-essential
@@ -48,26 +47,125 @@ parts:
       - libayatana-appindicator3-dev
       - librsvg2-dev
       - dpkg
+
     stage-packages:
       - libwebkit2gtk-4.1-0
+      - libgtk-3-0
       - libayatana-appindicator3-1
+
     override-build: |
-      set -eux
+      set -eu
 
-      export PATH="$HOME/.cargo/bin:$PATH"
-      rustup default stable
-      rustup toolchain install stable --profile minimal
-      cargo --version
-
+      echo "Installing OpenTick dependencies..."
       npm ci
+
+      echo "Building the Tauri Debian package..."
       npm run tauri build -- --bundles deb
 
       DEB="$(find src-tauri/target/release/bundle/deb \
-        -maxdepth 1 -name '*.deb' -print -quit)"
-      test -n "$DEB"
+        -maxdepth 1 -type f -name '*.deb' -print -quit)"
+
+      if [ -z "$DEB" ]; then
+        echo "ERROR: Tauri did not produce a Debian package."
+        exit 1
+      fi
+
+      echo "Debian package: $DEB"
 
       dpkg-deb -x "$DEB" "$SNAPCRAFT_PART_INSTALL"
 
-      DESKTOP="$SNAPCRAFT_PART_INSTALL/usr/share/applications/opentick.desktop"
-      test -f "$DESKTOP"
-      sed -i 's|^Icon=.*|Icon=/usr/share/icons/hicolor/32x32/apps/opentick.png|' "$DESKTOP"
+      INSTALL="$SNAPCRAFT_PART_INSTALL"
+      APP_BIN="$INSTALL/usr/bin/opentick"
+      APPS_DIR="$INSTALL/usr/share/applications"
+      DESKTOP_DEST="$APPS_DIR/opentick.desktop"
+
+      echo "Checking the application executable..."
+
+      if [ ! -f "$APP_BIN" ]; then
+        echo "ERROR: Expected executable was not found: $APP_BIN"
+        echo "Executable files found in the extracted package:"
+        find "$INSTALL/usr" -type f -executable -print || true
+        exit 1
+      fi
+
+      chmod 0755 "$APP_BIN"
+
+      echo "Finding the Debian desktop entry..."
+
+      mkdir -p "$APPS_DIR"
+
+      DESKTOP_SOURCE="$(
+        find "$APPS_DIR" -maxdepth 1 -type f \
+          -name '*.desktop' -print -quit 2>/dev/null || true
+      )"
+
+      if [ -n "$DESKTOP_SOURCE" ]; then
+        if [ "$DESKTOP_SOURCE" != "$DESKTOP_DEST" ]; then
+          mv "$DESKTOP_SOURCE" "$DESKTOP_DEST"
+        fi
+      else
+        echo "No desktop entry was generated; creating one."
+
+        cat > "$DESKTOP_DEST" <<'DESKTOP'
+      [Desktop Entry]
+      Version=1.0
+      Type=Application
+      Name=OpenTick
+      Comment=Open-source task manager
+      Exec=opentick
+      Icon=opentick
+      Terminal=false
+      Categories=Office;Utility;
+      StartupNotify=true
+      DESKTOP
+      fi
+
+      echo "Finding the application icon..."
+
+      ICON_ROOT="$INSTALL/usr/share/icons/hicolor"
+
+      ICON="$(
+        find "$ICON_ROOT/32x32/apps" -maxdepth 1 -type f \
+          \( -iname '*.png' -o -iname '*.svg' \) \
+          -print -quit 2>/dev/null || true
+      )"
+
+      if [ -z "$ICON" ]; then
+        ICON="$(
+          find "$ICON_ROOT" -type f \
+            \( -iname '*.png' -o -iname '*.svg' \) \
+            -print -quit 2>/dev/null || true
+        )"
+      fi
+
+      if [ -z "$ICON" ] && [ -f src-tauri/icons/128x128.png ]; then
+        ICON_DIR="$ICON_ROOT/128x128/apps"
+        mkdir -p "$ICON_DIR"
+        cp src-tauri/icons/128x128.png "$ICON_DIR/opentick.png"
+        ICON="$ICON_DIR/opentick.png"
+      fi
+
+      if [ -z "$ICON" ]; then
+        echo "ERROR: No usable application icon was found."
+        find "$INSTALL/usr/share" -type f \
+          \( -iname '*.png' -o -iname '*.svg' \) -print || true
+        exit 1
+      fi
+
+      ICON_PATH="${ICON#"$INSTALL"}"
+
+      if grep -q '^Exec=' "$DESKTOP_DEST"; then
+        sed -i 's|^Exec=.*|Exec=opentick|' "$DESKTOP_DEST"
+      else
+        printf '\nExec=opentick\n' >> "$DESKTOP_DEST"
+      fi
+
+      if grep -q '^Icon=' "$DESKTOP_DEST"; then
+        sed -i "s|^Icon=.*|Icon=$ICON_PATH|" "$DESKTOP_DEST"
+      else
+        printf '\nIcon=%s\n' "$ICON_PATH" >> "$DESKTOP_DEST"
+      fi
+
+      echo "Prepared executable: $APP_BIN"
+      echo "Prepared desktop entry: $DESKTOP_DEST"
+      echo "Prepared icon: $ICON_PATH"
