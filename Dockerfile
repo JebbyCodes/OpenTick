@@ -4,7 +4,7 @@
 # Built for linux/amd64, arm64, arm/v7 and 386 (older and 32-bit machines, Raspberry Pi, NAS boxes).
 
 # the build runs on the builder's own CPU (fast, no emulation); only the tiny final image is per-architecture
-FROM --platform=$BUILDPLATFORM node:24-alpine AS build
+FROM --platform=$BUILDPLATFORM node:25-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
