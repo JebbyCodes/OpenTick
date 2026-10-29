@@ -14,7 +14,8 @@
   <a href="https://tauri.app"><img src="https://img.shields.io/badge/Tauri-2-24C8DB?logo=tauri&logoColor=white" alt="Tauri 2"></a>
   <a href="https://web.dev/progressive-web-apps/"><img src="https://img.shields.io/badge/PWA-installable-5A0FC8" alt="Installable PWA"></a>
   <a href="https://github.com/JebbyCodes/OpenTick/releases/latest"><img src="https://img.shields.io/github/v/release/JebbyCodes/OpenTick" alt="Latest release"></a>
-  <a href="https://github.com/JebbyCodes/OpenTick/actions"><img src="https://img.shields.io/github/actions/workflow/status/JebbyCodes/OpenTick/build.yml" alt="Build status"></a>
+  <a href="https://github.com/JebbyCodes/OpenTick/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/JebbyCodes/OpenTick/ci.yml?label=tests" alt="Tests"></a>
+  <a href="https://github.com/JebbyCodes/OpenTick/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/JebbyCodes/OpenTick/release.yml?label=release" alt="Release build"></a>
 </div>
 
 <p align="center">
@@ -23,7 +24,24 @@
   <img src="docs/images/gantt.png" width="32%" alt="Gantt chart">
 </p>
 
-## What's new in 0.5.0
+## What's new in 0.5.1
+
+- Fixed: on phones the Day / 3 days / Week switch in the timetable was pushed off the screen. The toolbar now wraps and the switch has its own row.
+- Tooltips on every button: hover with a mouse, press and hold on a touch screen (letting go does not press the button), or Tab to it. Settings → Accessibility → Button tooltips turns them off.
+- E-ink mode for e-paper tablets and readers (Settings → Appearance → E-ink display): black on white with outlines instead of colour, no animation, larger targets, marks instead of colour, and page up / down buttons. It starts on automatically in the e-ink Android app and the web version at `/eink/`.
+- Android: the background service now runs as a real foreground service whenever "Run in the background" is on, so OpenTick is listed under Active apps (before, it only started when a lesson was coming up). It shows your next lesson or reminder, asks for notification permission, and restarts after a reboot, an update or a swipe from recents.
+- One workflow now builds, packs, signs and publishes everything when you push a version tag (`git push origin v0.5.1`), and the release description says what is new.
+- Windows: installer (NSIS) and MSI for 64-bit, installer for 32-bit and ARM64, portable zips, and an MSIX (and a bundle) for the Microsoft Store.
+- Linux: AppImage, .deb and .rpm for 64-bit and ARM64, plus the Snap (the Snap upload no longer fails on `chmod`).
+- macOS: one universal .dmg for Apple Silicon and Intel. iOS: an .ipa, built when the Apple signing secrets are set (Apple only lets signed apps be installed).
+- Android: universal APK, one APK per CPU (arm64-v8a, armeabi-v7a, x86, x86_64 for old and 32-bit phones), an App Bundle, and an e-ink APK.
+- Docker image (`ghcr.io/jebbycodes/opentick`, 64-bit, ARM and 32-bit) and a self-hosting web zip.
+- Checksums (`SHA256SUMS.txt`) and build-provenance attestations for every file.
+- `npm run version:sync` now updates every file that carries the version (Cargo.lock, snap, MSIX manifest, F-Droid recipe, README, CHANGELOG, fastlane).
+
+Earlier releases are listed in [CHANGELOG.md](CHANGELOG.md).
+
+## What was new in 0.5.0
 
 **Reminders and the background service**
 - **Reminders any time before a task**: as many as you like per task, any amount (minutes, hours, days, weeks) or an exact date and time. Lessons and timetable slots get custom lead times too, plus optional quiet hours and a morning summary.
@@ -91,6 +109,39 @@ Get the latest version from [GitHub Releases](https://github.com/JebbyCodes/Open
 | <a href="https://github.com/JebbyCodes/OpenTick/releases/latest"><img src="docs/images/get-it-on-github.png" alt="Get it on GitHub" height="70"></a> |
 </div>
 
+### Which file do I want?
+
+Every release lists these with sizes, and a `SHA256SUMS.txt` to check them against.
+
+| You have | Download |
+|---|---|
+| Windows 10 / 11, 64-bit | `OpenTick_x.y.z_x64-setup.exe` (or the `.msi`; `_x64-portable.zip` needs no install) |
+| Windows, 32-bit or ARM | `_x86-setup.exe` or `_arm64-setup.exe` |
+| Mac (Apple Silicon or Intel) | `OpenTick_x.y.z_universal.dmg` (not notarised: right-click → Open the first time) |
+| Linux, 64-bit | `_amd64.AppImage` (any distro), `.deb` (Debian, Ubuntu), `.rpm` (Fedora, openSUSE) or the Snap |
+| Linux ARM (Raspberry Pi 4/5, ARM laptops) | `_aarch64.AppImage`, `_arm64.deb`, `.aarch64.rpm` or the ARM64 Snap |
+| Android phone or tablet | `_android-universal.apk` works everywhere. Smaller: `_android-arm64-v8a.apk` (modern), `_android-armeabi-v7a.apk` (older, 32-bit), `_android-x86_64.apk` / `_android-x86.apk` (Intel, emulators) |
+| Android e-ink device | `_android-eink-universal.apk` (see [E-ink](#e-ink)) |
+| iPhone / iPad | `.ipa` (only when the maintainers' Apple signing is set up; see [docs/RELEASING.md](docs/RELEASING.md)) |
+| A server, NAS or any old machine with a browser | Docker, or `_web.zip` |
+
+Android 7 or newer, Windows 10 or newer and macOS 10.15 or newer are needed. Windows 7/8 and 32-bit Linux are not supported by Tauri 2's web view; use the Docker image or the web app there. Obtainium users can add `apkFilterRegEx` = `universal` (or `arm64-v8a`) to pick one APK from each release.
+
+### Docker
+
+```sh
+docker run -d -p 8080:8080 --name opentick ghcr.io/jebbycodes/opentick:latest
+```
+
+Open http://localhost:8080 (the e-ink edition is at `/eink/`). Images exist for 64-bit and 32-bit x86, ARM64 and ARMv7. Your data stays in your browser; the container only serves the app. [`docker/compose.example.yml`](docker/compose.example.yml) is a ready-made compose file.
+
+## E-ink
+
+For e-paper tablets and readers (Boox, reMarkable-style browsers, Kindle browsers, Kobo…): Settings → Appearance → **E-ink display** switches to black on white with outlines instead of colour, no animation or shadows, bigger touch targets, marks instead of colour, and **page up / down buttons** on the edge for scrolling without a flick. *Automatic* turns it on for known e-reader browsers and for the e-ink builds below.
+
+- **Android:** `_android-eink-universal.apk` from a release starts in e-ink mode (it can be turned off in Settings).
+- **Web:** open `/eink/` on the hosted site, in the Docker image, or in `_web-eink.zip`. Any other browser can add `?eink` to the address.
+
 ## Features
 
 - **Tasks and lists:** priorities, tags, sections, subtasks, recurring tasks, reminders, attachments and batch editing.
@@ -110,12 +161,13 @@ Get the latest version from [GitHub Releases](https://github.com/JebbyCodes/Open
 
 | Platform | How to run it |
 |---|---|
-| Web / PWA | Build `dist/` and serve it over HTTPS. |
-| Windows | Download a release installer or build from source. |
-| macOS | Build on macOS with the Tauri prerequisites and Xcode where required. |
-| Linux | Download an available release package or build from source. |
-| Android | Download the APK from a release or build it with the Android SDK. |
-| iOS | Requires macOS, Xcode and Apple signing configuration. |
+| Web / PWA | Use the hosted site, the Docker image or `_web.zip` (serve over HTTPS for PWA install), or build `dist/` yourself. |
+| Windows | Installer, MSI, portable zip or Store package; 64-bit, 32-bit and ARM64. |
+| macOS | Universal `.dmg` (Apple Silicon and Intel). |
+| Linux | AppImage, `.deb`, `.rpm` or Snap; 64-bit and ARM64. |
+| Android | Universal APK, per-CPU APKs (including 32-bit ARM), an App Bundle and an e-ink APK. |
+| iOS | `.ipa` built with Apple signing configured, or build from source in Xcode. |
+| E-ink | Android e-ink APK, the `/eink/` web edition, or E-ink display in Settings. |
 
 ## Build from source
 
@@ -188,15 +240,23 @@ Run the main test suite:
 npm test
 ```
 
-Browser tests are available separately with `npm run test:browser`; see the test scripts and project files for their prerequisites.
+Browser tests (Python + Playwright with Chromium) run with `npm run test:browser`. `npm run lint:workflows` checks the GitHub workflow files, and `npm run version:check` confirms every file carries the same version.
 
 ## Project structure
 
 - `src/` — application HTML, CSS and JavaScript
-- `src-tauri/` — Tauri desktop/mobile shell and platform assets
-- `test/` — Node test suites and test utilities
-- `scripts/` — version, licence and asset-generation scripts
-- `build-app.mjs` — creates the self-contained web build
+- `src-tauri/` — Tauri desktop/mobile shell and platform assets (`android-widgets/` holds the Android Kotlin and XML)
+- `test/` — Node test suites; `test/browser/` has the Playwright tests
+- `scripts/android/` — widget and service installer, signing, version check, APK naming
+- `scripts/release/` — `bump-version.mjs` (`npm run bump` / `version:sync`), release notes, asset collection
+- `scripts/legal/` — licence and privacy-policy generators
+- `scripts/assets/`, `scripts/ci/` — icon generation; the workflow linter
+- `packaging/msix/` — Microsoft Store package: manifest, assets, `build-msix.ps1`, `bundle-msix.ps1`
+- `snap/` — `snapcraft.yaml` (builds from source) and `ci/` + `local/` (wraps the CI-built `.deb`)
+- `Dockerfile`, `docker/` — the self-hosting image
+- `.github/workflows/` — `ci`, `release`, `build-*`, `publish-*`, `deploy-pages` (see [docs/RELEASING.md](docs/RELEASING.md))
+- `docs/` — privacy policy, F-Droid recipe, release guide
+- `build-app.mjs` — creates the self-contained web build (`--eink` for the e-ink edition, `--out <dir>`)
 - `package.json` — project version and commands
 
 ## Contributing

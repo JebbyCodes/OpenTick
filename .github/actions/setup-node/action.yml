@@ -1,0 +1,12 @@
+name: Set up Node.js and install packages
+description: Node.js with the npm cache, then `npm ci`. Every job that touches the app starts with this.
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v7
+      with:
+        node-version: '24'
+        cache: npm
+    - name: Install npm packages
+      shell: bash
+      run: npm ci --no-audit --no-fund

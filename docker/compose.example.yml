@@ -1,0 +1,7 @@
+# docker compose -f docker/compose.example.yml up -d      then open http://localhost:8080  (e-ink edition: http://localhost:8080/eink/)
+services:
+  opentick:
+    image: ghcr.io/jebbycodes/opentick:latest
+    ports:
+      - "8080:8080"
+    restart: unless-stopped

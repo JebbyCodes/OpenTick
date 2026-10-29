@@ -1061,9 +1061,12 @@ html.wgmode body{overflow:hidden}
 }
 @media(max-width:820px){
   .tt-ad{max-height:94px}.tt-ad .chip.adc{min-height:36px;padding:0 6px}.tt-ad .chk.sm{width:24px;height:24px}
-  .tools:has([data-act="ttprev"]){flex-wrap:nowrap;gap:3px;width:100%;justify-content:space-between}
-  .tools:has([data-act="ttprev"]) .btn{padding:0 10px}.tools:has([data-act="ttprev"]) .seg button{padding:0 9px}
+  /* the planner toolbar: arrows, Today and the icon buttons share the first row; Day / 3 days / Week gets a full row of its own, so no button is ever pushed off the screen */
+  .tools:has([data-act="ttprev"]){flex-wrap:wrap;gap:4px 3px;width:100%;justify-content:space-between}
+  .tools:has([data-act="ttprev"]) .btn{padding:0 10px}
   .tools:has([data-act="ttprev"]) .ib{width:36px;height:36px}
+  .tools:has([data-act="ttprev"]) .seg{order:9;flex:1 1 100%;display:flex}
+  .tools:has([data-act="ttprev"]) .seg button{flex:1 1 0;min-width:0;padding:0 6px;text-align:center}
   .tt-strip{padding:0 8px 4px}.tt-strip button{min-height:46px;padding:3px 0}.tt-strip b{height:26px;min-width:26px}
 }
 .seg button{white-space:nowrap}
@@ -1607,3 +1610,60 @@ html[data-notrans] *{backdrop-filter:none!important;-webkit-backdrop-filter:none
 @container (max-height:59.99px) and (max-width:149.99px){.blk.lsn .bm{display:none}}
 .blk.lsn .bt{min-height:0}.blk.lsn{padding-bottom:3px}
 @media print{.skiplink{display:none!important}}
+
+/* ---------- button tooltips (hover, keyboard focus, or press and hold on a touch screen; see tips.js) ---------- */
+.tip{position:fixed;z-index:600;max-width:min(260px,86vw);padding:6px 10px;border-radius:8px;background:var(--text);color:var(--bg);font-size:12.5px;line-height:1.4;font-weight:500;text-align:center;pointer-events:none;box-shadow:0 4px 16px rgba(0,0,0,.28);opacity:0;transform:translateY(2px);transition:opacity .12s,transform .12s;overflow-wrap:anywhere}
+.tip.on{opacity:1;transform:none}
+.tip kbd{margin-left:4px;padding:0 5px;border:1px solid color-mix(in srgb,var(--bg) 45%,transparent);border-bottom-width:2px;border-radius:5px;background:transparent;color:inherit;font-size:10.5px;line-height:1.5}
+/* holding a button must not select its label or open Android's text callout */
+button,.ib,.btn,summary,[role=button],[role=tab]{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+@media(prefers-reduced-motion:reduce){.tip{transition:none;transform:none}}
+html[data-motion=off] .tip{transition:none;transform:none}
+@media print{.tip{display:none!important}}
+
+/* ---------- e-ink mode (see eink.js): black on white, solid outlines, no animation, no colour, no transparency ---------- */
+html[data-eink]{--bg:#fff!important;--side:#fff!important;--text:#000!important;--muted:#1a1a1a!important;--line:#000!important;--hover:#e6e6e6!important;--sel:#d4d4d4!important;--acc:#000!important;--on-acc:#fff!important;--red:#000!important;--p1:#000!important;--p2:#000!important;--p3:#000!important;--card:#fff!important;--shadow:none!important;--c:#000;color-scheme:light}
+html[data-eink] *,html[data-eink] *::before,html[data-eink] *::after{transition:none!important;animation:none!important;scroll-behavior:auto!important;box-shadow:none!important;text-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+html[data-eink] body{font-weight:500;background:#fff;-webkit-font-smoothing:none}
+html[data-eink] #bgfx,html[data-eink] .bgfx-l{display:none!important}
+html[data-eink] ::selection{background:#000;color:#fff}
+/* controls: an outline you can see, and a solid black "pressed / chosen" state */
+html[data-eink] .btn,html[data-eink] select,html[data-eink] input:not([type=checkbox]):not([type=radio]):not([type=range]),html[data-eink] textarea{border:2px solid #000;border-radius:8px;background:#fff;color:#000}
+html[data-eink] .ib{border:2px solid transparent}
+html[data-eink] .ib:hover,html[data-eink] .btn:hover{background:#fff}
+html[data-eink] .btn.pri,html[data-eink] button.pri,html[data-eink] .ib.on,html[data-eink] .seg button.on,html[data-eink] .sc-tabs button.on,html[data-eink] .stb.on,html[data-eink] #tabbar button.on,html[data-eink] .pg.on,html[data-eink] .nav.on,html[data-eink] .tt-strip .on,html[data-eink] .fab{background:#000!important;color:#fff!important;border-color:#000!important}
+html[data-eink] .btn.pri .ic,html[data-eink] .ib.on .ic,html[data-eink] .seg button.on .ic,html[data-eink] .sc-tabs button.on .ic,html[data-eink] .stb.on .ic,html[data-eink] #tabbar button.on .ic,html[data-eink] .pg.on .ic,html[data-eink] .nav.on .ic,html[data-eink] .nav.on .ni,html[data-eink] .nav.on .cnt,html[data-eink] .fab .ic,html[data-eink] .tt-strip .on small,html[data-eink] .tt-strip .on b,html[data-eink] .tt-strip .on i{color:#fff!important}
+html[data-eink] .seg{border:2px solid #000;background:#fff}html[data-eink] .seg button{border-radius:0}
+html[data-eink] .sc-tabs button{border:2px solid #000;color:#000}
+html[data-eink] .chk{border:2.5px solid #000;background:#fff}html[data-eink] .chk.on{background:#000;color:#fff}
+html[data-eink] a{color:#000;text-decoration:underline}
+html[data-eink] :focus-visible{outline:3px solid #000!important;outline-offset:2px}
+/* panels and rows: lines, not fills */
+html[data-eink] #side,html[data-eink] #detail,html[data-eink] #tabbar{border-color:#000}
+html[data-eink] .task,html[data-eink] .card,html[data-eink] .tplc,html[data-eink] .pcard,html[data-eink] .lcard,html[data-eink] .hstat,html[data-eink] .sc-card,html[data-eink] .sc-ag,html[data-eink] .sc-c.has,html[data-eink] .chip{background:#fff!important;color:#000!important;border:2px solid #000}
+html[data-eink] .task.sel,html[data-eink] .task.on,html[data-eink] .card.sel{background:#e6e6e6!important;border-width:3px}
+html[data-eink] .task.fin .ttl,html[data-eink] .card.fin .ttl{text-decoration:line-through}
+/* timetable and calendar blocks: white with a thick bar on the left, never a tint */
+html[data-eink] .blk,html[data-eink] .tt-sel{background:#fff!important;color:#000!important;border:2px solid #000;border-left-width:8px;border-radius:6px}
+html[data-eink] .blk .bm,html[data-eink] .blk .tt-tm{color:#000}
+html[data-eink] .blk.lsn{background-image:repeating-linear-gradient(135deg,#000 0 1px,transparent 1px 7px)!important;background-color:#fff!important}
+html[data-eink] .blk.lsn .bt,html[data-eink] .blk.lsn .bm,html[data-eink] .blk.lsn .tt-tm{background:#fff;padding:0 3px}
+html[data-eink] .tt-now{border-top:3px solid #000}html[data-eink] .tt-now:before{background:#000}
+html[data-eink] .tt-col,html[data-eink] .tt-gut{background-image:none}html[data-eink] .tt-col{border-left:1px solid #000;background-image:linear-gradient(#000 1px,transparent 1px);background-size:100% var(--hh);background-blend-mode:normal;opacity:1}
+html[data-eink] .tt-col.today{background-color:#f0f0f0}html[data-eink] .tt-dh.today b{background:#000;color:#fff}
+html[data-eink] .tt-col.off,html[data-eink] .tt-hol{background-image:repeating-linear-gradient(135deg,#000 0 1px,transparent 1px 9px);background-color:#fff}
+html[data-eink] .tt-hol>span{background:#fff;border:2px solid #000;color:#000}
+html[data-eink] .day.today,html[data-eink] .cal-d.today{outline:3px solid #000}
+html[data-eink] .cal-chip{background:#fff!important;color:#000!important;border:1.5px solid #000}
+html[data-eink] .mbox,html[data-eink] .ctx,html[data-eink] .pop{border:3px solid #000;background:#fff}
+html[data-eink] .mback{background:rgba(255,255,255,.88)}
+html[data-eink] .tip{background:#000;color:#fff;border:2px solid #000}
+html[data-eink] #toast>*,html[data-eink] .toast{background:#fff;color:#000;border:3px solid #000}
+html[data-eink] img:not(.logo img):not(.emb img){filter:grayscale(1) contrast(1.2)}
+/* page up / page down */
+#einkpg{display:none}
+html[data-eink] #einkpg{display:flex;flex-direction:column;gap:10px;position:fixed;right:8px;top:50%;transform:translateY(-50%);z-index:30}
+html[data-eink] #einkpg button{width:54px;height:54px;display:grid;place-items:center;border:3px solid #000;border-radius:12px;background:#fff;color:#000}
+html[data-eink] #einkpg button:active{background:#000;color:#fff}
+@media print{#einkpg{display:none!important}}
+html[data-pager] #main{padding-right:68px} /* room for the page up / down buttons (e-ink mode) */

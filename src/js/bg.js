@@ -10,7 +10,8 @@
      • Web/PWA  a browser cannot promise to wake a closed page. Reminders arrive while OpenTick is open, in the background or not; the page
                 asks for notification permission and the service worker shows them when the browser lets it.
    The plan is plain JSON on this device only. With encryption on, it carries no titles or room names (unless widgets are allowed to show them).
-   Settings are per device (S.settings.svc). Nothing here is synced. */
+   The Android foreground service runs whenever the background service is on (not only when a lesson is coming up), so Android lists OpenTick
+   under Active apps. Settings are per device (S.settings.svc). Nothing here is synced. */
 const BG_FILE = 'opentick-bg.json', BG_FIRED = 'opentick-bg-fired.json', BG_DAYS = 14, BG_MAX = 300;
 const bgPlat = () => { const T = TAURI(), ua = (typeof navigator !== 'undefined' && navigator.userAgent) || ''; return !T ? 'web' : /Android/i.test(ua) ? 'android' : /iPhone|iPad|iPod/i.test(ua) ? 'ios' : 'desktop'; };
 const svcCfg = () => ({ on: true, tray: true, autostart: false, persist: true, keep: true, ...((S.settings && S.settings.svc) || {}) });
@@ -94,14 +95,22 @@ function svcSettingsHtml() {
   return `<h4 class="mh">Background service</h4><p class="hint">${status}</p>
 ${row('on', 'Run in the background', 'Keeps reminders and the timetable going when OpenTick is not on screen.', c.on)}
 ${p === 'desktop' ? row('keep', 'Keep running when the window is closed', 'Closing the window hides OpenTick to the system tray instead of quitting. Quit from the tray menu.', c.keep) + row('tray', 'Tray icon with today’s timetable', 'Shows the current and next lesson (and today’s whole timetable) from the tray. The room is shown as its title where the system allows.', c.tray) + row('autostart', 'Start when I sign in', 'Starts hidden in the tray so reminders are never missed.', c.autostart) : ''}
-${p === 'android' ? row('persist', 'Persistent timetable notification', 'An ongoing notification showing the lesson you are in, or the next one. Expand it for the whole day. The room is its icon.', c.persist) : ''}
+${p === 'android' ? row('persist', 'Keep OpenTick active (shows under Active apps)', 'Runs a small foreground service so Android keeps OpenTick alive and lists it under Active apps. Its notification shows the lesson you are in or the next one (the room is its icon), or your next reminder when you have no timetable. Expand it for more. Turn this off to remove the notification; reminders still arrive.', c.persist) : ''}
 <p class="hint">Nothing is sent anywhere: the schedule stays on this device. With encryption on, background notifications are generic unless you allow widgets to show a summary.</p>`;
 }
 
 /* the page side: start, and keep the plan fresh */
+// Android 13+ will not show any notification (reminders or the ongoing one) until the person allows it: ask once, a few seconds after start
+async function bgAskOnce() {
+  try {
+    if (bgPlat() !== 'android' || !svcCfg().on || (S.settings.svc && S.settings.svc.asked) || typeof ensureNotify !== 'function') return;
+    S.settings.svc = { ...(S.settings.svc || {}), asked: true }; save();
+    await ensureNotify();
+  } catch (e) { /* the person can allow notifications later in Settings → Notifications */ }
+}
 function bgStart() {
   if (typeof WIDGET !== 'undefined' && WIDGET) return;
-  bgSync(false); bgTakeFired();
+  bgSync(false); bgTakeFired(); setTimeout(bgAskOnce, 4000);
   setInterval(() => { if (svcCfg().on) bgSync(false); }, 5 * 60 * 1000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) bgTakeFired(); else bgSync(true); });
   window.addEventListener('focus', bgTakeFired);

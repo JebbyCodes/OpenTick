@@ -1,0 +1,78 @@
+name: Publish / Snap Store
+
+# Uploads the Snaps that are attached to a GitHub Release. Called by Release; run it by hand to retry or to promote to another channel.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag (for example v0.5.1)
+        required: true
+        type: string
+      channel:
+        description: Store channel
+        required: false
+        type: string
+        default: candidate
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag (for example v0.5.1)
+        required: true
+        type: string
+      channel:
+        description: Store channel
+        required: true
+        type: choice
+        options: [edge, beta, candidate, stable]
+        default: candidate
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-snap-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Upload to the Snap Store
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Credentials present?
+        id: gate
+        shell: bash
+        env:
+          CRED: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        run: |
+          if [ -n "$CRED" ]; then echo "ready=true" >> "$GITHUB_OUTPUT"
+          else echo "ready=false" >> "$GITHUB_OUTPUT"; echo "::warning title=Snap Store skipped::Add the SNAPCRAFT_STORE_CREDENTIALS secret (snapcraft export-login --snaps opentick --channels edge,beta,candidate,stable --acls package_access,package_push,package_release -)."; fi
+
+      - name: Download the Snaps from the release
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir snaps
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern '*.snap' --dir snaps
+          ls -l snaps
+
+      - name: Install Snapcraft
+        if: steps.gate.outputs.ready == 'true'
+        run: sudo snap install snapcraft --classic
+
+      - name: Upload and release
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+          CHANNEL: ${{ inputs.channel }}
+        run: |
+          set -euo pipefail
+          case "$CHANNEL" in edge|beta|candidate|stable) ;; *) echo "::error::Unsupported channel: $CHANNEL"; exit 1;; esac
+          snapcraft whoami
+          for f in snaps/*.snap; do
+            echo "Uploading $f to $CHANNEL"
+            snapcraft upload --release="$CHANNEL" "$f"
+          done

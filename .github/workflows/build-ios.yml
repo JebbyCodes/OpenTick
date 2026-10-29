@@ -1,0 +1,90 @@
+name: Build / iOS
+
+# An .ipa for iPhone and iPad. Apple only lets a build be installed if it is signed, so this runs when the Apple secrets exist and is
+# skipped (with a notice, not a failure) when they do not. Secrets: IOS_CERTIFICATE (base64 .p12), IOS_CERTIFICATE_PASSWORD,
+# IOS_MOBILE_PROVISION (base64 .mobileprovision), APPLE_DEVELOPMENT_TEAM (10-character team ID). See docs/RELEASING.md.
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Version being built (x.y.z)
+        required: true
+        type: string
+      export_method:
+        description: app-store-connect (TestFlight / App Store), release-testing (ad-hoc, registered devices) or debugging
+        required: false
+        type: string
+        default: release-testing
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version being built (x.y.z)
+        required: true
+        type: string
+      export_method:
+        description: app-store-connect, release-testing or debugging
+        required: false
+        type: choice
+        options: [release-testing, app-store-connect, debugging]
+        default: release-testing
+
+permissions:
+  contents: read
+
+jobs:
+  ios:
+    name: iPhone / iPad (.ipa)
+    runs-on: macos-latest
+    timeout-minutes: 60
+    continue-on-error: true
+    steps:
+      - name: Are the Apple secrets set?
+        id: gate
+        shell: bash
+        env:
+          C: ${{ secrets.IOS_CERTIFICATE }}
+          P: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          M: ${{ secrets.IOS_MOBILE_PROVISION }}
+          T: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
+        run: |
+          if [ -n "$C" ] && [ -n "$P" ] && [ -n "$M" ] && [ -n "$T" ]; then echo "ready=true" >> "$GITHUB_OUTPUT"
+          else echo "ready=false" >> "$GITHUB_OUTPUT"; echo "::notice title=iOS skipped::Add IOS_CERTIFICATE, IOS_CERTIFICATE_PASSWORD, IOS_MOBILE_PROVISION and APPLE_DEVELOPMENT_TEAM to build the .ipa."; fi
+
+      - if: steps.gate.outputs.ready == 'true'
+        uses: actions/checkout@v7
+      - if: steps.gate.outputs.ready == 'true'
+        uses: ./.github/actions/setup-node
+      - if: steps.gate.outputs.ready == 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+      - if: steps.gate.outputs.ready == 'true'
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: ios
+
+      - name: Build the .ipa
+        if: steps.gate.outputs.ready == 'true'
+        shell: bash
+        env:
+          IOS_CERTIFICATE: ${{ secrets.IOS_CERTIFICATE }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_MOBILE_PROVISION: ${{ secrets.IOS_MOBILE_PROVISION }}
+          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
+        run: |
+          set -euo pipefail
+          [ -d src-tauri/gen/apple ] || npx tauri ios init
+          npx tauri ios build --export-method "${{ inputs.export_method || 'release-testing' }}"
+          mkdir -p staged
+          ipa="$(find src-tauri/gen/apple -name '*.ipa' -print -quit)"
+          [ -n "$ipa" ] || { echo "::error::No .ipa was produced"; exit 1; }
+          cp "$ipa" "staged/OpenTick_${{ inputs.version }}_ios.ipa"
+
+      - if: steps.gate.outputs.ready == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: pkg-ios
+          path: staged/*.ipa
+          if-no-files-found: error
+          retention-days: 14

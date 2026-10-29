@@ -1,0 +1,46 @@
+# The snap that CI packs. It does NOT compile anything: the desktop build has already made the .deb, and this just wraps it (so the Snap
+# costs about a minute, not a second 30-minute Rust build). The workflow copies this file, opentick.deb, assemble.sh and icon.png into
+# an empty folder and runs `snapcraft pack --destructive-mode` there; @VERSION@ is filled in from package.json.
+# For building from source (snapcraft.io's own builders, local `snapcraft`), use snap/snapcraft.yaml.
+name: opentick
+base: core22
+version: '@VERSION@'
+summary: Open-source, offline-first task manager
+description: |
+  OpenTick is an open-source, offline-first task manager.
+  Organise tasks, projects, notes, timetables and Gantt plans
+  with a cross-platform interface.
+
+icon: icon.png
+
+grade: stable
+confinement: strict
+
+layout:
+  /usr/lib/$SNAPCRAFT_ARCH_TRIPLET/webkit2gtk-4.1:
+    bind: $SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/webkit2gtk-4.1
+
+apps:
+  opentick:
+    command: usr/bin/opentick
+    desktop: usr/share/applications/opentick.desktop
+    extensions:
+      - gnome
+    plugs:
+      - home
+      - network
+      - removable-media
+
+parts:
+  opentick:
+    plugin: nil
+    source: .
+    build-packages:
+      - dpkg
+    stage-packages:
+      - libwebkit2gtk-4.1-0
+      - libgtk-3-0
+      - libayatana-appindicator3-1
+    override-build: |
+      set -eu
+      bash "$SNAPCRAFT_PROJECT_DIR/assemble.sh" "$SNAPCRAFT_PROJECT_DIR/opentick.deb" "$SNAPCRAFT_PART_INSTALL" "$SNAPCRAFT_PROJECT_DIR/icon.png"

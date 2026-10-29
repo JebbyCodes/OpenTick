@@ -1,0 +1,82 @@
+name: Set up the Android build
+description: >
+  JDK, Android SDK and NDK, Rust targets, the generated Tauri Android project (with the OpenTick widgets and background service added) and
+  release signing from repository secrets. After this, `npx tauri android build ...` produces signed APKs. Nothing secret is written to the repository.
+inputs:
+  targets:
+    description: Rust targets to install
+    default: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+  key-base64:
+    description: Base64 of the release keystore (.jks)
+    required: true
+  key-password:
+    description: Keystore and key password
+    required: true
+  key-alias:
+    description: Key alias
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-java@v6
+      with:
+        distribution: temurin
+        java-version: '17'
+
+    - uses: android-actions/setup-android@v4
+      with:
+        packages: platform-tools
+        accept-android-sdk-licenses: 'true'
+        log-accepted-android-sdk-licenses: 'false'
+
+    - name: Install the SDK platform, build tools and NDK
+      shell: bash
+      env:
+        ANDROID_API: '35'
+        BUILD_TOOLS: '35.0.0'
+        NDK: '27.0.12077973'
+      run: |
+        set -euo pipefail
+        sdkmanager --install "platforms;android-${ANDROID_API}" "build-tools;${BUILD_TOOLS}" "ndk;${NDK}" >/dev/null
+        {
+          echo "NDK_HOME=$ANDROID_HOME/ndk/$NDK"
+          echo "ANDROID_BUILD_TOOLS=$ANDROID_HOME/build-tools/$BUILD_TOOLS"
+        } >> "$GITHUB_ENV"
+        test -d "$ANDROID_HOME/ndk/$NDK"
+
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ inputs.targets }}
+
+    - uses: swatinem/rust-cache@v2
+      with:
+        workspaces: src-tauri -> target
+        key: android
+
+    - name: Cache Gradle
+      uses: actions/cache@v6
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: gradle-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock', 'src-tauri/tauri.conf.json') }}
+        restore-keys: gradle-${{ runner.os }}-
+
+    - name: Generate the Android project and add the OpenTick widgets and service
+      shell: bash
+      run: |
+        set -euo pipefail
+        test -f src-tauri/icons/icon.png || { echo "::error::Missing src-tauri/icons/icon.png"; exit 1; }
+        [ -d src-tauri/gen/android ] || npx tauri android init
+        test -f src-tauri/gen/android/app/build.gradle.kts || { echo "::error::app/build.gradle.kts was not generated"; exit 1; }
+        chmod +x src-tauri/gen/android/gradlew
+        node scripts/android/android-widgets.mjs
+        npx tauri icon src-tauri/icons/icon.png >/dev/null
+
+    - name: Configure release signing (key stays on the runner)
+      shell: bash
+      env:
+        ANDROID_KEY_BASE64: ${{ inputs.key-base64 }}
+        ANDROID_KEY_PASSWORD: ${{ inputs.key-password }}
+        ANDROID_KEY_ALIAS: ${{ inputs.key-alias }}
+      run: python3 scripts/android/configure-signing.py

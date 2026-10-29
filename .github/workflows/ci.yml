@@ -1,0 +1,72 @@
+name: CI
+
+# Tests on every pull request and every push to main. The release workflow runs this same workflow before it publishes anything.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Unit tests and checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-node
+      - name: Every file carries the same version
+        run: npm run version:check
+      - name: Unit tests
+        run: npm test
+      - name: Check the workflow files
+        run: python3 scripts/ci/lint-workflows.py
+      - name: Both editions build
+        run: |
+          node build-app.mjs --out /tmp/site
+          node build-app.mjs --eink --out /tmp/site-eink
+
+  browser:
+    name: Browser tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-node
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Install Playwright and Chromium
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+      - run: npm run build:app
+      - run: npm run test:browser
+
+  rust:
+    name: Rust compiles
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-node
+      - name: Install Linux libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev libgtk-3-dev libwebkit2gtk-4.1-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: ci
+      - run: npm run build:app
+      # --locked: a Cargo.lock that is out of step with Cargo.toml (for example after a version bump) fails here, not in the release
+      - run: cargo check --locked --manifest-path src-tauri/Cargo.toml

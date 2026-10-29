@@ -1,0 +1,46 @@
+name: Publish / Winget
+
+# Opens a pull request on microsoft/winget-pkgs for the new release. Only updates a package that already exists there, so it stays switched
+# off until you set the repository variable WINGET_IDENTIFIER (for example JebbyCodes.OpenTick) and the secret WINGET_TOKEN
+# (a classic personal access token with public_repo, from an account that has forked microsoft/winget-pkgs).
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag (for example v0.5.1)
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag (for example v0.5.1)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  winget:
+    name: Submit to winget-pkgs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configured?
+        id: gate
+        shell: bash
+        env:
+          ID: ${{ vars.WINGET_IDENTIFIER }}
+          T: ${{ secrets.WINGET_TOKEN }}
+        run: |
+          if [ -n "$ID" ] && [ -n "$T" ]; then echo "ready=true" >> "$GITHUB_OUTPUT"
+          else echo "ready=false" >> "$GITHUB_OUTPUT"; echo "::notice title=Winget skipped::Set the WINGET_IDENTIFIER variable and the WINGET_TOKEN secret to publish to winget."; fi
+
+      - name: Submit
+        if: steps.gate.outputs.ready == 'true'
+        uses: vedantmgoyal9/winget-releaser@v2
+        with:
+          identifier: ${{ vars.WINGET_IDENTIFIER }}
+          release-tag: ${{ inputs.tag }}
+          installers-regex: '_x(64|86)-setup\.exe$|_arm64-setup\.exe$'
+          token: ${{ secrets.WINGET_TOKEN }}

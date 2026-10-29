@@ -1,0 +1,88 @@
+name: Publish / Scoop
+
+# Opens a pull request on the Scoop bucket (JebbyCodes/OpenTick-Scoop) that points at the new installer.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag (for example v0.5.1)
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag (for example v0.5.1)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  scoop:
+    name: Update the bucket
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Token present?
+        id: gate
+        shell: bash
+        env:
+          T: ${{ secrets.OPENTICK_SCOOP_TOKEN }}
+        run: |
+          if [ -n "$T" ]; then echo "ready=true" >> "$GITHUB_OUTPUT"
+          else echo "ready=false" >> "$GITHUB_OUTPUT"; echo "::warning title=Scoop skipped::Add the OPENTICK_SCOOP_TOKEN secret (a token that can open pull requests on the bucket repository)."; fi
+
+      - name: Check out the Scoop bucket
+        if: steps.gate.outputs.ready == 'true'
+        uses: actions/checkout@v7
+        with:
+          repository: JebbyCodes/OpenTick-Scoop
+          ref: main
+          token: ${{ secrets.OPENTICK_SCOOP_TOKEN }}
+          path: scoop-bucket
+
+      - name: Update the manifest
+        if: steps.gate.outputs.ready == 'true'
+        shell: bash
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || { echo "::error::Unexpected tag: $TAG"; exit 1; }
+          url="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/OpenTick_${version}_x64-setup.exe"
+          curl -fsSL "$url" -o setup.exe
+          hash="$(sha256sum setup.exe | cut -d' ' -f1)"
+          echo "SHA-256: $hash"
+          f=scoop-bucket/bucket/opentick.json
+          VERSION="$version" URL="$url" HASH="$hash" python3 - "$f" <<'PY'
+          import json, os, sys
+          p = sys.argv[1]; m = json.load(open(p, encoding='utf-8'))
+          m['version'] = os.environ['VERSION']
+          m['architecture']['64bit']['url'] = os.environ['URL']
+          m['architecture']['64bit']['hash'] = os.environ['HASH']
+          m.setdefault('autoupdate', {}).setdefault('architecture', {}).setdefault('64bit', {})['url'] = \
+            'https://github.com/JebbyCodes/OpenTick/releases/download/v$version/OpenTick_$version_x64-setup.exe'
+          open(p, 'w', encoding='utf-8').write(json.dumps(m, indent=4) + '\n')
+          PY
+          python3 -c "import json;m=json.load(open('$f'));assert m['version']=='$version'"
+
+      - name: Open or update the pull request
+        if: steps.gate.outputs.ready == 'true'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.OPENTICK_SCOOP_TOKEN }}
+          path: scoop-bucket
+          branch: automation/update-opentick-release
+          delete-branch: true
+          commit-message: "Update OpenTick to ${{ inputs.tag }}"
+          title: "Update OpenTick to ${{ inputs.tag }}"
+          body: |
+            Automated Scoop manifest update for OpenTick ${{ inputs.tag }}.
+
+            - Updates the version and the Windows installer URL.
+            - SHA-256 is calculated from the downloaded installer.
+            - Updates the automatic-update URL.
+
+            Please check the installer and checksum before merging.

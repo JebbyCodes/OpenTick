@@ -1,0 +1,45 @@
+name: Build / Web
+
+# The app as two static websites (normal and e-ink), zipped for self-hosting. The same files go to GitHub Pages (see Deploy / Website).
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Version being built (x.y.z)
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version being built (x.y.z)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: Website zips
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-node
+      - name: Build both editions and zip them
+        shell: bash
+        run: |
+          set -euo pipefail
+          node build-app.mjs --out site
+          node build-app.mjs --eink --out site-eink
+          for d in site site-eink; do test -s "$d/index.html"; done
+          mkdir -p staged
+          (cd site && zip -qr "../staged/OpenTick_${{ inputs.version }}_web.zip" .)
+          (cd site-eink && zip -qr "../staged/OpenTick_${{ inputs.version }}_web-eink.zip" .)
+          ls -l staged
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pkg-web
+          path: staged/*.zip
+          if-no-files-found: error
+          retention-days: 14

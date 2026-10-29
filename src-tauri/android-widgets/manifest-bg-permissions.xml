@@ -1,4 +1,4 @@
-    <!-- OpenTick background service permissions (added by scripts/android-widgets.mjs) -->
+    <!-- OpenTick background service permissions (added by scripts/android/android-widgets.mjs) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />

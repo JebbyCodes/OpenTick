@@ -31,8 +31,9 @@ import java.util.Locale
  * The web app writes opentick-bg.json (the next 14 days of reminders and the next 3 days of lessons). This file turns it into:
  *   1. reminders, set with AlarmManager (one alarm: the soonest; each time it fires the next one is set). They come back after a reboot,
  *      an app update and a clock or time-zone change.
- *   2. an optional persistent notification (a foreground service) for the timetable: the lesson you are in, or the next one, with the
- *      whole day when it is expanded, and the room as the small icon.
+ *   2. a persistent notification (a foreground service) that keeps OpenTick listed under Android's "Active apps": the lesson you are in, or
+ *      the next one, with the whole day when it is expanded and the room as the small icon; with no timetable it shows the next reminder.
+ *      It runs whenever the background service is on, not only when a lesson is coming up.
  * Reminders the page shows itself (while the app is on screen) are skipped here, and the ones shown here are listed in
  * opentick-bg-fired.json so the page does not show them a second time. Nothing leaves the device.
  */
@@ -43,10 +44,14 @@ object OtBg {
     const val CH_TT = "opentick_timetable"
     const val ACTION_ALARM = "__PACKAGE__.BG_ALARM"
     const val ACTION_TT = "__PACKAGE__.BG_TIMETABLE"
+    const val ACTION_RESTART = "__PACKAGE__.BG_RESTART"
+    private const val NOTE_ID = 7
     private const val PREFS = "opentick_bg"
 
     /** Set by OpenTickWidgetBoot: true while one of the app's screens is showing (the page then shows its own reminders). */
     @Volatile var foreground = false
+    /** True while OpenTickTimetableService is running (it is what makes Android list OpenTick under "Active apps"). */
+    @Volatile var svcRunning = false
     private val skipped = HashSet<String>()
 
     fun plan(ctx: Context): JSONObject? = try {
@@ -127,6 +132,7 @@ object OtBg {
             markFired(ctx, shown)
         }
         scheduleNext(ctx)
+        if (svcRunning) refresh(ctx) // the "next reminder" line moves on
     }
 
     private fun ensureChannels(ctx: Context) {
@@ -181,10 +187,36 @@ object OtBg {
         return out.sortedBy { it.a }
     }
 
-    /** The service should run when the person wants it and there is a timetable in the plan. */
-    fun wantsTimetable(ctx: Context): Boolean {
-        val p = plan(ctx) ?: return false
-        return enabled(p) && cfg(p).optBoolean("persist", true) && lessons(p).any { it.b > System.currentTimeMillis() }
+    /**
+     * The foreground service runs whenever "Run in the background" and "Keep OpenTick active" are on. It does NOT depend on there being a
+     * timetable: it also shows the next reminder, and it is what Android lists under "Active apps". Before the page has written its plan
+     * for the first time the defaults apply (on), so the service starts on the very first launch.
+     */
+    fun wantsService(ctx: Context): Boolean {
+        val p = plan(ctx) ?: return true
+        return enabled(p) && cfg(p).optBoolean("persist", true)
+    }
+
+    private class Rem(val at: Long, val title: String)
+
+    /** Reminders that have not been shown yet, soonest first. */
+    private fun upcomingReminders(ctx: Context, p: JSONObject, now: Long, max: Int): List<Rem> {
+        val rem = p.optJSONArray("rem") ?: return emptyList()
+        val done = firedSet(ctx); val out = ArrayList<Rem>()
+        for (i in 0 until rem.length()) {
+            val r = rem.optJSONObject(i) ?: continue
+            val k = r.optString("k"); if (k in done || k in skipped) continue
+            val at = r.optLong("at"); if (at <= now) continue
+            out.add(Rem(at, r.optString("t")))
+        }
+        return out.sortedBy { it.at }.take(max)
+    }
+
+    private fun whenText(ctx: Context, at: Long, now: Long): String {
+        val day = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val time = android.text.format.DateFormat.getTimeFormat(ctx).format(Date(at))
+        return if (day.format(Date(at)) == day.format(Date(now))) "Today · $time"
+        else SimpleDateFormat("EEE d MMM", Locale.getDefault()).format(Date(at)) + " · " + time
     }
 
     /** Draws the room (up to four characters) as a white-on-transparent icon, which is what Android wants for the status bar. */
@@ -206,6 +238,9 @@ object OtBg {
         val dayFmt = SimpleDateFormat("yyyy-MM-dd", Locale.US); val today = dayFmt.format(Date(now))
         val todays = all.filter { it.day == today }
         val b = builder(ctx, CH_TT).setOngoing(true).setOnlyAlertOnce(true).setShowWhen(false).setCategory(Notification.CATEGORY_STATUS)
+        // Android 12+ waits 10 seconds before showing a foreground service's notification unless it is asked to show it at once
+        if (Build.VERSION.SDK_INT >= 31) b.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
+        val later = upcomingReminders(ctx, p, now, 4)
         val focus = cur ?: nxt
         val icon = if (focus != null) roomIcon(ctx, focus.r) else null
         if (icon != null && Build.VERSION.SDK_INT >= 23) b.setSmallIcon(icon) else b.setSmallIcon(smallIconRes(ctx))
@@ -218,10 +253,19 @@ object OtBg {
             b.setContentTitle("Next: " + nxt.n + (if (nxt.r.isNotEmpty()) " · " + nxt.r else ""))
                 .setContentText((if (tomorrow) "Tomorrow · " else "") + nxt.tm + (if (nxt.te.isNotEmpty()) " · " + nxt.te else ""))
             if (!tomorrow && Build.VERSION.SDK_INT >= 24) b.setUsesChronometer(true).setChronometerCountDown(true).setWhen(nxt.a).setShowWhen(true)
-        } else b.setContentTitle("No more lessons").setContentText("Nothing else on your timetable")
+        } else if (later.isNotEmpty()) {
+            b.setContentTitle("Next reminder: " + later[0].title).setContentText(whenText(ctx, later[0].at, now))
+        } else b.setContentTitle("OpenTick is running").setContentText("Your reminders are on")
         val txt = StringBuilder()
-        if (todays.isEmpty()) txt.append("No lessons today") else for (l in todays) txt.append(if (l === cur) "▶ " else if (l === nxt && cur == null) "› " else "   ").append(line(l)).append('\n')
-        b.setStyle(Notification.BigTextStyle().bigText(txt.toString().trimEnd()).setSummaryText("Today"))
+        if (all.isNotEmpty()) {
+            if (todays.isEmpty()) txt.append("No lessons today") else for (l in todays) txt.append(if (l === cur) "▶ " else if (l === nxt && cur == null) "› " else "   ").append(line(l)).append('\n')
+        }
+        if (later.isNotEmpty()) {
+            if (txt.isNotEmpty()) txt.append("\n\n")
+            for (r in later) txt.append(whenText(ctx, r.at, now)).append("  ").append(r.title).append('\n')
+        }
+        if (txt.isBlank()) txt.append("OpenTick is keeping your reminders on time. Nothing is sent anywhere.")
+        b.setStyle(Notification.BigTextStyle().bigText(txt.toString().trimEnd()).setSummaryText(if (all.isNotEmpty()) "Today" else "Reminders"))
         launchPi(ctx)?.let { b.setContentIntent(it) }
         return b.build()
     }
@@ -229,7 +273,27 @@ object OtBg {
     /** The next moment the notification should change: a lesson starting or ending. */
     fun nextBoundary(ctx: Context, now: Long = System.currentTimeMillis()): Long? {
         val p = plan(ctx) ?: return null
-        return lessons(p).flatMap { listOf(it.a, it.b) }.filter { it > now }.minOrNull()
+        val times = ArrayList<Long>()
+        for (l in lessons(p)) { times.add(l.a); times.add(l.b) }
+        upcomingReminders(ctx, p, now, 1).firstOrNull()?.let { times.add(it.at) }
+        return times.filter { it > now }.minOrNull()
+    }
+
+    /** Redraws the ongoing notification without (re)starting the service: allowed from the background. */
+    fun refresh(ctx: Context) {
+        try {
+            if (!canNotify(ctx)) return
+            (ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(NOTE_ID, timetableNotification(ctx))
+        } catch (e: Exception) { /* cosmetic */ }
+    }
+
+    /** The task was swiped away: some phones stop the service with it, so ask for it to be started again a moment later. */
+    fun scheduleRestart(ctx: Context) {
+        try {
+            val i = Intent(ctx, OpenTickBgReceiver::class.java).setAction(ACTION_RESTART)
+            val pi = PendingIntent.getBroadcast(ctx, 43, i, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            setAlarm(ctx, System.currentTimeMillis() + 2000, pi)
+        } catch (e: Exception) { /* best effort */ }
     }
 
     fun scheduleTimetable(ctx: Context) {
@@ -245,10 +309,16 @@ object OtBg {
     fun apply(ctx: Context) {
         try { scheduleNext(ctx) } catch (e: Exception) { /* keep going */ }
         try {
-            if (wantsTimetable(ctx)) {
-                val i = Intent(ctx, OpenTickTimetableService::class.java).setAction(ACTION_TT)
-                if (Build.VERSION.SDK_INT >= 26) ctx.startForegroundService(i) else ctx.startService(i)
-            } else ctx.stopService(Intent(ctx, OpenTickTimetableService::class.java))
+            if (wantsService(ctx)) {
+                // Android 12+ refuses to start a foreground service from the background: when it is already running, only redraw it
+                if (svcRunning && !foreground) refresh(ctx)
+                else {
+                    val i = Intent(ctx, OpenTickTimetableService::class.java).setAction(ACTION_TT)
+                    if (Build.VERSION.SDK_INT >= 26) ctx.startForegroundService(i) else ctx.startService(i)
+                }
+            } else {
+                ctx.stopService(Intent(ctx, OpenTickTimetableService::class.java)); svcRunning = false
+            }
         } catch (e: Exception) { /* Android may refuse to start it from the background; the next time the app opens it will start */ }
     }
 }
@@ -271,9 +341,12 @@ class OpenTickTimetableService : Service() {
         try {
             if (Build.VERSION.SDK_INT >= 34) startForeground(7, n, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
             else startForeground(7, n)
-        } catch (e: Exception) { stopSelf(); return START_NOT_STICKY }
-        if (!OtBg.wantsTimetable(this)) { stopForeground(true); stopSelf(); return START_NOT_STICKY }
+        } catch (e: Exception) { OtBg.svcRunning = false; stopSelf(); return START_NOT_STICKY }
+        OtBg.svcRunning = true
+        if (!OtBg.wantsService(this)) { stopForeground(true); OtBg.svcRunning = false; stopSelf(); return START_NOT_STICKY }
         OtBg.scheduleTimetable(this)
         return START_STICKY
     }
+    override fun onTaskRemoved(rootIntent: Intent?) { OtBg.scheduleRestart(this); super.onTaskRemoved(rootIntent) }
+    override fun onDestroy() { OtBg.svcRunning = false; super.onDestroy() }
 }

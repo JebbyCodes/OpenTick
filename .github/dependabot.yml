@@ -34,11 +34,24 @@ updates:
 
   # GitHub Actions versions
   - package-ecosystem: github-actions
-    directory: /
+    directories:
+      - /
+      - /.github/actions/setup-android
+      - /.github/actions/setup-node
     schedule:
       interval: daily
       time: "09:00"
       timezone: Europe/London
     open-pull-requests-limit: 5
+    labels:
+      - dependencies
+
+  # Base images in the Dockerfile (node, nginx)
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      timezone: Europe/London
+    open-pull-requests-limit: 3
     labels:
       - dependencies

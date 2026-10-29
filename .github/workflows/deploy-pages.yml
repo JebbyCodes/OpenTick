@@ -1,0 +1,50 @@
+name: Deploy / Website
+
+# GitHub Pages: the web app at the site root, the e-ink edition under /eink/, and the privacy policy.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build website
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-node
+      - name: Build both editions and the privacy policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          node build-app.mjs --out site
+          node build-app.mjs --eink --out site/eink
+          test -f docs/privacy-policy.md
+          npx --yes marked --gfm --output site/privacy-policy.html docs/privacy-policy.md
+          test -f site/index.html && test -f site/eink/index.html
+          find site -maxdepth 2 -type f | sort
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    name: Publish to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

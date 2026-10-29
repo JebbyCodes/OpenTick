@@ -21,9 +21,9 @@ const refresh = () => { renderSide(); renderMain(); renderDetail(); };
 /* ---------- small animations ----------
    Rendering rebuilds the DOM, so an animation is queued with fx(selector, name) and played on the fresh elements by
    fxFlush() at the end of renderMain / renderDetail. Everything is switched off by prefers-reduced-motion. */
-const motionOK = () => !(typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) && (!S || !S.settings || S.settings.motion !== 'off');
+const motionOK = () => !(typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) && (!S || !S.settings || S.settings.motion !== 'off') && !(typeof einkOn === 'function' && einkOn());
 // Settings → Animations: the whole interface reads data-motion (normal / calm / off) from the page root
-function motionApply() { if (typeof document !== 'undefined' && document.documentElement && document.documentElement.setAttribute) document.documentElement.setAttribute('data-motion', (S.settings && S.settings.motion) || 'normal'); }
+function motionApply() { if (typeof document !== 'undefined' && document.documentElement && document.documentElement.setAttribute) document.documentElement.setAttribute('data-motion', (typeof einkOn === 'function' && einkOn()) ? 'off' : (S.settings && S.settings.motion) || 'normal'); }
 const rowSel = id => ['.task', '.card', '.tri', '.chip', '.blk', '.gt-r'].map(c => `${c}[data-id="${id}"]`).join(',');
 function fx(sel, name = 'pop') { if (motionOK()) U.fx.push({ sel, name, at: Date.now() }); }
 function fxPlay(el, name) {
@@ -280,7 +280,7 @@ ${tasksSettingsHtml()}
 
 <details class="gtd" style="margin-top:12px"><summary>Sidebar views</summary><div id="sbv">${uiSidebarSettings()}</div></details>
 `)
-  + sec('appearance', `<div id="thsec">${themeSectionHtml()}</div>${scaleSetting()}<div class="dgrid" style="margin-top:10px"><button data-m="bgfx">${ic('sparkles', 18)}<span><b>Background effects</b><small>${bgNorm(s.bg).on ? 'On · ' + (BG_STYLES.find(x => x[0] === bgNorm(s.bg).style) || [])[1] : 'Off'} — soft moving shapes behind the app</small></span></button></div><div class="form" style="margin-top:10px"><label>Animations<select data-sx="motion">${opts([['normal', 'Normal'], ['calm', 'Calm (subtle)'], ['off', 'Off']], s.motion || 'normal')}</select></label></div>`)
+  + sec('appearance', `<div id="thsec">${themeSectionHtml()}</div>${scaleSetting()}${typeof einkSettingsHtml === 'function' ? einkSettingsHtml() : ''}<div class="dgrid" style="margin-top:10px"><button data-m="bgfx">${ic('sparkles', 18)}<span><b>Background effects</b><small>${bgNorm(s.bg).on ? 'On · ' + (BG_STYLES.find(x => x[0] === bgNorm(s.bg).style) || [])[1] : 'Off'} — soft moving shapes behind the app</small></span></button></div><div class="form" style="margin-top:10px"><label>Animations<select data-sx="motion">${opts([['normal', 'Normal'], ['calm', 'Calm (subtle)'], ['off', 'Off']], s.motion || 'normal')}</select></label></div>`)
   + sec('notifications', notifSettingsHtml())
   + sec('access', a11ySettingsHtml())
   + sec('sound', `<h4 class="mh">Sound</h4><div class="snd"><div class="mrow tight"><label class="chkl"><input type="checkbox" data-snd="on"${s.sound.on !== false ? ' checked' : ''}> Sound effects</label><label class="chkl"><input type="checkbox" data-snd="haptic"${s.sound.haptic !== false ? ' checked' : ''}> Vibrate on phones</label></div><label class="vol">${ic('volume', 16)}<input type="range" min="0" max="1" step="0.05" data-snd="vol" value="${s.sound.vol}" aria-label="Volume"></label><div class="mrow tight">${Object.entries(SOUNDS).map(([k, v]) => `<button class="sbtn" data-play="${k}" title="Play this sound"><span class="pi">${ic('play', 13)}</span>${esc(v.label)}</button>`).join('')}</div></div>

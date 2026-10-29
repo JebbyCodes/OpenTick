@@ -15,8 +15,8 @@ for (const m of xml.matchAll(/strokeWidth="([\d.]+)"/g)) assert.ok(+m[1] >= 2, '
 assert.doesNotMatch(xml, /<text|android:text/i);
 const main = rd('src/js/main.js'); assert.match(main, /icon = 'ic_stat_opentick'/, 'the app asks for this drawable by name');
 assert.match(main, /Android\/i\.test\(navigator\.userAgent/, 'only on Android: other platforms do not get an Android resource name');
-assert.match(rd('scripts/android-widgets.mjs'), /readdirSync\(join\(src, 'res'\)\)/, 'every res/<dir>/<file> is copied into the generated project');
-assert.match(rd('.github/workflows/build.yml'), /node scripts\/android-widgets\.mjs/, 'CI runs the copy step');
+assert.match(rd('scripts/android/android-widgets.mjs'), /readdirSync\(join\(src, 'res'\)\)/, 'every res/<dir>/<file> is copied into the generated project');
+assert.match(rd('.github/actions/setup-android/action.yml'), /node scripts\/android\/android-widgets\.mjs/, 'CI runs the copy step');
 // the capabilities the attachment code needs
 const cap = JSON.parse(rd('src-tauri/capabilities/default.json')).permissions;
 for (const p of ['fs:allow-read-file', 'fs:allow-write-file', 'fs:allow-read-text-file', 'notification:default', 'dialog:default']) assert.ok(cap.includes(p), 'capability ' + p);
@@ -31,9 +31,9 @@ const layoutText = Object.entries(res).filter(([k]) => k.startsWith('layout/')).
 const ids = new Set([...layoutText.matchAll(/@\+id\/([\w]+)/g)].map(m => m[1]));
 const allKt = Object.values(kt).join('\n');
 // the generated layouts are current
-execFileSync(process.execPath, [root + 'scripts/gen-widget-layouts.mjs'], { stdio: 'pipe' });
+execFileSync(process.execPath, [root + 'scripts/android/gen-widget-layouts.mjs'], { stdio: 'pipe' });
 const after = {}; for (const d of readdirSync(root + wdir + 'res')) for (const f of readdirSync(root + wdir + 'res/' + d)) after[d + '/' + f] = rd(wdir + 'res/' + d + '/' + f);
-for (const k of Object.keys(res)) assert.equal(after[k], res[k], 'run scripts/gen-widget-layouts.mjs: ' + k + ' is out of date');
+for (const k of Object.keys(res)) assert.equal(after[k], res[k], 'run scripts/android/gen-widget-layouts.mjs: ' + k + ' is out of date');
 // every R.id / R.layout / R.drawable / R.xml the Kotlin names exists
 for (const m of allKt.matchAll(/R\.id\.(\w+)/g)) assert.ok(ids.has(m[1]), 'R.id.' + m[1] + ' is in a layout');
 for (const m of allKt.matchAll(/R\.layout\.(\w+)/g)) assert.ok(res['layout/' + m[1] + '.xml'], 'layout ' + m[1]);
@@ -77,6 +77,12 @@ for (const op of ['nav', 'page', 'note', 'newnote', 'focus', 'habit']) assert.ma
   for (const f of ['as', 'bs', 'tm', 'n', 'r', 'te', 'k', 't0']) assert.match(bj, new RegExp('\\b' + f + '\\s*[:,}]'), 'the timeline writes "' + f + '"');
   for (const f of ['at', 'exp', 'k', 't', 'b']) assert.match(bj, new RegExp('\\b' + f + '\\s*[:,}]'), 'a reminder carries "' + f + '"');
   assert.equal((bg.match(/\{/g) || []).length, (bg.match(/\}/g) || []).length, 'OpenTickBg.kt braces balance');
+  // the foreground service must not depend on there being a timetable (that was why OpenTick never showed under "Active apps")
+  const want = bg.slice(bg.indexOf('fun wantsService'), bg.indexOf('private class Rem'));
+  assert.ok(want.includes('?: return true'), 'before the first plan is written the service still starts'); assert.ok(!/lessons\(/.test(want), 'wantsService does not need a lesson');
+  assert.doesNotMatch(bg, /wantsTimetable/, 'the old lesson-only condition is gone');
+  assert.match(bg, /FOREGROUND_SERVICE_IMMEDIATE/, 'the notification shows at once on Android 12+'); assert.match(bg, /override fun onTaskRemoved/, 'it comes back after a swipe from recents');
+  assert.match(bg, /ACTION_RESTART/); assert.match(bj, /bgAskOnce/, 'the page asks for notification permission once');
   const rs = rd('src-tauri/src/bg.rs'); assert.equal((rs.match(/\{/g) || []).length, (rs.match(/\}/g) || []).length, 'bg.rs braces balance');
   assert.match(rd('src-tauri/src/lib.rs'), /bg_set, bg::bg_take_fired/); assert.match(bj, /invoke\('bg_set'/); assert.match(bj, /invoke\('bg_take_fired'/);
   assert.match(rd('src-tauri/Cargo.toml'), /"tray-icon"/); assert.match(rd('src-tauri/Cargo.toml'), /serde_json/);

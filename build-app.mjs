@@ -1,11 +1,13 @@
 // Bundles src/ into one standalone dist/index.html (+ PWA files). No dependencies.
 // - The version comes from package.json (the single source of truth; `npm run bump -- X.Y.Z` keeps every manifest in step).
+// - `node build-app.mjs --eink` (or OPENTICK_EINK=1) builds the e-ink edition: the same app, with e-ink mode on by default (Settings can still turn it off).
+//   `--out <dir>` writes somewhere other than dist/ (the web deploy builds both: dist/ and dist/eink/).
 // - The logo is src/logo.png. If it is missing the build falls back to src/icon.svg and says so.
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync, statSync } from 'node:fs';
-import { join, dirname, extname } from 'node:path';
+import { join, dirname, extname, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-const root = dirname(fileURLToPath(import.meta.url)), src = join(root, 'src'), dist = join(root, 'dist');
-export const JS_ORDER = ['vault', 'core', 'sfx', 'md', 'files', 'views', 'icons', 'home', 'notes', 'templates', 'blocks', 'bed', 'banner', 'batch', 'zoom', 'bgfx', 'help', 'licenses.gen', 'privacy.gen', 'about', 'mxdrag', 'habitmap', 'sync', 'import', 'gantt', 'school', 'holiday', 'remind', 'recur', 'ui', 'keys', 'ctxmenu', 'prefs', 'marquee', 'themes', 'data', 'widget', 'bg', 'vaultui', 'main'];
+const root = dirname(fileURLToPath(import.meta.url)), src = join(root, 'src'), DIST = join(root, 'dist');
+export const JS_ORDER = ['vault', 'core', 'sfx', 'md', 'files', 'views', 'icons', 'home', 'notes', 'templates', 'blocks', 'bed', 'banner', 'batch', 'zoom', 'bgfx', 'help', 'licenses.gen', 'privacy.gen', 'about', 'mxdrag', 'habitmap', 'sync', 'import', 'gantt', 'school', 'holiday', 'remind', 'recur', 'ui', 'keys', 'ctxmenu', 'tips', 'prefs', 'eink', 'marquee', 'themes', 'data', 'widget', 'bg', 'vaultui', 'main'];
 const INLINE_MAX = 200 * 1024; // logos up to this size are embedded in index.html, so the single file still stands alone
 
 export const readVersion = () => JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
@@ -24,7 +26,8 @@ export function resolveLogo() {
   return { file: 'icon.svg', path: svg, mime: 'image/svg+xml', buf: readFileSync(svg), size: null, placeholder: true };
 }
 
-export function build() {
+export function build(opt = {}) {
+  const eink = opt.eink ?? /^(1|true|on)$/i.test(process.env.OPENTICK_EINK || ''), dist = opt.out ? resolve(root, opt.out) : DIST;
   mkdirSync(dist, { recursive: true });
   const version = readVersion(), logo = resolveLogo(), built = new Date().toISOString().slice(0, 10);
   if (logo.placeholder) console.warn('! src/logo.png not found: using the src/icon.svg placeholder. Add your logo as src/logo.png and rebuild.');
@@ -32,7 +35,7 @@ export function build() {
   const js = JS_ORDER.map(n => readFileSync(join(src, 'js', n + '.js'), 'utf8')).join('\n');
   const css = readFileSync(join(src, 'styles.css'), 'utf8');
   const logoHref = logo.buf.length <= INLINE_MAX ? `data:${logo.mime};base64,${logo.buf.toString('base64')}` : logo.file;
-  const meta = JSON.stringify({ version, built, logo: logoHref, logoFile: logo.file });
+  const meta = JSON.stringify({ version, built, logo: logoHref, logoFile: logo.file, ...(eink ? { eink: true } : {}) });
   const html = readFileSync(join(src, 'index.html'), 'utf8')
     .replace('/*__CSS__*/', () => css).replace('/*__JS__*/', () => js)
     .replace('/*__META__*/null', () => meta).replace(/%%LOGO%%/g, () => logoHref).replace(/%%VERSION%%/g, () => version);
@@ -42,13 +45,16 @@ export function build() {
     ? [{ src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' }]
     : [{ src: logo.file, sizes: logo.size ? `${logo.size.w}x${logo.size.h}` : 'any', type: logo.mime, purpose: 'any' }];
   writeFileSync(join(dist, 'manifest.webmanifest'), JSON.stringify({
-    name: 'OpenTick', short_name: 'OpenTick', description: 'Open-source to-do, calendar, notes, habit and focus app', version,
-    start_url: '.', display: 'standalone', background_color: '#1d2021', theme_color: '#1d2021', icons: icon,
+    name: eink ? 'OpenTick (e-ink)' : 'OpenTick', short_name: 'OpenTick', description: 'Open-source to-do, calendar, notes, habit and focus app', version,
+    start_url: '.', display: 'standalone', background_color: eink ? '#ffffff' : '#1d2021', theme_color: eink ? '#ffffff' : '#1d2021', icons: icon,
   }, null, 2));
   // service worker: the cache name carries the version, so every release drops the old cache
   const files = ['./', 'index.html', 'manifest.webmanifest', logo.file];
-  writeFileSync(join(dist, 'sw.js'), readFileSync(join(src, 'sw.js'), 'utf8').replace(/__VERSION__/g, version).replace('__FILES__', JSON.stringify(files)));
+  writeFileSync(join(dist, 'sw.js'), readFileSync(join(src, 'sw.js'), 'utf8').replace(/__VERSION__/g, version + (eink ? '-eink' : '')).replace('__FILES__', JSON.stringify(files)));
   copyFileSync(logo.path, join(dist, logo.file));
-  console.log(`built OpenTick v${version} -> dist/index.html (${(html.length / 1024).toFixed(1)} KB, logo: ${logo.file})`);
+  console.log(`built OpenTick v${version}${eink ? ' (e-ink)' : ''} -> ${relative(root, join(dist, 'index.html'))} (${(html.length / 1024).toFixed(1)} KB, logo: ${logo.file})`);
 }
-if (process.argv[1] === fileURLToPath(import.meta.url)) build();
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const a = process.argv.slice(2), o = a.indexOf('--out');
+  build({ ...(a.includes('--eink') ? { eink: true } : {}), ...(o >= 0 && a[o + 1] ? { out: a[o + 1] } : {}) });
+}

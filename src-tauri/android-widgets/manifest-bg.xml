@@ -1,4 +1,4 @@
-        <!-- OpenTick background service (added by scripts/android-widgets.mjs) -->
+        <!-- OpenTick background service (added by scripts/android/android-widgets.mjs) -->
         <receiver android:name="__PACKAGE__.OpenTickBgReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

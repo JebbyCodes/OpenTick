@@ -1,4 +1,4 @@
-        <!-- OpenTick home-screen widgets (added by scripts/android-widgets.mjs) -->
+        <!-- OpenTick home-screen widgets (added by scripts/android/android-widgets.mjs) -->
         <receiver android:name="__PACKAGE__.OpenTickTasksWidget" android:exported="true" android:label="@string/ot_widget_tasks_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />

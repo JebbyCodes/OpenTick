@@ -1,0 +1,13 @@
+.git
+.github
+node_modules
+dist
+site
+src-tauri/target
+src-tauri/gen
+snap
+packaging
+fastlane
+test
+docs
+*.snap

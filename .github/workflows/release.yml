@@ -1,0 +1,249 @@
+name: Release
+
+# git tag v0.5.1 && git push origin v0.5.1   ← this is all it takes. Everything below then runs, in parallel where it can:
+#
+#   check the tag  →  tests ┐
+#                           ├→ Windows / Linux / macOS / Android / iOS / web / Docker builds
+#                           └→ Snap and MSIX bundle (wrap the desktop builds)
+#                                  └→ ONE GitHub Release with every file, checksums, attestations and "what's new"
+#                                          └→ Snap Store · Microsoft Store · Chocolatey · Scoop · Winget
+#
+# Run it by hand (Actions → Release → Run workflow) to try a full build without publishing: leave "publish" off and the files stay
+# in the run's artifacts. Tags with a dash (v0.6.0-beta.1) make a GitHub pre-release and skip the stores and the `latest` Docker tag.
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+*']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Create the GitHub Release and publish to the stores (off = build only)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ---------------------------------------------------------------- 1. is this a release we can make?
+  prepare:
+    name: Check the tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
+      publish: ${{ steps.v.outputs.publish }}
+      stable: ${{ steps.v.outputs.stable }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Tag, version and release notes agree
+        id: v
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          PUBLISH_INPUT: ${{ inputs.publish }}
+        run: |
+          set -euo pipefail
+          pkg="$(node -p "require('./package.json').version")"
+          if [ "$EVENT" = "push" ]; then tag="$REF_NAME"; publish=true; else tag="v$pkg"; publish="${PUBLISH_INPUT:-false}"; fi
+          version="${tag#v}"
+          if [ "$version" != "$pkg" ]; then
+            echo "::error title=Tag does not match the code::Tag $tag, but package.json says $pkg. Run: npm run bump -- ${version}   then commit and move the tag."
+            exit 1
+          fi
+          npm run --silent version:check
+          node scripts/release/release-notes.mjs --tag "$tag" --check
+          stable=true; case "$version" in *-*) stable=false;; esac
+          { echo "version=$version"; echo "tag=$tag"; echo "publish=$publish"; echo "stable=$stable"; } >> "$GITHUB_OUTPUT"
+          echo "Releasing $tag (publish=$publish, stable=$stable)"
+
+  # ---------------------------------------------------------------- 2. test and build (all at once)
+  tests:
+    name: Tests
+    needs: prepare
+    uses: ./.github/workflows/ci.yml
+
+  desktop:
+    name: Desktop
+    needs: prepare
+    uses: ./.github/workflows/build-desktop.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+    secrets: inherit
+
+  android:
+    name: Android
+    needs: prepare
+    uses: ./.github/workflows/build-android.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+    secrets: inherit
+
+  ios:
+    name: iOS
+    needs: prepare
+    uses: ./.github/workflows/build-ios.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+    secrets: inherit
+
+  web:
+    name: Web
+    needs: prepare
+    uses: ./.github/workflows/build-web.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+
+  docker:
+    name: Docker
+    needs: prepare
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/build-docker.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+      push: ${{ needs.prepare.outputs.publish == 'true' }}
+      prerelease: ${{ needs.prepare.outputs.stable != 'true' }}
+    secrets: inherit
+
+  # these two wrap what the desktop build made
+  snap:
+    name: Snap
+    needs: [prepare, desktop]
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/build-snap.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+
+  msix-bundle:
+    name: MSIX bundle
+    needs: [prepare, desktop]
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: pkg-desktop-win-*
+          path: msix-in
+      - name: Make the .msixbundle and .msixupload
+        shell: pwsh
+        run: ./packaging/msix/bundle-msix.ps1 -Dir msix-in -Version ${{ needs.prepare.outputs.version }} -Out staged
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pkg-msix-bundle
+          path: |
+            staged/*.msixbundle
+            staged/*.msixupload
+          if-no-files-found: error
+          retention-days: 14
+
+  # ---------------------------------------------------------------- 3. one release with everything
+  release:
+    name: GitHub Release
+    needs: [prepare, tests, desktop, android, web, snap, msix-bundle, ios, docker]
+    # the iOS and Docker jobs may fail without stopping the release; everything else must have worked
+    if: >-
+      ${{ !cancelled() && needs.prepare.outputs.publish == 'true' && needs.tests.result == 'success' && needs.desktop.result == 'success'
+      && needs.android.result == 'success' && needs.web.result == 'success' && needs.snap.result == 'success' && needs.msix-bundle.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: pkg-*
+          path: release-assets
+
+      - name: Collect the files and write checksums
+        run: node scripts/release/collect-assets.mjs --from release-assets --to release-files --version "${{ needs.prepare.outputs.version }}"
+
+      - name: Write the release description (what's new + downloads)
+        run: node scripts/release/release-notes.mjs --tag "${{ needs.prepare.outputs.tag }}" --dir release-files --out release-notes.md
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: 'release-files/*'
+
+      - name: Publish the GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: OpenTick ${{ needs.prepare.outputs.version }}
+          body_path: release-notes.md
+          generate_release_notes: true
+          prerelease: ${{ needs.prepare.outputs.stable != 'true' }}
+          files: release-files/*
+          fail_on_unmatched_files: true
+          overwrite_files: true
+
+  # ---------------------------------------------------------------- 4. the stores (a release made with GITHUB_TOKEN does not trigger other workflows, so they are called from here)
+  publish-snap:
+    name: Snap Store
+    needs: [prepare, release]
+    if: ${{ !cancelled() && needs.release.result == 'success' }}
+    uses: ./.github/workflows/publish-snap-store.yml
+    with:
+      tag: ${{ needs.prepare.outputs.tag }}
+      channel: ${{ needs.prepare.outputs.stable == 'true' && 'candidate' || 'beta' }}
+    secrets: inherit
+
+  publish-microsoft-store:
+    name: Microsoft Store
+    needs: [prepare, release]
+    if: ${{ !cancelled() && needs.release.result == 'success' && needs.prepare.outputs.stable == 'true' }}
+    uses: ./.github/workflows/publish-microsoft-store.yml
+    with:
+      tag: ${{ needs.prepare.outputs.tag }}
+    secrets: inherit
+
+  publish-chocolatey:
+    name: Chocolatey
+    needs: [prepare, release]
+    if: ${{ !cancelled() && needs.release.result == 'success' && needs.prepare.outputs.stable == 'true' }}
+    permissions:
+      contents: write
+    uses: ./.github/workflows/publish-chocolatey.yml
+    with:
+      tag: ${{ needs.prepare.outputs.tag }}
+    secrets: inherit
+
+  publish-scoop:
+    name: Scoop
+    needs: [prepare, release]
+    if: ${{ !cancelled() && needs.release.result == 'success' && needs.prepare.outputs.stable == 'true' }}
+    uses: ./.github/workflows/publish-scoop.yml
+    with:
+      tag: ${{ needs.prepare.outputs.tag }}
+    secrets: inherit
+
+  publish-winget:
+    name: Winget
+    needs: [prepare, release]
+    if: ${{ !cancelled() && needs.release.result == 'success' && needs.prepare.outputs.stable == 'true' }}
+    uses: ./.github/workflows/publish-winget.yml
+    with:
+      tag: ${{ needs.prepare.outputs.tag }}
+    secrets: inherit

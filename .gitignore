@@ -2,9 +2,21 @@ node_modules/
 dist/
 src-tauri/target/
 src-tauri/gen/schemas/
-.build/msix/
+.build/
 Assets-backup-*/
-Package.appxmanifest.bak
+packaging/msix/*.bak
+staged/
+release-assets/
+release-files/
+release-notes.md
+site/
+site-eink/
+snapbuild/
+src-tauri/gen/android/keystore.properties
+*.jks
+*.keystore
+*.p12
+*.mobileprovision
 # Snapcraft-generated build output
 /parts/
 /stage/

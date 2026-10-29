@@ -9,6 +9,7 @@ function prefSet(path, v) {
 }
 function prefApplied(path) {
   if (path.startsWith('a11y.')) a11yApply();
+  else if (path.startsWith('eink.')) { motionApply(); a11yApply(); }
   else if (path.startsWith('keys.')) skHintsRefresh();
   else if (path.startsWith('svc.') && typeof bgSync === 'function') bgSync(true);
   else if ((path.startsWith('quiet.') || path.startsWith('digest.')) && typeof bgSync === 'function') bgSync(true);
@@ -20,7 +21,10 @@ function a11yApply() {
   if (typeof document === 'undefined' || !document.documentElement || !document.documentElement.setAttribute) return;
   const r = document.documentElement, a = (S.settings && S.settings.a11y) || {};
   const set = (k, on, v = '') => { if (on) r.setAttribute('data-' + k, v); else if (r.removeAttribute) r.removeAttribute('data-' + k); };
-  for (const [k, attr] of Object.entries(A11Y_FLAGS)) set(attr, !!a[k]);
+  const ek = typeof einkOn === 'function' && einkOn(); // e-ink mode turns on what e-paper needs: strong contrast, marks instead of colour, no transparency, big targets
+  const eff = ek ? { ...a, contrast: true, nocol: true, notrans: true, tap: true } : a;
+  for (const [k, attr] of Object.entries(A11Y_FLAGS)) set(attr, !!eff[k]);
+  const pg = ek && ((S.settings.eink || {}).pager !== false); set('eink', ek, 'on'); set('pager', pg, 'on'); if (typeof einkPager === 'function') einkPager(pg);
   set('spc', a.spacing && a.spacing !== 'normal', a.spacing); set('cursor', a.cursor && a.cursor !== 'normal', a.cursor);
 }
 const A11Y_GROUPS = [
@@ -39,6 +43,7 @@ const A11Y_GROUPS = [
   ['Moving and tapping', [
     ['tap', 'check', 'Larger tap targets', 'Buttons, rows and fields are at least 44 px tall.'],
     ['focus', 'check', 'Strong focus outline', 'A thick, bright outline around whatever the keyboard is on.'],
+    ['tips', 'check', 'Button tooltips', 'Hover a button, or press and hold it on a touch screen, to see what it does.'],
   ]],
   ['Thinking and focus', [
     ['motion', 'check', 'Reduce motion', 'Turns the animations off (same as Appearance → Animations).'],
@@ -55,7 +60,7 @@ function a11ySettingsHtml() {
     + A11Y_GROUPS.map(([g, rows]) => `<h4 class="mh${g === 'Seeing' ? ' first' : ''}">${g}</h4>` + rows.map(([k, type, label, hint, optsx]) => {
       if (type === 'note') return `<p class="hint">${esc(hint)}</p>`;
       if (type === 'select') return `<label class="a11y-r"><span><b>${esc(label)}</b>${hint ? `<small>${esc(hint)}</small>` : ''}</span><select data-pf="a11y.${k}"${k === 'toast' ? ' data-pfn="1"' : ''}>${opts(optsx, a[k])}</select></label>`;
-      const on = k === 'motion' ? mv : k === 'confirm' ? !!S.settings.tasks.confirmDel : !!a[k], path = k === 'motion' ? '' : k === 'confirm' ? 'tasks.confirmDel' : 'a11y.' + k;
+      const on = k === 'motion' ? mv : k === 'confirm' ? !!S.settings.tasks.confirmDel : k === 'tips' ? S.settings.tips.on !== false : !!a[k], path = k === 'motion' ? '' : k === 'confirm' ? 'tasks.confirmDel' : k === 'tips' ? 'tips.on' : 'a11y.' + k;
       return `<label class="a11y-r tg"><span><b>${esc(label)}</b><small>${esc(hint)}</small></span><input type="checkbox" ${k === 'motion' ? 'data-pfa="motion"' : `data-pf="${path}"`}${on ? ' checked' : ''}></label>`;
     }).join('')).join('');
 }

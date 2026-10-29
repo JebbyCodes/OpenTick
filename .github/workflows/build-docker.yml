@@ -1,0 +1,103 @@
+name: Build / Docker
+
+# Multi-architecture image (64-bit, ARM64, ARMv7 and 32-bit x86) with both the normal and the e-ink web app.
+# Pushed to the GitHub Container Registry (ghcr.io/<owner>/opentick), and to Docker Hub too if DOCKERHUB_USERNAME / DOCKERHUB_TOKEN are set.
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Version being built (x.y.z)
+        required: true
+        type: string
+      push:
+        description: Push the image (false = build only, to prove it works)
+        required: false
+        type: boolean
+        default: true
+      prerelease:
+        description: A prerelease does not move the `latest` tag
+        required: false
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to tag the image with (x.y.z)
+        required: true
+        type: string
+      push:
+        description: Push the image
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    name: Image (${{ inputs.push && 'build and push' || 'build only' }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Log in to the GitHub Container Registry
+        if: inputs.push
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker Hub login (optional)
+        id: hub
+        if: inputs.push
+        env:
+          U: ${{ secrets.DOCKERHUB_USERNAME }}
+          T: ${{ secrets.DOCKERHUB_TOKEN }}
+        shell: bash
+        run: |
+          if [ -n "$U" ] && [ -n "$T" ]; then echo "on=true" >> "$GITHUB_OUTPUT"; else echo "on=false" >> "$GITHUB_OUTPUT"; fi
+      - if: steps.hub.outputs.on == 'true'
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Work out the image names and tags
+        id: meta
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          PRERELEASE: ${{ inputs.prerelease }}
+          HUB_ON: ${{ steps.hub.outputs.on }}
+          HUB_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          set -euo pipefail
+          images=("ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/opentick")
+          [ "$HUB_ON" = "true" ] && images+=("docker.io/$HUB_USER/opentick")
+          tags=()
+          for i in "${images[@]}"; do
+            tags+=("$i:$VERSION")
+            if [ "$PRERELEASE" != "true" ]; then tags+=("$i:${VERSION%.*}" "$i:latest"); fi
+          done
+          { echo "tags<<EOF"; printf '%s\n' "${tags[@]}"; echo "EOF"; } >> "$GITHUB_OUTPUT"
+          printf '%s\n' "${tags[@]}"
+
+      - name: Build${{ inputs.push && ' and push' || '' }}
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64,linux/arm/v7,linux/386
+          push: ${{ inputs.push }}
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: VERSION=${{ inputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: mode=max
+          sbom: true

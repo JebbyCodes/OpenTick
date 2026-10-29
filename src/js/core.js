@@ -229,6 +229,8 @@ const PREF_DEF = {
   keys: { hints: true },
   a11y: { contrast: false, bold: false, dys: false, spacing: 'normal', links: false, nocol: false, gray: false, cursor: 'normal', tap: false, focus: false, labels: false, notrans: false, toast: 3 },
   svc: { on: true, tray: true, autostart: false, persist: true, keep: true },
+  tips: { on: true },
+  eink: { mode: 'auto', pager: true },
 };
 function migrate(r) {
   r.lists = r.lists || [];
