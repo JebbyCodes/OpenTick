@@ -20,7 +20,7 @@ with sync_playwright() as p:
     hit = pg.evaluate("(()=>{let bad=0;for(let x=10;x<innerWidth;x+=97)for(let y=10;y<innerHeight;y+=89){const e=document.elementFromPoint(x,y);if(e&&e.closest('#bgfx'))bad++}return bad})()")
     assert hit == 0, 'the background takes no pointer events'
     # modals and menus sit above it
-    pg.evaluate('openSettings()'); pg.wait_for_timeout(150)
+    pg.evaluate("openSettings('appearance')"); pg.wait_for_timeout(150)
     assert pg.evaluate("(()=>{const m=document.querySelector('.mbox').getBoundingClientRect();const e=document.elementFromPoint(m.left+m.width/2,m.top+30);return !!e.closest('.mbox')})()")
     # settings dialog: open the background section
     pg.click('[data-m="bgfx"]'); pg.wait_for_selector('#bgprev')
@@ -51,7 +51,7 @@ with sync_playwright() as p:
     # the system asks for reduced motion: a genuinely static picture, and the dialog says why
     b, ctx, pg = launch(p, mobile=False, reduced_motion='reduce')
     assert pg.evaluate("getComputedStyle(document.querySelector('#bgfx i')).animationName") == 'none' and pg.evaluate("document.documentElement.classList.contains('bgfx-still')")
-    pg.evaluate('openSettings()'); pg.click('[data-m="bgfx"]'); pg.wait_for_selector('#bgprev')
+    pg.evaluate("openSettings('appearance')"); pg.click('[data-m="bgfx"]'); pg.wait_for_selector('#bgprev')
     assert pg.locator('input[data-bg="animate"]:disabled').count() == 1 and 'reduce motion' in pg.inner_text('.mbox')
     assert pg.evaluate("getComputedStyle(document.querySelector('#bgprev i')).animationName") == 'none'; b.close()
     # the Android app starts with it off (battery); a fresh profile elsewhere starts with it on

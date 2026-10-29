@@ -5,7 +5,9 @@ let toastTimer;
 function toast(m, act) {
   const el = $('#toast'); if (!el) return; el.textContent = m;
   if (act && el.append && document.createElement) { const b = document.createElement('button'); b.type = 'button'; b.textContent = act.label; b.onclick = () => { el.classList.remove('on', 'act'); act.fn(); }; el.append(' ', b); }
-  el.classList.toggle('act', !!act); el.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('on', 'act'), act ? 7000 : 2600);
+  const hold = (S.settings.a11y || {}).toast; // seconds; 0 = stays until it is clicked
+  el.classList.toggle('act', !!act); el.classList.add('on'); clearTimeout(toastTimer); el.onclick = hold === 0 && !act ? () => el.classList.remove('on', 'act') : null;
+  if (!(hold === 0 && !act)) toastTimer = setTimeout(() => el.classList.remove('on', 'act'), act ? 7000 : Math.max(2600, (hold || 3) * 1000 - (hold === 3 ? 400 : 0)));
 }
 function applyTheme() {
   const th = THEMES.some(t => t[0] === S.settings.theme) || customTheme(S.settings.theme) ? S.settings.theme : DEFAULT_THEME;
@@ -152,35 +154,16 @@ function notify(title, body) {
       const o = { title, body }; if (/Android/i.test(navigator.userAgent || '')) { o.icon = 'ic_stat_opentick'; o.iconColor = '#E09B00'; }
       T.notification.sendNotification(o); return;
     }
-    if ('Notification' in window && Notification.permission === 'granted') { new Notification(title, { body, icon: APP_LOGO }); return; }
+    if ('Notification' in window && Notification.permission === 'granted') {
+      // installed web apps on phones only allow notifications through the service worker
+      if (navigator.serviceWorker && navigator.serviceWorker.ready && location.protocol.startsWith('http')) { navigator.serviceWorker.ready.then(r => r.showNotification(title, { body, icon: APP_LOGO, badge: APP_LOGO })).catch(() => { try { new Notification(title, { body, icon: APP_LOGO }); } catch (e) { /* no notifications here */ } }); return; }
+      new Notification(title, { body, icon: APP_LOGO }); return;
+    }
   } catch (e) { /* fall through */ }
   toast(`${title}${body ? ' — ' + body : ''}`);
 }
 const beep = () => sfx('chime');
-function checkReminders() {
-  if (WIDGET) return;
-  const now = Date.now(); let changed = false;
-  for (const t of S.tasks) {
-    if (t.deleted || t.status !== 'open' || !t.due || t.reminder == null) continue;
-    const at = new Date(`${t.due}T${t.time || '09:00'}`).getTime() - t.reminder * 60000;
-    const key = `${t.id}|${t.due}|${t.time || ''}|${t.reminder}`;
-    if (now >= at && now - at < 864e5 && !S.fired[key]) { S.fired[key] = 1; changed = true; notify(t.title, 'Due ' + dueLabel(t)); sfx('chime'); }
-  }
-  if (schoolRemind()) changed = true;
-  // timetable slots: remind before they start (today, and tomorrow for slots just after midnight)
-  const today = new Date();
-  for (const sl of S.slots) {
-    if (sl.remind == null) continue;
-    for (const off of [0, 1]) {
-      const d = addDays(today, off), k = ymd(d); if (!sl.days.includes(d.getDay())) continue;
-      const at = new Date(`${k}T${sl.start}`).getTime() - sl.remind * 60000, endAt = new Date(`${k}T${sl.end}`).getTime(), key = `s|${sl.id}|${k}|${sl.start}|${sl.remind}`;
-      if (now >= at && now < endAt && !S.fired[key]) { S.fired[key] = 1; changed = true; notify(sl.title, `${fmtRange(sl.start, sl.end)}${sl.loc ? ' · ' + sl.loc : ''}`); sfx('chime'); }
-    }
-  }
-  const old = ymd(addDays(today, -2));
-  for (const k of Object.keys(S.fired)) if (k.startsWith('s|') && k.split('|')[2] < old) { delete S.fired[k]; changed = true; }
-  if (changed) save();
-}
+// checkReminders lives in remind.js
 
 /* ---------- pomodoro ----------
    P.run means "started"; time only passes while pActive(). Normally that is the same thing, but in face-down mode
@@ -285,32 +268,41 @@ async function loadSnaps(m) {
   box.innerHTML = (list.length ? list.map(x => `<div class="snap"><span><b>${esc(fmt(x.at))}</b><small>${x.tag ? 'Before deleting everything · ' : ''}${x.tasks < 0 ? 'Encrypted' : `${x.tasks} task${x.tasks === 1 ? '' : 's'}${x.sealed ? ' · encrypted' : ''}`}</small></span><button data-snaprs="${esc(x.key)}">Restore</button><button class="ib" data-snapdl="${esc(x.key)}" title="Download this backup" aria-label="Download this backup">${ic('download', 15)}</button></div>`).join('') : '<p class="hint">The first automatic backup is made a few seconds after you open the app.</p>')
     + `<div class="snapfoot"><button data-m="snapnow">${ic('refresh', 14)} Back up now</button><span class="hint">One copy a day, the last ${SNAP_KEEP} kept, on this device only.</span></div>`;
 }
-function openSettings() {
-  const s = S.settings;
-  openModal(`<h3>Settings</h3><h4 class="mh first">Appearance</h4><div id="thsec">${themeSectionHtml()}</div>${scaleSetting()}<div class="dgrid" style="margin-top:10px"><button data-m="bgfx">${ic('sparkles', 18)}<span><b>Background effects</b><small>${bgNorm(s.bg).on ? 'On · ' + (BG_STYLES.find(x => x[0] === bgNorm(s.bg).style) || [])[1] : 'Off'} — soft moving shapes behind the app</small></span></button></div><h4 class="mh">General &amp; focus timer</h4><div class="form">
-<label>Start screen${homeSelectHtml()}</label>
-<label>Animations<select data-sx="motion">${opts([['normal', 'Normal'], ['calm', 'Calm (subtle)'], ['off', 'Off']], s.motion || 'normal')}</select></label>
-<label>Week starts on<select data-s="weekStart">${opts([[1, 'Monday'], [0, 'Sunday'], [6, 'Saturday']], s.weekStart)}</select></label>
-<label>Focus (min)<input type="number" min="1" max="180" data-p="focus" value="${s.pomo.focus}"></label>
-<label>Short break (min)<input type="number" min="1" max="60" data-p="short" value="${s.pomo.short}"></label>
-<label>Long break (min)<input type="number" min="1" max="120" data-p="long" value="${s.pomo.long}"></label></div>
-<h4 class="mh">Sound</h4><div class="snd"><div class="mrow tight"><label class="chkl"><input type="checkbox" data-snd="on"${s.sound.on !== false ? ' checked' : ''}> Sound effects</label><label class="chkl"><input type="checkbox" data-snd="haptic"${s.sound.haptic !== false ? ' checked' : ''}> Vibrate on phones</label></div><label class="vol">${ic('volume', 16)}<input type="range" min="0" max="1" step="0.05" data-snd="vol" value="${s.sound.vol}" aria-label="Volume"></label><div class="mrow tight">${Object.entries(SOUNDS).map(([k, v]) => `<button class="sbtn" data-play="${k}" title="Play this sound"><span class="pi">${ic('play', 13)}</span>${esc(v.label)}</button>`).join('')}</div></div>
+const SET_TABS = [['general', 'General', 'sliders'], ['appearance', 'Appearance', 'sparkles'], ['notifications', 'Notifications', 'bell'], ['access', 'Accessibility', 'eye'], ['sound', 'Sound & focus', 'volume'], ['keys', 'Keyboard', 'code'], ['data', 'Data & sync', 'cloud'], ['widgets', 'Widgets', 'layers'], ['about', 'About & privacy', 'info']];
+function openSettings(tab) {
+  const s = S.settings; if (typeof tab === 'string') U.setTab = tab; if (!SET_TABS.some(t => t[0] === U.setTab)) U.setTab = 'general';
+  const sec = (id, html) => `<section class="stab" data-tab="${id}" role="tabpanel"${U.setTab === id ? '' : ' hidden'}>${html}</section>`;
+  openModal(`<h3>Settings</h3><div class="stabs" role="tablist">${SET_TABS.map(([k, n, i]) => `<button role="tab" class="stb${U.setTab === k ? ' on' : ''}" data-stab="${k}" aria-selected="${U.setTab === k}">${ic(i, 15)}<span>${n}</span></button>`).join('')}</div>`
+  + sec('general', `<div class="form"><label>Start screen${homeSelectHtml()}</label><label>Week starts on<select data-s="weekStart">${opts([[1, 'Monday'], [0, 'Sunday'], [6, 'Saturday']], s.weekStart)}</select></label></div>
+${tasksSettingsHtml()}
 <h4 class="mh">Clock</h4><div class="mrow tight"><label class="chkl"><input type="checkbox" data-ck="on"${s.clock.on !== false ? ' checked' : ''}> Show date &amp; time</label><label class="chkl"><input type="checkbox" data-ck="h24"${s.clock.h24 ? ' checked' : ''}> 24-hour clock</label><label class="chkl"><input type="checkbox" data-ck="sec"${s.clock.sec ? ' checked' : ''}> Seconds</label></div><p class="hint">At the foot of the sidebar, or a small corner label when the sidebar is hidden.</p>
 <div class="mrow tight" style="margin-top:10px"><label class="chkl"><input type="checkbox" data-bnr="on"${s.banners !== false ? ' checked' : ''}> Show banners on lists and projects</label></div>
+
 <details class="gtd" style="margin-top:12px"><summary>Sidebar views</summary><div id="sbv">${uiSidebarSettings()}</div></details>
-<h4 class="mh">Data, sync &amp; backup</h4><div class="dgrid">
+`)
+  + sec('appearance', `<div id="thsec">${themeSectionHtml()}</div>${scaleSetting()}<div class="dgrid" style="margin-top:10px"><button data-m="bgfx">${ic('sparkles', 18)}<span><b>Background effects</b><small>${bgNorm(s.bg).on ? 'On · ' + (BG_STYLES.find(x => x[0] === bgNorm(s.bg).style) || [])[1] : 'Off'} — soft moving shapes behind the app</small></span></button></div><div class="form" style="margin-top:10px"><label>Animations<select data-sx="motion">${opts([['normal', 'Normal'], ['calm', 'Calm (subtle)'], ['off', 'Off']], s.motion || 'normal')}</select></label></div>`)
+  + sec('notifications', notifSettingsHtml())
+  + sec('access', a11ySettingsHtml())
+  + sec('sound', `<h4 class="mh">Sound</h4><div class="snd"><div class="mrow tight"><label class="chkl"><input type="checkbox" data-snd="on"${s.sound.on !== false ? ' checked' : ''}> Sound effects</label><label class="chkl"><input type="checkbox" data-snd="haptic"${s.sound.haptic !== false ? ' checked' : ''}> Vibrate on phones</label></div><label class="vol">${ic('volume', 16)}<input type="range" min="0" max="1" step="0.05" data-snd="vol" value="${s.sound.vol}" aria-label="Volume"></label><div class="mrow tight">${Object.entries(SOUNDS).map(([k, v]) => `<button class="sbtn" data-play="${k}" title="Play this sound"><span class="pi">${ic('play', 13)}</span>${esc(v.label)}</button>`).join('')}</div></div>
+<h4 class="mh">Focus timer</h4><div class="form"><label>Focus (min)<input type="number" min="1" max="180" data-p="focus" value="${s.pomo.focus}"></label>
+<label>Short break (min)<input type="number" min="1" max="60" data-p="short" value="${s.pomo.short}"></label>
+<label>Long break (min)<input type="number" min="1" max="120" data-p="long" value="${s.pomo.long}"></label></div>`)
+  + sec('keys', keysSettingsHtml())
+  + sec('data', `<h4 class="mh">Data, sync &amp; backup</h4><div class="dgrid">
 <button data-m="vault">${ic(vaultOn() ? 'lock' : 'shield', 18)}<span><b>Encryption</b><small>${!vaultAvail() ? 'Needs https or the app' : vaultOn() ? 'On · ' + esc(vScopeLine(Vault.cfg)) + (Vault.key ? '' : ' · locked') : 'Off — protect your data with a passphrase'}</small></span></button>
 <button data-m="sync">${ic('cloud', 18)}<span><b>Sync</b><small>${Sync.on ? 'On · ' + esc((PROVIDERS[Sync.cfg.provider] || {}).label || '') : 'Off — WebDAV, Git, S3 or a file'}</small></span></button>
 <button data-m="export">${ic('download', 18)}<span><b>Export backup</b><small>Everything as one JSON file</small></span></button>
 <button data-m="impapps">${ic('upload', 18)}<span><b>Import from another app</b><small>TickTick, Todoist, Anytype, Trello…</small></span></button>
 <button data-m="import">${ic('upload', 18)}<span><b>Import a backup</b><small>Merge or replace · OpenTick JSON file</small></span></button>
-<button data-m="notif">${ic('bell', 18)}<span><b>Notifications</b><small>Allow reminders</small></span></button></div>
-<h4 class="mh">Widgets</h4>${isAndroidApp() ? `<div class="dgrid"><button data-m="widget">${ic('layers', 18)}<span><b>Home-screen widgets</b><small>Long-press the home screen → Widgets → OpenTick. There is one for tasks, lists, projects, notes, calendar, timetable, matrix, habits and focus.</small></span></button></div>` : `<div class="dgrid">${WG_KINDS.map(k => `<button data-m="widget" data-w="${k[0]}">${ic(k[2], 18)}<span><b>${k[1]}</b><small>${esc(k[3])}</small></span></button>`).join('')}</div><p class="hint">Small windows that stay on top and look like the app. They update as you work.</p>`}
-<h4 class="mh">Danger zone</h4><div class="dgrid"><button class="dz" data-m="wipe">${ic('trash', 18)}<span><b>Delete everything…</b><small>Tasks, lists, notes, habits and more · asks first</small></span></button></div>
+</div><h4 class="mh">Danger zone</h4><div class="dgrid"><button class="dz" data-m="wipe">${ic('trash', 18)}<span><b>Delete everything…</b><small>Tasks, lists, notes, habits and more · asks first</small></span></button></div>
 <h4 class="mh">Automatic backups</h4><div id="snaps" class="snaps"><p class="hint">Loading…</p></div>
-<h4 class="mh">Help &amp; about</h4><div class="dgrid"><button data-m="help">${ic('book-open', 18)}<span><b>Help &amp; user guide</b><small>How everything works · printable</small></span></button><button data-m="aboutdlg">${ic('info', 18)}<span><b>About OpenTick</b><small>v${esc(APP_VERSION)} · source, licences &amp; credits</small></span></button></div>
+`)
+  + sec('widgets', `${isAndroidApp() ? `<div class="dgrid"><button data-m="widget">${ic('layers', 18)}<span><b>Home-screen widgets</b><small>Long-press the home screen → Widgets → OpenTick. There is one for tasks, lists, projects, notes, calendar, timetable, matrix, habits and focus.</small></span></button></div>` : `<div class="dgrid">${WG_KINDS.map(k => `<button data-m="widget" data-w="${k[0]}">${ic(k[2], 18)}<span><b>${k[1]}</b><small>${esc(k[3])}</small></span></button>`).join('')}</div><p class="hint">Small windows that stay on top and look like the app. They update as you work.</p>`}
+`)
+  + sec('about', `<h4 class="mh">Help &amp; about</h4><div class="dgrid"><button data-m="help">${ic('book-open', 18)}<span><b>Help &amp; user guide</b><small>How everything works · printable</small></span></button><button data-m="aboutdlg">${ic('info', 18)}<span><b>About OpenTick</b><small>v${esc(APP_VERSION)} · source, licences &amp; credits</small></span></button></div>
 <div class="about">${logoHtml(40)}<div><b>OpenTick</b> <span class="ver">v${esc(APP_VERSION)}</span><br><span class="hint">${OTMETA.built ? 'Built ' + esc(OTMETA.built) + ' · ' : ''}Your data lives on this device. Turn on Sync to share it between devices, or export a JSON backup. Theme, sound and view settings stay per device.</span></div></div>
-<div class="mact"><button class="pri" data-m="ok">Done</button></div>`, m => {
+${privacySettingsHtml()}`)
+  + `<div class="mact"><button class="pri" data-m="ok">Done</button></div>`, m => { if (typeof prefTabShow === 'function') setTimeout(() => prefTabShow(m), 0);
     loadSnaps(m); scaleBind(m);
     m.onchange = e => {
       const el = e.target;
@@ -372,8 +364,8 @@ function addCtx() {
 function quickAdd(text, ctx = {}) {
   const p = parseQuick(text, S.lists, new Date(), { subjects: scOf('subject') }), kind = p.kind || ctx.kind || '', sj = p.subjectId || ctx.subjectId || '';
   const dur = p.dur || ctx.dur || (kind === 'exam' && p.time ? 60 : 0);
-  const t = newTask({ title: p.title, due: p.due || ctx.due || null, time: p.time, ...(dur ? { dur } : {}), priority: p.priority || ctx.priority || 0, tags: [...new Set([...(ctx.tags || []), ...p.tags])], listId: p.listId || ctx.listId || (kind ? scWorkList() : 'inbox'), repeat: p.repeat, section: ctx.section || null, ...(kind ? { kind } : {}), ...(sj ? { subjectId: sj } : {}), ...(ctx.lessonId ? { lessonId: ctx.lessonId } : {}) });
-  S.tasks.push(t); save(); sfx('add'); fx(rowSel(t.id), 'enter'); return t;
+  const t = newTask({ title: p.title, due: p.due || ctx.due || null, time: p.time, ...(dur ? { dur } : {}), priority: p.priority || ctx.priority || 0, tags: [...new Set([...(ctx.tags || []), ...p.tags])], listId: p.listId || ctx.listId || (kind ? scWorkList() : (S.settings.tasks.defList && S.lists.some(l => l.id === S.settings.tasks.defList) ? S.settings.tasks.defList : 'inbox')), repeat: p.repeat, ...(p.repeat && p.until ? { until: p.until } : {}), section: ctx.section || null, ...(kind ? { kind } : {}), ...(sj ? { subjectId: sj } : {}), ...(ctx.lessonId ? { lessonId: ctx.lessonId } : {}) });
+  prefNewTask(t, p); S.tasks.push(t); save(); sfx('add'); fx(rowSel(t.id), 'enter'); return t;
 }
 function reorder(dragId, beforeId) {
   if (dragId === beforeId) return;
@@ -712,6 +704,17 @@ ${bannerFields(d, d.color)}</div>
 }
 const gantt_parents = () => [...S.tasks.filter(t => t.listId && !t.deleted && t.subtasks && t.subtasks.length).map(t => t.id), ...S.tasks.flatMap(t => { const out = []; const walk = a => (a || []).forEach(x => { if (x.children && x.children.length) { out.push(x.id); walk(x.children); } }); walk(t.subtasks); return out; })];
 const ACT = {
+  remdel(el) { const t = getT(U.sel); if (!t) return; const rs = remsOf(t); rs.splice(+el.dataset.i, 1); remsSet(t, rs); save(); refresh(); },
+  remcustom(el) {
+    const t = getT(U.sel), box = el.closest('[data-rl=add]'); if (!t || !box) return;
+    const n = Math.max(0, Math.min(Math.round((+$('.rn', box).value || 0) * +$('.ru', box).value), 525600));
+    remsSet(t, [...remsOf(t), n]); if (!t.due) t.due = todayStr(); ensureNotify(); save(); refresh();
+  },
+  remabs(el) {
+    const t = getT(U.sel), box = el.closest('[data-rl=add]'); if (!t || !box) return;
+    const d = $('.rad', box).value, tm = $('.rat', box).value; if (!d || !validHM(tm)) { toast('Pick a date and a time'); return; }
+    remsSet(t, [...remsOf(t), `${d}T${tm}`]); ensureNotify(); save(); refresh();
+  },
   async taskicon() { const t = getT(U.sel); if (!t) return; const v = await pickIcon(t.icon || '', listOf(t.listId).color, 'Task icon'); if (v == null) return; if (v) t.icon = v; else delete t.icon; save(); render(); },
   taskiconx() { const t = getT(U.sel); if (!t) return; delete t.icon; save(); render(); },
   nav: (el, e) => {
@@ -745,7 +748,7 @@ const ACT = {
   addlist: () => openListForm(null, ''),
   async listmenu(el) {
     const l = S.lists.find(x => x.id === ((el && el.dataset && el.dataset.lid) || U.nav.slice(5))); if (!l || l.id === 'inbox') return;
-    const i = await askMenu(l.name, [{ label: 'Edit list (name, icon, colour, parent)…' }, { label: 'Add a sublist…' }, { label: 'Banner…' }, { label: 'Delete list', danger: true }]);
+    const i = el && el.dataset && el.dataset.pick != null ? +el.dataset.pick : await askMenu(l.name, [{ label: 'Edit list (name, icon, colour, parent)…' }, { label: 'Add a sublist…' }, { label: 'Banner…' }, { label: 'Delete list', danger: true }]);
     if (i === 0) openListForm(l);
     else if (i === 1) openListForm(null, l.id);
     else if (i === 2) openBannerDialog('list', l.id);
@@ -783,7 +786,7 @@ const ACT = {
   },
   subtog: el => { const s = getT(U.sel).subtasks.find(x => x.id === el.dataset.sid); s.done = !s.done; sfx(s.done ? 'tick' : 'undo'); if (s.done) fx(`.sub .chk[data-sid="${s.id}"]`, 'tick'); save(); refresh(); },
   subdel: el => { const t = getT(U.sel); t.subtasks = t.subtasks.filter(x => x.id !== el.dataset.sid); save(); refresh(); },
-  del: () => { const t = getT(U.sel); t.deleted = Date.now(); toast('Moved to Trash'); sfx('trash'); save(); leaveThen(t.id, () => { closeDetail(); renderSide(); renderMain(); }); },
+  async del() { const t = getT(U.sel); if (!t) return; if (S.settings.tasks.confirmDel && !(await askConfirm('Move “' + (t.title || 'this task') + '” to the bin?', 'Move to bin'))) return; t.deleted = Date.now(); toast('Moved to Trash'); sfx('trash'); save(); leaveThen(t.id, () => { closeDetail(); renderSide(); renderMain(); }); },
   restore: () => { delete getT(U.sel).deleted; save(); closeDetail(); renderSide(); renderMain(); },
   purge: () => { S.tasks = S.tasks.filter(t => t.id !== U.sel); save(); closeDetail(); renderSide(); renderMain(); },
   wontdo: () => { const t = getT(U.sel); t.status = t.status === 'wontdo' ? 'open' : 'wontdo'; save(); refresh(); },
@@ -824,6 +827,9 @@ const ACT = {
   },
   nfmt: el => { const f = el.dataset.for; if (f && /^#[nx]-ta$/.test(f) && BE.cur && BE.cur.o.pre === f[1] && $(`#${f[1]}-ed`) && $(`#${f[1]}-ed`).classList.contains('ed-blocks') && bedFormat(el.dataset.k)) return; mdFormat(el.dataset.k, f ? $(f) : null); },
   ...NOTE_ACT,
+  ...RECUR_ACT,
+  ...TPL_ACT,
+  ...HOL_ACT,
   ...SC_ACT,
   ...BATCH_ACT,
   ...HABIT_ACT,
@@ -926,6 +932,11 @@ document.addEventListener('input', e => {
   else if (el.dataset.f === 'notes' && t) { t.notes = el.value; U.nMode = 'write'; save(); fitTa(el); }
   else if (el.dataset.sf && t) { const s = t.subtasks.find(x => x.id === el.dataset.sf); if (s) { s.title = el.value; save(); } }
 });
+// the School block of the task panel remembers, per task, when it was opened or closed against the default
+document.addEventListener('toggle', e => {
+  const d = e.target; if (!d || !d.dataset || d.dataset.sch === undefined) return;
+  U.schOpen = U.schOpen || {}; if (d.open !== !!S.settings.ui.schoolOpen) U.schOpen[d.dataset.sch] = d.open; else delete U.schOpen[d.dataset.sch];
+}, true);
 document.addEventListener('change', async e => {
   const el = e.target;
   if (el.closest('#modal')) return;
@@ -957,20 +968,22 @@ document.addEventListener('change', async e => {
   }
   const dbox = el.closest && el.closest('#detail [data-dur=task]');
   if (dbox) { const t = getT(U.sel); if (t) { t.dur = durRead(dbox); durSet(dbox, t.dur || 0); save(); renderMain(); renderSide(); } return; }
-  const rbox = el.closest && el.closest('#detail [data-rem=task]');
-  if (rbox) { // reminder: a preset, or any amount before the due time
-    const t = getT(U.sel); if (!t) return;
-    if (el.classList.contains('rsel')) U.remCustom = el.value === 'custom' ? t.id : null;
-    t.reminder = remRead(rbox); if (t.reminder != null) { if (!t.due) t.due = todayStr(); ensureNotify(); }
-    save(); refresh(); return;
+  const rbox = el.closest && el.closest('#detail [data-rl=add]');
+  if (rbox) { // add a reminder: a preset right away; "custom" and "exact time" open their fields first
+    const t = getT(U.sel); if (!t || !el.classList.contains('rsel')) return;
+    const v = el.value; $('.remc', rbox).hidden = v !== 'custom'; $('.rema', rbox).hidden = v !== 'abs';
+    if (v !== '' && v !== 'custom' && v !== 'abs') { remsSet(t, [...remsOf(t), +v]); if (!t.due) t.due = todayStr(); ensureNotify(); save(); refresh(); }
+    return;
   }
   const f = el.dataset.f, t = getT(U.sel); if (!f || !t) return;
   const v = el.value;
-  if (f === 'due') { t.due = v || null; if (!v) { t.time = null; t.repeat = null; } else if (t.start && v < t.start) t.start = v; }
+  if (f === 'due') { t.due = v || null; if (!v) { t.time = null; t.repeat = null; delete t.until; delete t.exc; } else if (t.start && v < t.start) t.start = v; }
   else if (f === 'time') t.time = v || null;
   else if (f === 'list') { t.listId = v; t.section = null; }
   else if (f === 'section') t.section = v || null;
-  else if (f === 'repeat') { if (v === 'none') t.repeat = null; else if (REPS[v]) { t.repeat = JSON.parse(JSON.stringify(REPS[v])); if (!t.due) t.due = todayStr(); } }
+  else if (f === 'endmode') { if (v === 'never') delete t.until; else t.until = t.until || ymd(addDays(pYmd(t.due || todayStr()), 90)); }
+  else if (f === 'until') { if (v && t.due && v < t.due) { toast('The last day cannot be before the due date'); refresh(); return; } if (v) t.until = v; else delete t.until; }
+  else if (f === 'repeat') { if (v === 'edit') { refresh(); repeatDlg(t); return; } if (v === 'none') { t.repeat = null; delete t.until; delete t.exc; } else if (REPS[v]) { t.repeat = JSON.parse(JSON.stringify(REPS[v])); if (!t.due) t.due = todayStr(); } }
   else if (f === 'start') { t.start = v || null; if (t.start && t.due && t.start > t.due) t.due = t.start; }
   else if (f === 'astart') { t.astart = v || null; if (t.astart && t.status === 'done' && t.doneAt && ymd(new Date(t.doneAt)) < t.astart) t.doneAt = gtNoon(t.astart); }
   else if (f === 'aend') { // an actual end date means the task finished that day; clearing it reopens the task
@@ -1230,7 +1243,7 @@ let APP_STARTED = false;
 function appStart() {
   APP_STARTED = true;
   if (!WIDGET) homeApply();
-  motionApply();
+  motionApply(); a11yApply();
   applyTheme();
   applyScale(null, { quiet: true });
   bgApply();
@@ -1239,19 +1252,20 @@ function appStart() {
   mqStart();
   checkReminders();
   setInterval(checkReminders, 20000);
+  skHintsStart();
   setInterval(clockPaint, 1000); setInterval(editedSweep, 20000); setTimeout(filesGC, 25000);
   setTimeout(() => snapSave(), 8000); setInterval(() => snapSave(), 30 * 60000); // one automatic local backup a day
   // keep the timetable's "now" line moving (not while typing, in a dialog, or mid-drag)
   setInterval(() => { if (!Vault.locked && U.page === 'timetable' && !U.drag && !$('#modal.on') && !/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '')) renderMain(); }, 60000);
   if (S.settings.pomo.faceDown) { try { if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission !== 'function') fdEnable(); else if (typeof DeviceOrientationEvent !== 'undefined') { window.addEventListener('deviceorientation', fdHandler); FD.on = true; } } catch (e) { /* no sensor */ } }
   startSync();
-  if (!WIDGET) { setTimeout(widgetPull, 900); window.addEventListener('focus', widgetPull); widgetPush(); }
+  if (!WIDGET) { setTimeout(widgetPull, 900); window.addEventListener('focus', widgetPull); widgetPush(); bgStart(); }
 }
 // the data is open again (unlocked after a lock, or switched to another vault): show it, and bring the reminders and sync back
 function appResume() {
   if (!WIDGET) homeApply();
-  motionApply(); applyTheme(); applyScale(null, { quiet: true }); bgApply(); uiApply(); clockPaint(); paintDock();
-  render(); checkReminders(); widgetPush(true);
+  motionApply(); a11yApply(); applyTheme(); applyScale(null, { quiet: true }); bgApply(); uiApply(); clockPaint(); paintDock();
+  render(); checkReminders(); widgetPush(true); bgSync(true);
   if (Sync.on) setTimeout(() => syncNow(), 400);
 }
 // a change made in another window of the app (a mini widget, a second tab) arrives through storage; encrypted data is opened first

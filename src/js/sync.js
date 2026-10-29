@@ -6,7 +6,7 @@
      read  → { status: 'ok'|'nochange'|'missing', text?, rev? }
      write → { rev } or { conflict: true }
    Device-local and never synced: settings, view preferences, reminder history, and the credentials below. */
-const SYNC_KEY = 'opentick.sync.v1', SYNC_FILE = 'opentick.json', SYNC_V = 4; // 2: adds tag colours + timetable slots; 3: adds notes; 4: encrypted files + classes in the planner (older apps refuse the file instead of silently dropping or exposing anything)
+const SYNC_KEY = 'opentick.sync.v1', SYNC_FILE = 'opentick.json', SYNC_V = 5; // 5: adds templates, repeat end dates and exceptions; 2: adds tag colours + timetable slots; 3: adds notes; 4: encrypted files + classes in the planner (older apps refuse the file instead of silently dropping or exposing anything)
 const syncErr = msg => Object.assign(new Error(msg), { sync: true });
 
 /* ---------- config (kept out of S so credentials never end up in backups or on the server) ---------- */
@@ -283,7 +283,7 @@ function parsePayload(text) {
   let d; try { d = JSON.parse(text); } catch (e) { throw syncErr('The remote file is not valid JSON — leaving it alone'); }
   if (!d || d.app !== 'opentick' || !Array.isArray(d.tasks) || !Array.isArray(d.lists)) throw syncErr('The remote file is not an OpenTick sync file — refusing to overwrite it');
   if ((d.schema || 1) > SYNC_V) throw syncErr('The remote data was written by a newer OpenTick — please update this app');
-  d.habits = d.habits || []; d.tags = d.tags || []; d.slots = d.slots || []; d.notes = d.notes || []; d.projects = d.projects || []; d.school = d.school || []; d.pomo = d.pomo || []; d.tomb = d.tomb || {};
+  d.habits = d.habits || []; d.tags = d.tags || []; d.slots = d.slots || []; d.notes = d.notes || []; d.projects = d.projects || []; d.school = d.school || []; d.pomo = d.pomo || []; d.templates = d.templates || []; d.tomb = d.tomb || {};
   return d;
 }
 /* ---------- encrypted sync ----------

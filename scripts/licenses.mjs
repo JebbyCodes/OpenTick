@@ -18,7 +18,7 @@ import { execFileSync } from 'node:child_process';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..'), rd = p => readFileSync(join(root, p), 'utf8');
 export const OUT = 'src/js/licenses.gen.js';
 // official Tauri crates are dual licensed; this is only a fallback for when `cargo metadata` cannot run
-const CURATED_RUST = (name) => (name === 'tauri' || name.startsWith('tauri-plugin-') ? 'Apache-2.0 OR MIT' : null);
+const CURATED_RUST = (name) => (name === 'tauri' || name === 'serde_json' || name.startsWith('tauri-plugin-') ? 'Apache-2.0 OR MIT' : null);
 
 export function npmComponents(lock) {
   return Object.entries(lock.packages || {}).filter(([k]) => k).map(([k, v]) => ({

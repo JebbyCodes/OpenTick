@@ -18,14 +18,19 @@ class OpenTickWidgetBoot : ContentProvider() {
     override fun onCreate(): Boolean {
         val app = context?.applicationContext as? Application ?: return true
         val handler = Handler(Looper.getMainLooper())
+        var started = 0
+        // the background service (OtBg): pick up the plan the page wrote when the app opens, and again once it has gone to the background
+        handler.postDelayed({ OtBg.apply(app) }, 3000)
         app.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
             override fun onActivityStopped(activity: Activity) {
                 if (activity is OpenTickWidgetActivity) return
+                started = maxOf(0, started - 1); OtBg.foreground = started > 0
                 handler.postDelayed({ OtUi.refreshAll(app) }, 1500)
+                handler.postDelayed({ if (!OtBg.foreground) OtBg.apply(app) }, 3000)
             }
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
-            override fun onActivityStarted(activity: Activity) {}
-            override fun onActivityResumed(activity: Activity) {}
+            override fun onActivityStarted(activity: Activity) { if (activity !is OpenTickWidgetActivity) { started++; OtBg.foreground = true } }
+            override fun onActivityResumed(activity: Activity) { if (activity !is OpenTickWidgetActivity) handler.postDelayed({ OtBg.apply(app) }, 1000) }
             override fun onActivityPaused(activity: Activity) {}
             override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
             override fun onActivityDestroyed(activity: Activity) {}

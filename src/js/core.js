@@ -36,12 +36,20 @@ function fmtDate(s) {
   if (diff > 1 && diff < 7) return DAYS[d.getDay()];
   return `${MONTHS[d.getMonth()].slice(0, 3)} ${d.getDate()}` + (d.getFullYear() !== new Date().getFullYear() ? `, ${d.getFullYear()}` : '');
 }
-const dueLabel = t => (t.due ? fmtDate(t.due) + (validHM(t.time) ? ' ' + fmtTime(t.time) : '') : '');
+/* A repeating task is one record whose `due` moves forward. Two optional extras belong to it:
+     task.until  'YYYY-MM-DD'  the last day it may happen on (after it, finishing the task finishes it for good)
+     task.exc    { 'YYYY-MM-DD': { time, dur, skip } }  exceptions: on that one date it happens at another time (and/or for another
+                 length), or not at all. The usual time (task.time) is untouched, so every other date is as before. */
+const excOf = (t, k) => { const d = k == null ? t && t.due : k; return t && t.exc && d && t.exc[d] && typeof t.exc[d] === 'object' ? t.exc[d] : null; };
+// the time (and length) a task has on one date: an exception for that date wins over the usual time
+const tmEff = (t, k) => { const e = excOf(t, k); return (e && validHM(e.time) ? e.time : t.time) || null; };
+const durEff = (t, k) => { const e = excOf(t, k); return (e && e.dur > 0 ? e.dur : t.dur) || null; };
+const dueLabel = t => (t.due ? fmtDate(t.due) + (validHM(tmEff(t)) ? ' ' + fmtTime(tmEff(t)) : '') : '');
 function isOverdue(t) {
   if (!t.due || t.status !== 'open') return false;
-  const td = todayStr();
+  const td = todayStr(), tm = tmEff(t);
   if (t.due < td) return true;
-  if (t.due === td && t.time) { const n = new Date(); return t.time < `${pad(n.getHours())}:${pad(n.getMinutes())}`; }
+  if (t.due === td && tm) { const n = new Date(); return tm < `${pad(n.getHours())}:${pad(n.getMinutes())}`; }
   return false;
 }
 const REPS = {
@@ -74,6 +82,23 @@ function nextDue(t) {
   } else d = new Date(d.getFullYear() + r.every, d.getMonth(), d.getDate());
   return ymd(d);
 }
+// the date a repeating task really happens on next: past the end date there is none, and a day marked "skip" is passed over. null = it is over.
+function nextOcc(t) {
+  let n = nextDue(t);
+  for (let i = 0; i < 400; i++) {
+    if (t.until && n > t.until) return null;
+    if (!(t.exc && t.exc[n] && t.exc[n].skip)) return n;
+    const m = nextDue({ repeat: t.repeat, due: n });
+    if (!(m > n)) return null; // a rule that does not move forward would loop for ever
+    n = m;
+  }
+  return null;
+}
+// "Weekly on Mon, Wed until 31 Dec"
+const repeatFull = t => (t && t.repeat ? repeatLabel(t.repeat) + (t.until ? ' until ' + fmtDate(t.until) : '') : '');
+const excList = t => Object.keys((t && t.exc) || {}).filter(k => /^\d{4}-\d\d-\d\d$/.test(k) && t.exc[k] && typeof t.exc[k] === 'object').sort();
+// a short description of one exception: "Mon 2 Nov: 10:30" / "…: skipped"
+function excText(t, k) { const e = (t.exc || {})[k] || {}, d = pYmd(k); return `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)}${d.getFullYear() !== new Date().getFullYear() ? ' ' + d.getFullYear() : ''}: ` + (e.skip ? 'skipped' : [validHM(e.time) ? fmtTime(e.time) : '', e.dur > 0 ? fmtDur(e.dur) : ''].filter(Boolean).join(' · ') || 'no change'); }
 
 /* ---------- quick-add parser: "Pay rent every month 9am !high #bills ~Personal" ---------- */
 const WD = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
@@ -88,7 +113,7 @@ function classByToken(subjects, tok) {
   return by.find(x => classKey(x.name) === k) || by.find(x => x.short && classKey(x.short) === k) || (by.filter(x => classKey(x.name).startsWith(k)).length === 1 ? by.find(x => classKey(x.name).startsWith(k)) : null);
 }
 function parseQuick(text, lists, base = new Date(), ctx = {}) {
-  const o = { title: '', due: null, time: null, dur: null, priority: 0, tags: [], listId: null, repeat: null, subjectId: null, kind: null };
+  const o = { title: '', due: null, time: null, dur: null, priority: 0, tags: [], listId: null, repeat: null, until: null, subjectId: null, kind: null };
   let s = ' ' + text + ' ';
   const bd = ymd(base);
   const take = (re, fn) => { s = s.replace(re, (...m) => (fn(m) === false ? m[0] : ' ')); };
@@ -103,6 +128,20 @@ function parseQuick(text, lists, base = new Date(), ctx = {}) {
   take(/\s!(high|medium|med|low)(?=\s)/gi, m => { o.priority = { low: 1, med: 2, medium: 2, high: 3 }[m[1].toLowerCase()]; });
   take(/\sfor\s+(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes)(?=\s)/i, m => {
     const n = Math.round(parseFloat(m[1]) * (/^h/i.test(m[2]) ? 60 : 1)); if (n < 1 || n > 1440) return false; o.dur = n;
+  });
+  // "until 2026-12-31", "until dec 31", "until dec 31 2027": the last day of a repeat (read before the dates, so it is not taken for the due date)
+  take(new RegExp('\\s(?:until|till|ending|ends)\\s+(?:(\\d{4}-\\d{2}-\\d{2})|' + MORE + '\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?)(?=\\s)', 'i'), m => {
+    if (m[1]) { o.until = m[1]; return; }
+    const day = +m[3]; if (day < 1 || day > 31) return false;
+    let d = new Date(m[4] ? +m[4] : base.getFullYear(), MO[m[2].slice(0, 3).toLowerCase()], day);
+    if (!m[4] && ymd(d) < bd) d = new Date(base.getFullYear() + 1, d.getMonth(), day);
+    o.until = ymd(d);
+  });
+  take(new RegExp('\\s(?:until|till|ending|ends)\\s+(\\d{1,2})(?:st|nd|rd|th)?\\s+' + MORE + '\\.?(?:,?\\s+(\\d{4}))?(?=\\s)', 'i'), m => {
+    const day = +m[1]; if (day < 1 || day > 31) return false;
+    let d = new Date(m[3] ? +m[3] : base.getFullYear(), MO[m[2].slice(0, 3).toLowerCase()], day);
+    if (!m[3] && ymd(d) < bd) d = new Date(base.getFullYear() + 1, d.getMonth(), day);
+    o.until = ymd(d);
   });
   // repeats
   take(/\s(?:every\s+weekday|weekdays)(?=\s)/i, () => { o.repeat = { every: 1, unit: 'week', days: [1, 2, 3, 4, 5] }; });
@@ -145,6 +184,7 @@ function parseQuick(text, lists, base = new Date(), ctx = {}) {
     else o.due = bd;
   }
   if (o.time && !o.due) o.due = bd;
+  if (!o.repeat) o.until = null;
   s = s.replace(/\s+(?:on|at|by|due|for)\s*$/i, ' ');
   o.title = s.replace(/\s+/g, ' ').trim() || text.trim();
   return o;
@@ -181,13 +221,22 @@ function migrateClasses(r) {
   }
   r.school = r.school.filter(x => x.k !== 'exam' && x.k !== 'homework');
 }
+/* settings added in 0.5 (all per device): defaults for new tasks, quiet hours, the daily digest, accessibility, keyboard hints and the background service */
+const PREF_DEF = {
+  tasks: { defList: '', defPrio: 0, defDur: 0, defRem: null, addPos: 'top', confirmDel: false },
+  quiet: { on: false, from: '22:00', to: '07:00' },
+  digest: { on: false, at: '08:00' },
+  keys: { hints: true },
+  a11y: { contrast: false, bold: false, dys: false, spacing: 'normal', links: false, nocol: false, gray: false, cursor: 'normal', tap: false, focus: false, labels: false, notrans: false, toast: 3 },
+  svc: { on: true, tray: true, autostart: false, persist: true, keep: true },
+};
 function migrate(r) {
   r.lists = r.lists || [];
   if (!r.lists.some(l => l.id === 'inbox')) r.lists.unshift({ id: 'inbox', name: 'Inbox', color: '#4772fa', sections: [] });
   r.lists.forEach(l => { l.sections = l.sections || []; });
   r.tasks.forEach(t => { t.tags = t.tags || []; t.subtasks = t.subtasks || []; t.notes = t.notes || ''; t.status = t.status || 'open'; if (t.links && !Array.isArray(t.links)) t.links = []; });
   r.habits = r.habits || []; r.pomo = r.pomo || []; r.fired = r.fired || {}; r.tomb = r.tomb || {};
-  r.tags = r.tags || []; r.slots = r.slots || []; r.school = Array.isArray(r.school) ? r.school.filter(x => x && x.id && x.k) : []; r.notes = Array.isArray(r.notes) ? r.notes : [];
+  r.tags = r.tags || []; r.slots = r.slots || []; r.templates = Array.isArray(r.templates) ? r.templates.filter(x => x && x.id) : []; r.school = Array.isArray(r.school) ? r.school.filter(x => x && x.id && x.k) : []; r.notes = Array.isArray(r.notes) ? r.notes : [];
   migrateClasses(r);
   r.notes.forEach(n => { n.title = n.title || ''; n.body = n.body || ''; n.tags = n.tags || []; n.created = n.created || Date.now(); n.updated = n.updated || n.created; });
   r.slots.forEach(x => { x.days = x.days || []; });
@@ -198,7 +247,8 @@ function migrate(r) {
   if (!THEMES.some(t => t[0] === r.settings.theme) && !r.settings.customThemes.some(c => c.id === r.settings.theme)) r.settings.theme = DEFAULT_THEME;
   r.settings.gantt = { scale: 'week', mode: 'both', zoom: 1, nameW: 290, cols: ['plan', 'actual'], hatch: true, progress: true, tray: true, trayW: 220, lanes: true, ...(r.settings.gantt || {}) };
   // layout is per device: panel widths, which panels are hidden, folded sidebar sections, sidebar views
-  r.settings.ui = { sideW: 300, detailW: 380, side: true, detail: true, trayW: 236, tray: true, fold: {}, hidePages: [], pageOrder: [], scale: 1, ...(r.settings.ui || {}) };
+  for (const k of Object.keys(PREF_DEF)) r.settings[k] = { ...PREF_DEF[k], ...(r.settings[k] && typeof r.settings[k] === 'object' ? r.settings[k] : {}) };
+  r.settings.ui = { sideW: 300, detailW: 380, side: true, detail: true, trayW: 236, tray: true, fold: {}, hidePages: [], pageOrder: [], scale: 1, schoolOpen: false, ...(r.settings.ui || {}) };
   if (!r.settings.bg || typeof r.settings.bg !== 'object') r.settings.bg = { on: !/Android/i.test(typeof navigator !== 'undefined' ? navigator.userAgent || '' : ''), animate: true, style: 'accent', shape: 'blobs', intensity: 60, speed: 100 };
   { const sc = r.settings.ui.scale == null || r.settings.ui.scale === '' ? NaN : Number(r.settings.ui.scale); r.settings.ui.scale = Number.isFinite(sc) ? Math.min(1.5, Math.max(0.8, Math.round(sc * 20) / 20)) : 1; }
   { const t0 = r.settings.tt || {}; // `auto` hides the quiet hours; anyone who had already narrowed the range keeps their own hours
@@ -252,8 +302,8 @@ function load() {
    Every record (task, list, habit) carries `u`, the time it last changed. Instead of touching every mutation site,
    save() compares each record with a snapshot (SEEN) and stamps the ones that differ. Records that disappeared get a
    tombstone in S.tomb so a deletion can be told apart from "this device has never seen it". */
-const COLL = ['tasks', 'lists', 'habits', 'tags', 'slots', 'notes', 'projects', 'school'];
-const SEEN = { tasks: new Map(), lists: new Map(), habits: new Map(), tags: new Map(), slots: new Map(), notes: new Map(), projects: new Map(), school: new Map() };
+const COLL = ['tasks', 'lists', 'habits', 'tags', 'slots', 'notes', 'projects', 'school', 'templates'];
+const SEEN = { tasks: new Map(), lists: new Map(), habits: new Map(), tags: new Map(), slots: new Map(), notes: new Map(), projects: new Map(), school: new Map(), templates: new Map() };
 const hashOf = o => JSON.stringify(o, (k, v) => (k === 'u' ? undefined : v));
 // "edited just now" markers: which records this device changed in the last couple of minutes (never synced, never saved)
 const EDITED = new Map(), EDIT_SHOW = 120000;
@@ -279,11 +329,11 @@ function stamp() {
    built from those differences (nothing has to be remembered at each call site). Changes that arrive through sync are
    not logged. Quick successive edits of one record (typing a title) are folded into one entry. */
 const HIST_MAX = 2000, HIST_MERGE = 90000;
-const HIST_KIND = { tasks: 'task', lists: 'list', habits: 'habit', notes: 'note', slots: 'slot', projects: 'project' };
+const HIST_KIND = { tasks: 'task', lists: 'list', habits: 'habit', notes: 'note', slots: 'slot', projects: 'project', templates: 'template' };
 const HIST_ACT = { add: 'Added', edit: 'Edited', done: 'Completed', reopen: 'Reopened', wontdo: "Won't do", delete: 'Deleted', restore: 'Restored', purge: 'Deleted forever', import: 'Imported' };
 const HIST_IGN = new Set(['u', 'id', 'order', 'updated', 'created', 'doneAt', 'logU', 'deleted', 'log', 'pinned']);
-const HIST_FLAG = new Set(['notes', 'body', 'subtasks', 'log', 'banner']); // changes shown as "edited", without values
-const histName = (k, o) => String((k === 'task' ? o.title : k === 'list' || k === 'habit' || k === 'project' ? o.name : k === 'note' ? noteTitle(o) : o.title) || '').trim().slice(0, 90) || 'Untitled';
+const HIST_FLAG = new Set(['notes', 'body', 'subtasks', 'log', 'banner', 'exc', 'rems', 'vars']); // changes shown as "edited", without values
+const histName = (k, o) => String((k === 'task' ? o.title : k === 'list' || k === 'habit' || k === 'project' || k === 'template' ? o.name : k === 'note' ? noteTitle(o) : o.title) || '').trim().slice(0, 90) || 'Untitled';
 function histChange(k, o, n) {
   if (k === 'task') {
     if (!o.deleted && n.deleted) return { a: 'delete' };
@@ -348,7 +398,7 @@ function flush() {
   if (Vault.locked) return; // locked: S is only a placeholder, so nothing is stamped, saved or synced
   const changed = stamp();
   persist();
-  if (changed) { hooks.change(); if (typeof dockSaved === 'function') dockSaved(); if (typeof editedPaint === 'function') editedPaint(); if (typeof widgetPush === 'function') widgetPush(); }
+  if (changed) { hooks.change(); if (typeof dockSaved === 'function') dockSaved(); if (typeof editedPaint === 'function') editedPaint(); if (typeof widgetPush === 'function') widgetPush(); if (typeof bgSync === 'function') bgSync(); }
   else if (typeof dockSaved === 'function') dockSaved(true);
 }
 function save() { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 120); if (typeof savePending === 'function') savePending(); }
@@ -357,7 +407,7 @@ function save() { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 120); i
 const TOMB_TTL = 180 * 864e5;
 const canon = o => JSON.stringify(Object.keys(o || {}).sort().map(k => [k, o[k]]));
 const cyrb53 = s => { let a = 0xdeadbeef, b = 0x41c6ce57; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 2654435761); b = Math.imul(b ^ c, 1597334677); } a = Math.imul(a ^ (a >>> 16), 2246822507) ^ Math.imul(b ^ (b >>> 13), 3266489909); b = Math.imul(b ^ (b >>> 16), 2246822507) ^ Math.imul(a ^ (a >>> 13), 3266489909); return (4294967296 * (2097151 & b) + (a >>> 0)).toString(36); };
-const snapshot = () => ({ tasks: S.tasks, lists: S.lists, habits: S.habits, tags: S.tags, slots: S.slots, notes: S.notes, projects: S.projects, school: S.school, pomo: S.pomo, tomb: S.tomb });
+const snapshot = () => ({ tasks: S.tasks, lists: S.lists, habits: S.habits, tags: S.tags, slots: S.slots, notes: S.notes, projects: S.projects, school: S.school, templates: S.templates, pomo: S.pomo, tomb: S.tomb });
 function fingerprint(d) {
   const p = [];
   for (const c of COLL) for (const o of (d[c] || [])) p.push(c[0] + o.id + ':' + (o.u || 0));
@@ -406,7 +456,7 @@ function mergeData(L, R) {
   return out;
 }
 function applyMerged(m) {
-  S.tasks = m.tasks; S.lists = m.lists; S.habits = m.habits; S.tags = m.tags; S.slots = m.slots; S.notes = m.notes; S.projects = m.projects; S.school = m.school; S.pomo = m.pomo; S.tomb = m.tomb;
+  S.tasks = m.tasks; S.lists = m.lists; S.habits = m.habits; S.tags = m.tags; S.slots = m.slots; S.notes = m.notes; S.projects = m.projects; S.school = m.school; S.templates = m.templates; S.pomo = m.pomo; S.tomb = m.tomb;
   migrate(S); initSeen();
   persist(true); // if storage is full the copy in memory is still right
 }
@@ -491,12 +541,20 @@ function newTask(o = {}) {
 function toggleDone(t) {
   if (t.status === 'open') {
     if (t.repeat && t.due) {
-      // the finished occurrence is kept as a record with its own copy of the notes, links and files; the live task carries
-      // all of them into the next occurrence (ticked checklist items in its notes start again, like subtasks)
-      S.tasks.push({ ...t, id: uid(), status: 'done', doneAt: Date.now(), log: 1, repeat: null, reminder: null, subtasks: t.subtasks.map(s => ({ ...s })), tags: [...t.tags], links: [...(t.links || [])], files: (t.files || []).map(f => ({ ...f })) });
-      t.due = nextDue(t); t.subtasks.forEach(s => { s.done = false; });
-      if (t.notes) t.notes = t.notes.replace(/^(\s*(?:[-*+]|\d{1,9}[.)])\s+\[)[xX](\])/gm, '$1 $2');
-      toast('Done — next: ' + dueLabel(t)); sfx('done');
+      const nx = nextOcc(t);
+      if (nx) {
+        // the finished occurrence is kept as a record with its own copy of the notes, links and files; the live task carries
+        // all of them into the next occurrence (ticked checklist items in its notes start again, like subtasks).
+        // The record keeps the time and length that occurrence really had (an exception, if there was one).
+        const copy = { ...t, id: uid(), status: 'done', doneAt: Date.now(), log: 1, repeat: null, reminder: null, subtasks: t.subtasks.map(s => ({ ...s })), tags: [...t.tags], links: [...(t.links || [])], files: (t.files || []).map(f => ({ ...f })), time: tmEff(t), dur: durEff(t) };
+        delete copy.until; delete copy.exc; delete copy.rems; if (!copy.dur) delete copy.dur;
+        S.tasks.push(copy);
+        t.due = nx; t.subtasks.forEach(s => { s.done = false; });
+        if (t.exc) { for (const k of Object.keys(t.exc)) if (k < nx) delete t.exc[k]; if (!Object.keys(t.exc).length) delete t.exc; } // exceptions that are behind us are done with
+        if (Array.isArray(t.rems)) t.rems = t.rems.filter(r => typeof r === 'number'); // a one-off reminder at a fixed time does not come round again
+        if (t.notes) t.notes = t.notes.replace(/^(\s*(?:[-*+]|\d{1,9}[.)])\s+\[)[xX](\])/gm, '$1 $2');
+        toast('Done — next: ' + dueLabel(t)); sfx('done');
+      } else { t.status = 'done'; t.doneAt = Date.now(); toast('Done — that was the last one'); sfx('done'); } // the end date has passed: it is finished for good
     } else { t.status = 'done'; t.doneAt = Date.now(); sfx('done'); }
   } else { t.status = 'open'; delete t.doneAt; sfx('undo'); }
   save();

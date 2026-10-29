@@ -25,7 +25,7 @@ with sync_playwright() as p:
                 # same pane layout as the real window (main area width in layout px)
                 a1, a2 = pg.evaluate("document.querySelector('#main').getBoundingClientRect().width / Z.z"), ref.evaluate("document.querySelector('#main').getBoundingClientRect().width")
                 assert abs(a1 - a2) <= 2, f'{name} {z} {page}: main area is {a1:.0f}px layout, a real window gives {a2:.0f}'
-            pg.evaluate('openSettings()'); pg.wait_for_timeout(200)
+            pg.evaluate("openSettings('appearance')"); pg.wait_for_timeout(200)
             r = pg.evaluate("(()=>{const m=document.querySelector('.mbox').getBoundingClientRect();return [m.top,m.bottom,m.left,m.right]})()")
             assert r[0] >= -1 and r[1] <= h + 1 and r[2] >= -1 and r[3] <= w + 1, f'{name} {z}: settings dialog {r} does not fit'
             assert not pg.errs and not ref.errs, (pg.errs, ref.errs); b.close(); rb.close()
@@ -37,7 +37,7 @@ with sync_playwright() as p:
     pg.evaluate("S.settings.ui.scale=1; applyScale(); render()"); pg.wait_for_timeout(200)
     assert pg.evaluate("getComputedStyle(document.querySelector('#tabbar')).display") == 'none', 'and back again (the originals are kept)'; b.close()
     # slider, buttons, reset, persistence
-    b, ctx, pg = launch(p, mobile=False); pg.evaluate('openSettings()')
+    b, ctx, pg = launch(p, mobile=False); pg.evaluate("openSettings('appearance')")
     assert pg.evaluate("document.querySelector('#zval').textContent") == '100%' and pg.locator('[data-zreset]:disabled').count() == 1
     pg.click('[data-zstep="1"]'); pg.wait_for_timeout(200); assert pg.evaluate('S.settings.ui.scale') == 1.05 and pg.evaluate("document.documentElement.style.zoom") == '1.05'
     pg.evaluate("(()=>{const r=document.querySelector('#zrange');r.value=140;r.dispatchEvent(new Event('input',{bubbles:true}));})()")
@@ -45,7 +45,7 @@ with sync_playwright() as p:
     assert pg.evaluate("document.querySelector('#zval').textContent") == '140%'
     pg.evaluate("document.querySelector('#zrange').dispatchEvent(new Event('change',{bubbles:true}))"); pg.wait_for_timeout(200); assert pg.evaluate('Z.z') == 1.4
     pg.evaluate('flush && flush()'); pg.reload(); pg.wait_for_selector('#main'); assert pg.evaluate('Z.z') == 1.4 and pg.evaluate("document.documentElement.style.zoom") == '1.4', 'persisted'
-    pg.evaluate('openSettings()'); pg.click('[data-zreset]'); pg.wait_for_timeout(200); assert pg.evaluate('Z.z') == 1 and pg.evaluate("document.documentElement.style.zoom") == '', 'reset restores the default'
+    pg.evaluate("openSettings('appearance')"); pg.click('[data-zreset]'); pg.wait_for_timeout(200); assert pg.evaluate('Z.z') == 1 and pg.evaluate("document.documentElement.style.zoom") == '', 'reset restores the default'
     for lit, want in (('9', 1.5), ('0.1', 0.8), ("'x'", 1), ('null', 1), ('NaN', 1), ('1.07', 1.05)): assert pg.evaluate('clampScale(' + lit + ')') == want, lit
     assert not pg.errs, pg.errs; b.close()
     # pointer maths at 150%: resize a timed task by dragging its bottom edge down one hour of *drawn* pixels

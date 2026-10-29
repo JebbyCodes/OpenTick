@@ -1,0 +1,43 @@
+# DRAFT F-Droid build recipe for OpenTick. Copy to fdroiddata/metadata/com.opentick.app.yml and adjust after a test build with
+#   fdroid build -v -l com.opentick.app
+# The app is a Tauri 2 project (Rust + a web front end), so the build installs Node and Rust and generates the Android project first.
+# The listing text, icon, screenshots and changelog come from fastlane/metadata/android/en-GB in this repository.
+Categories:
+  - Time
+  - Science & Education
+License: Unlicense
+AuthorName: JebbyCodes
+WebSite: https://github.com/JebbyCodes/OpenTick
+SourceCode: https://github.com/JebbyCodes/OpenTick
+IssueTracker: https://github.com/JebbyCodes/OpenTick/issues
+Changelog: https://github.com/JebbyCodes/OpenTick/blob/HEAD/CHANGELOG.md
+
+AutoName: OpenTick
+
+RepoType: git
+Repo: https://github.com/JebbyCodes/OpenTick.git
+
+Builds:
+  - versionName: 0.5.0
+    versionCode: 5000
+    commit: v0.5.0
+    sudo:
+      - apt-get update
+      - apt-get install -y nodejs npm libwebkit2gtk-4.1-dev
+    init: npm ci
+    prebuild:
+      - npx tauri android init --ci
+      - node scripts/android-widgets.mjs
+    build:
+      - export PATH=$PATH:$HOME/.cargo/bin
+      - npx tauri android build --apk --split-per-abi --target aarch64 --target armv7
+    output: src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk
+    ndk: r27c
+    rm:
+      - src-tauri/gen
+    antifeatures: []
+
+AutoUpdateMode: Version v%v
+UpdateCheckMode: Tags ^v[0-9.]+$
+CurrentVersion: 0.5.0
+CurrentVersionCode: 5000

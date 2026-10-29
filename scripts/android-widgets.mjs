@@ -39,4 +39,11 @@ else {
   xml = xml.replace('</application>', fill(readFileSync(join(src, 'manifest-snippet.xml'), 'utf8')) + '    </application>'); writeFileSync(mf, xml);
   console.log('Patched AndroidManifest.xml.');
 }
+// background service: receiver + service inside <application>, permissions before it. Each patched once.
+{
+  let x = readFileSync(mf, 'utf8'), changed = false;
+  if (!x.includes('OpenTickBgReceiver')) { x = x.replace('</application>', fill(readFileSync(join(src, 'manifest-bg.xml'), 'utf8')) + '    </application>'); changed = true; }
+  if (!x.includes('OpenTick background service permissions')) { x = x.replace(/<application\b/, fill(readFileSync(join(src, 'manifest-bg-permissions.xml'), 'utf8')) + '    <application'); changed = true; }
+  if (changed) { writeFileSync(mf, x); console.log('Patched AndroidManifest.xml for the background service.'); } else console.log('Manifest already has the background service.');
+}
 console.log(`Widgets installed for ${pkg}: ${readdirSync(join(src, 'kotlin')).length} Kotlin files in ${ktDir.replace(gen, '.')}, ${n} resource files.`);

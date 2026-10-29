@@ -126,12 +126,12 @@ function U_set(A, date) { A.U.page = 'timetable'; A.U.ttDate = date; A.S.setting
   A.scCfgSet({ ab: false });
 }
 
-/* ---- 5. every page draws, says when things end, and has nothing that slides ---- */
+/* ---- 5. every page draws, says when things end, and room/teacher slide when too long ---- */
 {
   const { A, S, per } = setup(), mon = dayOf(A, 1), mk = A.ymd(mon);
   S.tasks.push(A.newTask({ title: 'Mock paper', kind: 'exam', subjectId: 'su1', due: mk, time: '10:00', dur: 90, room: 'Hall', listId: 'inbox' }), A.newTask({ title: 'Read ch 4', kind: 'homework', subjectId: 'su1', due: A.ymd(A.addDays(mon, 2)) }));
   S.school.push({ id: 'sn1', k: 'snote', title: 'Formulae', subjectId: 'su1', body: 'a^2+b^2' });
-  for (const tab of A.SC_TABS.map(x => x[0])) { A.U.scTab = tab; A.U.scDate = mon; A.renderSchool(); const h = A.els['#main'].innerHTML; assert.ok(h.length > 200, tab + ' draws'); assert.ok(!/class="[^"]*\bmq\b/.test(h), tab + ': no scrolling text'); assert.equal(typeof A.scTabHtml(tab), 'string'); }
+  for (const tab of A.SC_TABS.map(x => x[0])) { A.U.scTab = tab; A.U.scDate = mon; A.renderSchool(); const h = A.els['#main'].innerHTML; assert.ok(h.length > 200, tab + ' draws'); assert.ok(!/class="sc-nf[^"]*\bmq\b/.test(h), tab + ': class names wrap, only room and teacher slide'); assert.equal(typeof A.scTabHtml(tab), 'string'); }
   // Day: every entry has its start and its end, and the exam is in the agenda with the lessons
   A.U.scTab = 'day'; A.U.scDate = mon; A.renderSchool(); let day = plain(A.els['#main'].innerHTML);
   for (const t of [per[0].start, per[0].end, per[1].start, per[1].end]) assert.ok(day.includes(t), 'agenda shows ' + t); assert.match(day, /Mathematics/); assert.match(day, /Music/); assert.match(day, /Mock paper/); assert.ok(day.includes('10:00') && day.includes('11:30'), 'an exam of 90 minutes ends at 11:30');

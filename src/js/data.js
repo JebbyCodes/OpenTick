@@ -5,14 +5,14 @@
 // what a person would call their data, counted the way they see it (no Inbox, no trash, no finished repeats)
 function dataCounts() {
   const t = S.tasks.filter(x => !x.deleted && !x.log).length;
-  return { tasks: t, lists: S.lists.filter(l => l.id !== 'inbox').length, notes: S.notes.length, habits: S.habits.length, projects: S.projects.length, slots: S.slots.length, school: S.school.filter(r => r.k !== 'cfg' && r.k !== 'period').length, classes: S.school.filter(r => r.k === 'subject').length, lessons: S.school.filter(r => r.k === 'lesson').length,
+  return { tasks: t, lists: S.lists.filter(l => l.id !== 'inbox').length, notes: S.notes.length, templates: (S.templates || []).length, habits: S.habits.length, projects: S.projects.length, slots: S.slots.length, school: S.school.filter(r => r.k !== 'cfg' && r.k !== 'period').length, classes: S.school.filter(r => r.k === 'subject').length, lessons: S.school.filter(r => r.k === 'lesson').length,
     files: [...S.tasks, ...S.notes, ...S.slots].reduce((n, o) => n + ((o.files || []).length), 0) };
 }
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 function dataCountsText(c = dataCounts()) {
   const out = [];
   if (c.tasks) out.push(plural(c.tasks, 'task')); if (c.lists) out.push(plural(c.lists, 'list')); if (c.projects) out.push(plural(c.projects, 'project'));
-  if (c.notes) out.push(plural(c.notes, 'note')); if (c.habits) out.push(plural(c.habits, 'habit')); if (c.slots) out.push(plural(c.slots, 'timetable slot')); if (c.classes) out.push(`${c.classes} class${c.classes === 1 ? '' : 'es'}`); if (c.lessons) out.push(plural(c.lessons, 'lesson'));
+  if (c.notes) out.push(plural(c.notes, 'note')); if (c.templates) out.push(plural(c.templates, 'template')); if (c.habits) out.push(plural(c.habits, 'habit')); if (c.slots) out.push(plural(c.slots, 'timetable slot')); if (c.classes) out.push(`${c.classes} class${c.classes === 1 ? '' : 'es'}`); if (c.lessons) out.push(plural(c.lessons, 'lesson'));
   { const rest = (c.school || 0) - (c.classes || 0) - (c.lessons || 0); if (rest > 0) out.push(plural(rest, 'other class item')); } if (c.files) out.push(plural(c.files, 'attached file'));
   return out.length ? out.join(', ') : 'nothing yet';
 }
@@ -24,7 +24,7 @@ async function filesWipe() {
     if (typeof FILE_URL !== 'undefined') { for (const u of FILE_URL.values()) { try { URL.revokeObjectURL(u); } catch (e) { /* ignore */ } } FILE_URL.clear(); }
   } catch (e) { /* storage is optional */ }
 }
-const EMPTY_DATA = () => ({ v: 1, tasks: [], lists: [], habits: [], tags: [], slots: [], notes: [], projects: [], school: [], pomo: [] });
+const EMPTY_DATA = () => ({ v: 1, tasks: [], lists: [], habits: [], tags: [], slots: [], notes: [], projects: [], school: [], pomo: [], templates: [] });
 // Delete everything: tasks, lists, projects, notes, habits, timetable, tags, focus log and history. Sync sees it as a deliberate deletion.
 //   o.settings  also reset the settings (theme, layout, sounds)       o.files  also delete the attachments' bytes (default yes)
 // Resolves to the key of the restore point (or '' when none could be written).

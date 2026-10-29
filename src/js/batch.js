@@ -57,7 +57,7 @@ function batchApplyChanges(ids, ch) {
     if ('shift' in ch && t.due) { t.due = ymd(addDays(pYmd(t.due), ch.shift)); if (t.start) t.start = ymd(addDays(pYmd(t.start), ch.shift)); }
     if ('time' in ch) { t.time = ch.time; if (ch.time && !t.due) t.due = td; }
     if ('dur' in ch) t.dur = ch.dur;
-    if ('reminder' in ch) { t.reminder = ch.reminder; if (ch.reminder != null && !t.due) t.due = td; }
+    if ('reminder' in ch) { remsSet(t, ch.reminder == null ? [] : [ch.reminder]); if (ch.reminder != null && !t.due) t.due = td; }
     if ('listId' in ch && t.listId !== ch.listId) { t.listId = ch.listId; t.section = null; }
     if ('repeat' in ch) { if (ch.repeat === 'none') t.repeat = null; else { t.repeat = JSON.parse(JSON.stringify(REPS[ch.repeat])); if (!t.due) t.due = td; } }
     if (ch.addTags && ch.addTags.length) t.tags = [...new Set([...t.tags, ...ch.addTags])];

@@ -108,16 +108,16 @@ function scAgendaRow(it, date, nowM, today) {
   if (it.k === 'lesson') {
     const s = it.s, t = scTeacherOf(it.l, s), room = scRoom(it.l, s), k = ymd(date);
     return `<div class="sc-ag lsn${cls}${it.cancelled ? ' gone' : ''}" style="--c:${scColor(s)}" data-act="sclesson" data-lid="${it.l.id}" data-date="${k}" tabindex="0" role="button" aria-label="${esc(scLessonName(it))}, ${fmtRange(it.a, it.b)}${it.cancelled ? ', cancelled' : ''}">${tcol}<span class="sc-bar"></span><div class="sc-ab"><div class="sc-l1"><span class="sc-rt">${s ? iconAny(s.icon, 16) : ''}<span>${esc(scLessonName(it))}</span></span><small>${fmtDur(dur)}</small></div>`
-      + `<div class="sc-l2">${it.cancelled ? '<span class="sc-x">Cancelled</span>' : ''}${room ? `<span>${ic('pin', 12)} ${esc(room)}</span>` : ''}${t ? `<span>${ic('teacher', 12)} ${esc(t.name)}</span>` : ''}${it.l.week ? `<span class="sc-w">${it.l.week === 1 ? 'Week A' : 'Week B'}</span>` : ''}</div>${prog}${tasks}</div></div>`;
+      + `<div class="sc-l2">${it.cancelled ? '<span class="sc-x">Cancelled</span>' : ''}${room ? `<span class="sc-w2">${ic('pin', 12)}<span class="mq">${esc(room)}</span></span>` : ''}${t ? `<span class="sc-w2">${ic('teacher', 12)}<span class="mq">${esc(t.name)}</span></span>` : ''}${it.l.week ? `<span class="sc-w">${it.l.week === 1 ? 'Week A' : 'Week B'}</span>` : ''}</div>${prog}${tasks}</div></div>`;
   }
-  if (it.k === 'slot') return `<div class="sc-ag slt${cls}" style="--c:${it.s.color}" data-act="ttslot" data-sid="${it.s.id}" tabindex="0" role="button" aria-label="${esc(it.s.title)}, ${fmtRange(it.a, it.b)}">${tcol}<span class="sc-bar"></span><div class="sc-ab"><div class="sc-l1"><span class="sc-rt">${it.s.icon ? iconAny(it.s.icon, 16) : ic('table', 15)}<span>${esc(it.s.title)}</span></span><small>${fmtDur(dur)}</small></div>${it.s.loc ? `<div class="sc-l2"><span>${ic('pin', 12)} ${esc(it.s.loc)}</span></div>` : ''}${prog}${tasks}</div></div>`;
+  if (it.k === 'slot') return `<div class="sc-ag slt${cls}" style="--c:${it.s.color}" data-act="ttslot" data-sid="${it.s.id}" tabindex="0" role="button" aria-label="${esc(it.s.title)}, ${fmtRange(it.a, it.b)}">${tcol}<span class="sc-bar"></span><div class="sc-ab"><div class="sc-l1"><span class="sc-rt">${it.s.icon ? iconAny(it.s.icon, 16) : ic('table', 15)}<span>${esc(it.s.title)}</span></span><small>${fmtDur(dur)}</small></div>${it.s.loc ? `<div class="sc-l2"><span class="sc-w2">${ic('pin', 12)}<span class="mq">${esc(it.s.loc)}</span></span></div>` : ''}${prog}${tasks}</div></div>`;
   const t = it.t, s = scSubj(t.subjectId);
   return `<div class="sc-ag tsk${cls}${t.status !== 'open' ? ' fin' : ''}" style="--c:${s ? s.color : listOf(t.listId).color}" data-act="open" data-id="${t.id}"><time class="sc-t"><b>${fmtMin(it.a)}</b><span>${fmtMin(it.b)}</span></time><span class="sc-bar"></span><div class="sc-ab"><div class="sc-l1"><span class="sc-rt"><button class="chk sm p${t.priority}${t.status === 'done' ? ' on' : ''}" data-act="toggle" data-id="${t.id}" aria-label="Complete task">${t.status === 'done' ? ic('check', 11) : ''}</button>${t.kind ? `<span class="sc-kd ${t.kind}">${ic(t.kind === 'exam' ? 'exam' : 'homework', 13)}</span>` : ''}<span>${titleHtml(t)}</span></span><small>${fmtDur(dur)}</small></div>${s || t.room ? `<div class="sc-l2">${scChip(s)}${t.room ? `<span>${ic('pin', 12)} ${esc(t.room)}</span>` : ''}</div>` : ''}${prog}</div></div>`;
 }
 // the agenda of a day: a "now" line is slipped in at the right place when the day is today
 function scAgendaHtml(date, ag = scAgenda(date)) {
   const today = ymd(date) === todayStr(), n = new Date(), nowM = n.getHours() * 60 + n.getMinutes();
-  if (ag.off) return `<div class="sc-off">${ic('sun', 22)}<div><b>Day off</b><span>${esc(ag.off.label || 'No classes today')}</span></div></div>` + (ag.allday.length ? `<div class="sc-list">${ag.allday.map(t => rowHtml(t, true)).join('')}</div>` : '');
+  if (ag.off) return `<div class="sc-off" style="--hc:${holColor(ag.off)}">${ic('sun', 22)}<div><b>${esc(holName(ag.off))}</b><span>No classes · ${esc(holRange(ag.off))}</span></div></div>` + (ag.allday.length ? `<div class="sc-list">${ag.allday.map(t => rowHtml(t, true)).join('')}</div>` : '');
   let html = '', marked = false;
   const nowLine = `<div class="sc-nowl" aria-label="Now, ${fmtMin(nowM)}"><span>${fmtMin(nowM)}</span><i></i></div>`;
   for (const it of ag.items) {
@@ -163,16 +163,16 @@ function scGridHtml() {
   const info = wk.map(d => { const ag = scAgenda(d), byL = new Map(); for (const it of ag.items) if (it.k === 'lesson') byL.set(it.l.id, it); const due = S.tasks.filter(t => !t.deleted && t.due === ymd(d) && t.status === 'open' && (t.kind || t.subjectId || t.lessonId)); return { d, k: ymd(d), off: ag.off, byL, due, exam: due.some(t => t.kind === 'exam') }; });
   const rows = per.map(p => (p.brk ? 'auto' : 'minmax(var(--rh),1fr)')).join(' ');
   let n = 0, h = `<div class="sc-grid" style="--cols:${days.length};grid-template-rows:auto ${rows}"><div class="sc-h sc-corner">${wt ? `<small>${scWeekName(wt)}</small>` : ''}</div>`
-    + info.map(x => `<button class="sc-h${x.k === td ? ' today' : ''}${x.off ? ' off' : ''}" data-act="scjump" data-d="${x.k}" title="Open ${FULLDAYS[x.d.getDay()]} ${x.d.getDate()} ${MONTHS[x.d.getMonth()]}"><span class="sc-dn">${DAYS[x.d.getDay()]}</span><b>${x.d.getDate()}</b>${x.off ? '<small class="sc-offl">Off</small>' : x.due.length ? `<small class="sc-due${x.exam ? ' ex' : ''}">${x.exam ? ic('exam', 11) : ic('check-circle', 11)}${x.due.length}</small>` : ''}</button>`).join('');
+    + info.map(x => `<button class="sc-h${x.k === td ? ' today' : ''}${x.off ? ' off' : ''}"${x.off ? ` style="--hc:${holColor(x.off)}"` : ''} data-act="scjump" data-d="${x.k}" title="Open ${FULLDAYS[x.d.getDay()]} ${x.d.getDate()} ${MONTHS[x.d.getMonth()]}"><span class="sc-dn">${DAYS[x.d.getDay()]}</span><b>${x.d.getDate()}</b>${x.off ? `<small class="sc-offl mq" style="--hc:${holColor(x.off)}">${esc(holName(x.off))}</small>` : x.due.length ? `<small class="sc-due${x.exam ? ' ex' : ''}">${x.exam ? ic('exam', 11) : ic('check-circle', 11)}${x.due.length}</small>` : ''}</button>`).join('');
   for (const p of per) {
     if (p.brk) { h += `<div class="sc-brk"><span>${esc(p.label || 'Break')}</span><small>${fmtTime(p.start)} – ${fmtTime(p.end)}</small></div>`; continue; }
     n++; h += `<div class="sc-p"><b>${esc(p.label || n)}</b><small>${fmtMin(toMin(p.start), { noAp: true })}</small><small>${fmtMin(toMin(p.end), { noAp: true })}</small></div>`;
     for (const x of info) {
       const d = x.d.getDay(), l = scLesson(d, p.id, wt), s = l && scSubj(l.subjectId), t = l && scTeacherOf(l, s), room = l && scRoom(l, s);
-      if (x.off || !l) { h += x.off ? `<div class="sc-c off" aria-hidden="true"></div>` : `<button class="sc-c" data-act="sccell" data-day="${d}" data-p="${p.id}" aria-label="Add a lesson on ${FULLDAYS[d]}, ${fmtTime(p.start)}">${ic('plus', 14)}</button>`; continue; }
+      if (x.off || !l) { h += x.off ? `<div class="sc-c off" style="--hc:${holColor(x.off)}"${n === 1 ? '' : ' aria-hidden="true"'}>${n === 1 ? `<span class="holl mq">${ic('sun', 12)} ${esc(holName(x.off))}</span>` : ''}</div>` : `<button class="sc-c" data-act="sccell" data-day="${d}" data-p="${p.id}" aria-label="Add a lesson on ${FULLDAYS[d]}, ${fmtTime(p.start)}">${ic('plus', 14)}</button>`; continue; }
       const gone = scSkipped(l.id, x.k), it = x.byL.get(l.id), tk = it && it.tasks ? it.tasks.filter(z => z.status === 'open') : [], isNow = nn.cur && x.k === td && nn.cur.p.id === p.id;
       const label = `${s ? s.name : 'Lesson'}, ${FULLDAYS[d]} ${fmtRange(p.start, p.end)}${room ? ', ' + room : ''}${t ? ', ' + t.name : ''}${gone ? ', cancelled' : ''}`;
-      h += `<button class="sc-c has${isNow ? ' now' : ''}${gone ? ' gone' : ''}" style="--c:${scColor(s)}" data-act="sclesson" data-lid="${l.id}" data-date="${x.k}" title="${esc(label)}" aria-label="${esc(label)}"><span class="sc-n">${s ? iconAny(s.icon, 14) : ''}<span class="sc-nf">${esc(s ? s.name : 'Lesson')}</span><span class="sc-ns">${esc(s ? scShort(s) : 'Les')}</span></span>${room ? `<small class="sc-r">${esc(room)}</small>` : ''}${t ? `<small class="sc-te">${esc(t.name)}</small>` : ''}${l.week ? `<i class="sc-w">${l.week === 1 ? 'A' : 'B'}</i>` : ''}${tk.length ? `<b class="sc-k${tk.some(z => z.kind === 'exam') ? ' ex' : ''}" title="${tk.length} task${tk.length === 1 ? '' : 's'} for this lesson">${tk.some(z => z.kind === 'exam') ? ic('exam', 10) : ic('check', 10)}${tk.length}</b>` : ''}</button>`;
+      h += `<button class="sc-c has${isNow ? ' now' : ''}${gone ? ' gone' : ''}" style="--c:${scColor(s)}" data-act="sclesson" data-lid="${l.id}" data-date="${x.k}" title="${esc(label)}" aria-label="${esc(label)}"><span class="sc-n">${s ? iconAny(s.icon, 14) : ''}<span class="sc-nf">${esc(s ? s.name : 'Lesson')}</span><span class="sc-ns">${esc(s ? scShort(s) : 'Les')}</span></span>${room ? `<small class="sc-r mq">${esc(room)}</small>` : ''}${t ? `<small class="sc-te mq">${esc(t.name)}</small>` : ''}${l.week ? `<i class="sc-w">${l.week === 1 ? 'A' : 'B'}</i>` : ''}${tk.length ? `<b class="sc-k${tk.some(z => z.kind === 'exam') ? ' ex' : ''}" title="${tk.length} task${tk.length === 1 ? '' : 's'} for this lesson">${tk.some(z => z.kind === 'exam') ? ic('exam', 10) : ic('check', 10)}${tk.length}</b>` : ''}</button>`;
     }
   }
   return h + '</div>';
@@ -344,12 +344,12 @@ function scPeriodsDlg() {
     };
   });
 }
-function scOffDlg(old, back) {
-  const v = old || { from: ymd(U.scDate || new Date()), to: '', label: '' };
-  scForm(old ? 'Edit days off' : 'Days off', [{ k: 'label', l: 'What is it?', p: 'Half term, holiday, study leave' }, { k: 'from', l: 'First day', t: 'date' }, { k: 'to', l: 'Last day (blank = just that day)', t: 'date' }], v, s => {
+function scOffDlg(old, back, pre) {
+  const v = old || { from: (pre && pre.from) || ymd(U.scDate || new Date()), to: '', label: '' };
+  scForm(old ? 'Edit holiday' : 'Add a holiday', [{ k: 'label', l: 'What is it?', p: 'Half term, holiday, study leave' }, { k: 'from', l: 'First day', t: 'date' }, { k: 'to', l: 'Last day (blank = just that day)', t: 'date' }, { k: 'color', t: 'color' }], { color: HOL_DEF, ...v }, s => {
     if (!s.from) { toast('Choose the first day'); return false; }
     if (s.to && s.to < s.from) { toast('The last day is before the first'); return false; }
-    scPut({ id: old ? old.id : uid(), k: 'off', from: s.from, to: s.to && s.to !== s.from ? s.to : '', label: s.label }, old); if (back) back();
+    scPut({ id: old ? old.id : uid(), k: 'off', from: s.from, to: s.to && s.to !== s.from ? s.to : '', label: s.label, color: s.color || '' }, old); if (back) back();
   }, old ? () => { scRemove(old); if (back) back(); } : null);
 }
 function scSettings() {
@@ -361,15 +361,15 @@ function scSettings() {
 <label class="chkl"><input type="checkbox" id="sc-ab"${c.ab ? ' checked' : ''}> Alternate between week A and week B</label>
 <label class="chkl"><input type="checkbox" id="sc-swap"${c.swap ? ' checked' : ''}> This week is the other one (swap A and B)</label>
 <label class="chkl"><input type="checkbox" id="sc-show"${S.settings.tt.classes !== false ? ' checked' : ''}> Show lessons on the main timetable</label>
-<label>Remind me before a lesson<select id="sc-rem">${opts([[0, 'Never'], [5, '5 minutes before'], [10, '10 minutes before'], [15, '15 minutes before'], [30, '30 minutes before']], c.remind)}</select></label></div>
-<div class="lbl sc-offs">Days off${offs().length ? `<div class="sc-offl-l">${offs().map(o => `<button class="sc-offr" data-off="${o.id}"><span>${esc(o.label || 'Day off')}</span><small>${esc(offLabel(o))}</small></button>`).join('')}</div>` : '<p class="hint">Holidays and breaks: lessons are hidden on these days.</p>'}<button data-m="addoff">${ic('plus', 14)} Add days off</button></div>
+<div class="lbl">Remind me before a lesson${remHtml('sc', lessonRemMin())}</div></div>
+<div class="lbl sc-offs">Holidays${offs().length ? `<div class="sc-offl-l">${offs().map(o => `<button class="sc-offr" data-off="${o.id}"><span style="--hc:${holColor(o)}"><i class="hol-sw"></i>${esc(o.label || 'Holiday')}</span><small>${esc(offLabel(o))}</small></button>`).join('')}</div>` : '<p class="hint">Holidays and breaks: lessons are hidden on these days.</p>'}<button data-m="addoff">${ic('plus', 14)} Add a holiday</button></div>
 <div class="mrow"><button data-m="periods">${ic('clock', 15)} Lesson times…</button></div><div class="mact"><button class="pri" data-m="ok">Done</button></div>`, m => {
     const save1 = () => {
       const days = $$('[data-d]', m).filter(x => x.checked).map(x => +x.dataset.d); if (!days.length) { toast('Keep at least one day'); return false; }
-      scCfgSet({ days, ab: $('#sc-ab', m).checked, swap: $('#sc-swap', m).checked, remind: +$('#sc-rem', m).value, name: $('#sc-name', m).value.trim().slice(0, 24) });
+      scCfgSet({ days, ab: $('#sc-ab', m).checked, swap: $('#sc-swap', m).checked, remind: remRead($('[data-rem=sc]', m)), remindV: 1, name: $('#sc-name', m).value.trim().slice(0, 24) });
       S.settings.tt.classes = $('#sc-show', m).checked; save(); return true;
     };
-    m.onchange = e => { if (e.target.id === 'sc-name') return; save1(); };
+    m.onchange = e => { if (e.target.id === 'sc-name') return; if (e.target.closest && e.target.closest('[data-rem]')) remSync($('[data-rem=sc]', m)); save1(); };
     m.oninput = e => { if (e.target.id === 'sc-name') scCfgSet({ name: e.target.value.trim().slice(0, 24) }); };
     m.onclick = e => {
       const off = e.target.closest('[data-off]'); if (off) { closeModal(); scOffDlg(scGet(off.dataset.off), scSettings); return; }
@@ -467,15 +467,6 @@ async function scAddMenu(pre = {}) {
   else if (k === 'task') openTTCreate({ date: pre.date || ymd(U.scDate || new Date()) });
   else if (k === 'slot') { U.ttKind = 'slot'; openTTCreate({ date: pre.date || ymd(U.scDate || new Date()) }); }
   else scEdit(k);
-}
-// a notification shortly before each lesson starts (called with the other reminders)
-function schoolRemind() {
-  const c = scCfg(); if (!c.remind) return false; const now = Date.now(), today = new Date(), k = ymd(today); let changed = false;
-  for (const { p, l } of scDayLessons(today)) {
-    const at = new Date(`${k}T${p.start}`).getTime() - c.remind * 60000, end = new Date(`${k}T${p.end}`).getTime(), key = `s|${l.id}|${k}|${p.start}|${c.remind}`, s = scSubj(l.subjectId);
-    if (now >= at && now < end && !S.fired[key]) { S.fired[key] = 1; changed = true; notify((s ? s.name : 'Lesson') + ' starts soon', `${fmtRange(p.start, p.end)}${scRoom(l, s) ? ' · ' + scRoom(l, s) : ''}`); sfx('chime'); }
-  }
-  return changed;
 }
 const SC_ACT = {
   scmode: el => { S.settings.tt.mode = el.dataset.m === 'school' ? 'school' : 'plan'; if (S.settings.tt.mode === 'school') U.scDate = U.ttDate || U.scDate || new Date(); save(); fx('#main > *:not(.top)', 'fade'); render(); },

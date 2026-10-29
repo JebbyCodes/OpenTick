@@ -1,0 +1,7 @@
+• Several reminders per task, any time before or at an exact time
+• Background alarms that survive a restart; persistent timetable notification
+• Repeats can end on a date and have exceptions
+• Holidays in calendar and timetable; room and teacher always shown
+• Timetable widget shows times, room, teacher and next days
+• New Templates page with {{variables}}
+• Tabbed settings, Accessibility section, in-app privacy policy

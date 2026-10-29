@@ -64,4 +64,21 @@ for (const [f, t] of Object.entries(kt)) { const code = t.replace(/"(\\.|[^"\\])
 const wj = rd('src/js/widget.js');
 for (const m of allKt.matchAll(/\bdata\?\.opt(?:JSONArray|JSONObject)\("(\w+)"\)/g)) if (m[1] !== 'theme') assert.match(wj, new RegExp('\\b' + m[1] + ': '), 'the snapshot has "' + m[1] + '"');
 for (const op of ['nav', 'page', 'note', 'newnote', 'focus', 'habit']) assert.match(wj, new RegExp("'" + op + "'"), 'the app acts on widget op ' + op);
+// the background service: Kotlin parts, manifest entries, and the keys the page writes are the keys Kotlin reads
+{
+  const bg = kt['OpenTickBg.kt'], bj = rd('src/js/bg.js'), bm = rd(wdir + 'manifest-bg.xml'), bp = rd(wdir + 'manifest-bg-permissions.xml');
+  for (const cls of ['OpenTickBgReceiver', 'OpenTickTimetableService']) { assert.match(bg, new RegExp('class ' + cls + '\\b'), cls); assert.match(bm, new RegExp('__PACKAGE__\\.' + cls), cls + ' is in the manifest'); }
+  for (const perm of ['POST_NOTIFICATIONS', 'RECEIVE_BOOT_COMPLETED', 'FOREGROUND_SERVICE', 'FOREGROUND_SERVICE_SPECIAL_USE', 'SCHEDULE_EXACT_ALARM', 'USE_EXACT_ALARM']) assert.match(bp, new RegExp('android\\.permission\\.' + perm + '"'), perm);
+  assert.match(bm, /BOOT_COMPLETED/); assert.match(bm, /foregroundServiceType="specialUse"/);
+  for (const [, k] of bg.matchAll(/optString\("(\w+)"\)|optLong\("(\w+)"\)/g)) void k;
+  const planKeys = bj.slice(bj.indexOf('function bgPlan'), bj.indexOf('/* ---- pushing it'));
+  for (const k of ['rem', 'tl', 'cfg']) assert.ok(planKeys.includes(k), 'the plan has ' + k);
+  assert.match(bj, /BG_FILE = 'opentick-bg\.json'/); assert.match(bg, /PLAN = "opentick-bg\.json"/); assert.match(bj, /BG_FIRED = 'opentick-bg-fired\.json'/); assert.match(bg, /FIRED = "opentick-bg-fired\.json"/);
+  for (const f of ['as', 'bs', 'tm', 'n', 'r', 'te', 'k', 't0']) assert.match(bj, new RegExp('\\b' + f + '\\s*[:,}]'), 'the timeline writes "' + f + '"');
+  for (const f of ['at', 'exp', 'k', 't', 'b']) assert.match(bj, new RegExp('\\b' + f + '\\s*[:,}]'), 'a reminder carries "' + f + '"');
+  assert.equal((bg.match(/\{/g) || []).length, (bg.match(/\}/g) || []).length, 'OpenTickBg.kt braces balance');
+  const rs = rd('src-tauri/src/bg.rs'); assert.equal((rs.match(/\{/g) || []).length, (rs.match(/\}/g) || []).length, 'bg.rs braces balance');
+  assert.match(rd('src-tauri/src/lib.rs'), /bg_set, bg::bg_take_fired/); assert.match(bj, /invoke\('bg_set'/); assert.match(bj, /invoke\('bg_take_fired'/);
+  assert.match(rd('src-tauri/Cargo.toml'), /"tray-icon"/); assert.match(rd('src-tauri/Cargo.toml'), /serde_json/);
+}
 console.log('android resource tests passed');

@@ -18,10 +18,10 @@ app.S.settings.ui.detail = true;
 const c = UIC.side; assert.equal(app.uiSetWidth(c, 50), 220); assert.equal(app.uiSetWidth(c, 5000) <= 520, true);
 
 /* sidebar views: order + hide, but the page you are on never disappears */
-eq(pagesShown().map(p => p[0]), ['home', 'tasks', 'notes', 'calendar', 'timetable', 'gantt', 'matrix', 'habits', 'focus']);
+eq(pagesShown().map(p => p[0]), ['home', 'tasks', 'notes', 'calendar', 'timetable', 'gantt', 'matrix', 'habits', 'focus', 'templates']);
 uiMovePage('gantt', -1); eq(pagesShown().map(p => p[0]).slice(0, 6), ['home', 'tasks', 'notes', 'calendar', 'gantt', 'timetable']);
 app.S.settings.ui.hidePages = ['habits', 'gantt']; U.page = 'gantt';
-eq(pagesShown().map(p => p[0]), ['home', 'tasks', 'notes', 'calendar', 'gantt', 'timetable', 'matrix', 'focus'], 'current page stays; habits hidden');
+eq(pagesShown().map(p => p[0]), ['home', 'tasks', 'notes', 'calendar', 'gantt', 'timetable', 'matrix', 'focus', 'templates'], 'current page stays; habits hidden');
 U.page = 'tasks'; assert.equal(pagesShown().some(p => p[0] === 'gantt'), false);
 
 /* dropping a task on the sidebar */

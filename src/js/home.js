@@ -4,7 +4,7 @@ const homeGreeting = () => { const h = new Date().getHours(); return h < 5 ? 'St
 function homeStats(tasks) {
   const open = tasks.filter(t => t.status === 'open'), done = tasks.length - open.length - tasks.filter(t => t.status === 'wontdo').length;
   const live = tasks.filter(t => t.status !== 'wontdo'), pct = live.length ? Math.round(done / live.length * 100) : 0;
-  const late = open.filter(isOverdue).length, next = open.filter(t => t.due).sort((a, b) => (a.due + (a.time || '')).localeCompare(b.due + (b.time || '')))[0] || open[0] || null;
+  const late = open.filter(isOverdue).length, next = open.filter(t => t.due).sort((a, b) => (a.due + (tmEff(a) || '')).localeCompare(b.due + (tmEff(b) || '')))[0] || open[0] || null;
   return { open: open.length, done, late, pct, next, total: live.length };
 }
 function homeProjectCard(p) {
@@ -26,7 +26,7 @@ function renderHome() {
   const dueToday = open.filter(t => t.due === td).length, late = open.filter(isOverdue).length;
   const inProj = new Set(S.projects.flatMap(p => projectListIds(p)));
   const loose = S.lists.filter(l => l.id !== 'inbox' && !inProj.has(l.id) && !l.parent);
-  const focus = open.filter(t => t.due && t.due <= td).sort((a, b) => (a.due + (a.time || '')).localeCompare(b.due + (b.time || '')) || b.priority - a.priority).slice(0, 6);
+  const focus = open.filter(t => t.due && t.due <= td).sort((a, b) => (a.due + (tmEff(a) || '')).localeCompare(b.due + (tmEff(b) || '')) || b.priority - a.priority).slice(0, 6);
   const tools = `<button class="btn" data-act="addlist">${ic('plus', 15)}<span class="hide-m"> List</span></button><button class="btn pri" data-act="addproject">${ic('plus', 15)}<span class="hide-m"> Project</span></button>`;
   const stat = (n, label, ico, cls = '') => `<button type="button" class="hstat ${cls}" data-act="nav" data-nav="${label === 'Overdue' || label === 'Due today' ? 'today' : 'all'}">${ic(ico, 18)}<b>${n}</b><span>${label}</span></button>`;
   $('#main').innerHTML = topHtml('Projects', tools)
@@ -41,7 +41,7 @@ function renderHome() {
 document.addEventListener('keydown', e => { const c = e.target && e.target.classList && e.target.classList.contains('pcard') ? e.target : null; if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); c.click(); } });
 
 /* ---------- the screen OpenTick opens on ---------- */
-const HOME_SCREENS = [['tasks:today', 'Today'], ['home', 'Projects (home screen)'], ['tasks:inbox', 'Inbox'], ['tasks:tomorrow', 'Tomorrow'], ['tasks:week', 'Next 7 Days'], ['tasks:all', 'All tasks'], ['notes', 'Notes'], ['calendar', 'Calendar'], ['timetable', 'Timetable'], ['gantt', 'Gantt'], ['matrix', 'Matrix'], ['habits', 'Habit'], ['focus', 'Focus']];
+const HOME_SCREENS = [['tasks:today', 'Today'], ['home', 'Projects (home screen)'], ['tasks:inbox', 'Inbox'], ['tasks:tomorrow', 'Tomorrow'], ['tasks:week', 'Next 7 Days'], ['tasks:all', 'All tasks'], ['notes', 'Notes'], ['templates', 'Templates'], ['calendar', 'Calendar'], ['timetable', 'Timetable'], ['gantt', 'Gantt'], ['matrix', 'Matrix'], ['habits', 'Habit'], ['focus', 'Focus']];
 function homeValid(v) {
   if (typeof v !== 'string') return false;
   if (HOME_SCREENS.some(x => x[0] === v)) return true;

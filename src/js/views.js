@@ -107,7 +107,7 @@ const LIST_ICONS = ['list', 'inbox', 'sun', 'calendar', 'star', 'flag', 'heart',
 const listIcon = (o, n = 18) => { const i = o && o.icon; return i && IC[i] ? ic(i, n) : i ? `<span class="emo" style="font-size:${Math.round(n * 0.9)}px">${esc(i)}</span>` : ic(o && o.listIds ? 'layers' : 'list', n); };
 const U = { projList: {}, tagSel: [], tagMode: 'all', hist: { acts: [], kinds: [], q: '', sort: 'new', shown: 150 },  page: 'tasks', nav: 'today', q: '', sel: null, calD: new Date(), fx: [], showDone: {}, drag: null, _rn: null, ttDate: null, ttTray: null, ttV: null };
 const SMART = [['inbox', 'Inbox', 'inbox'], ['today', 'Today', 'sun'], ['tomorrow', 'Tomorrow', 'sunrise'], ['week', 'Next 7 Days', 'calendar'], ['all', 'All', 'layers']];
-const PAGES = [['home', 'Projects', 'dashboard'], ['tasks', 'Tasks', 'check-circle'], ['notes', 'Notes', 'notes'], ['calendar', 'Calendar', 'calendar'], ['timetable', 'Timetable', 'table'], ['gantt', 'Gantt', 'gantt'], ['matrix', 'Matrix', 'grid'], ['habits', 'Habit', 'activity'], ['focus', 'Focus', 'clock']];
+const PAGES = [['home', 'Projects', 'dashboard'], ['tasks', 'Tasks', 'check-circle'], ['notes', 'Notes', 'notes'], ['calendar', 'Calendar', 'calendar'], ['timetable', 'Timetable', 'table'], ['gantt', 'Gantt', 'gantt'], ['matrix', 'Matrix', 'grid'], ['habits', 'Habit', 'activity'], ['focus', 'Focus', 'clock'], ['templates', 'Templates', 'copy']];
 const FLAT = ['done', 'trash', 'wontdo', 'search'];
 // inline markdown in titles, never as links (rows are click targets)
 const FULLDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -189,7 +189,7 @@ function scopeTasks(nav) {
   return r;
 }
 const openCount = nav => scopeTasks(nav).filter(t => t.status === 'open').length;
-const allTags = () => [...new Set(S.tasks.filter(t => !t.deleted).flatMap(t => t.tags))].sort();
+const allTags = () => [...new Set([...S.tasks.filter(t => !t.deleted).flatMap(t => t.tags), ...(S.templates || []).flatMap(t => t.tags)])].sort();
 function navTitle(nav) {
   const s = SMART.find(x => x[0] === nav);
   if (s) return s[1];
@@ -202,7 +202,7 @@ function navTitle(nav) {
   if (nav.startsWith('tag:')) return '#' + nav.slice(4);
   return 'Tasks';
 }
-const dueKey = t => (t.due ? t.due + ' ' + (t.time || '00:00') : '9999');
+const dueKey = t => (t.due ? t.due + ' ' + (tmEff(t) || '00:00') : '9999');
 // Each sort has a natural direction (what it did before directions existed); the arrow button next to the sort menu flips it.
 const SORT_DIR = { manual: 'asc', due: 'asc', priority: 'desc', title: 'asc', created: 'desc', tags: 'asc' };
 const sortDir = () => S.settings.sortDir || SORT_DIR[S.settings.sort] || 'asc';
@@ -264,7 +264,7 @@ function renderTabbar() {
   el.innerHTML = items.map(([k, n, i]) => `<button class="${U.page === k ? 'on' : ''}" data-act="page" data-page="${k}">${ic(i, 22)}<small>${n}</small></button>`).join('') + `<button data-act="burger">${ic('menu', 22)}<small>More</small></button>`;
 }
 function renderTimetable() { schoolOn() ? renderSchool() : renderTimetablePlan(); }
-function renderMain() { if (typeof WIDGET !== 'undefined' && WIDGET) return renderWidget(); ({ home: renderHome, tasks: renderTasks, notes: renderNotes, calendar: renderCal, timetable: renderTimetable, gantt: renderGantt, matrix: renderMatrix, habits: renderHabits, help: renderHelp, focus: renderFocus, history: renderHistory })[U.page](); fxFlush(); if (typeof batchPaint === 'function') batchPaint(); }
+function renderMain() { if (typeof WIDGET !== 'undefined' && WIDGET) return renderWidget(); ({ home: renderHome, tasks: renderTasks, notes: renderNotes, templates: renderTemplates, calendar: renderCal, timetable: renderTimetable, gantt: renderGantt, matrix: renderMatrix, habits: renderHabits, help: renderHelp, focus: renderFocus, history: renderHistory })[U.page](); fxFlush(); if (typeof batchPaint === 'function') batchPaint(); }
 
 function renderSide() {
   const q = $('#q'), keep = q ? q.value : '';
@@ -323,7 +323,7 @@ function rowHtml(t, showList) {
   const l = listOf(t.listId), done = t.subtasks.filter(s => s.done).length, fin = t.status !== 'open';
   return `<div class="task${fin ? ' fin' : ''}${U.sel === t.id ? ' sel' : ''}${U.bsel && U.bsel.has(t.id) ? ' picked' : ''}${editedCls(t.id)}" data-act="open" data-id="${t.id}"${U.page === 'matrix' ? ' tabindex="0" role="button"' : canDrag() ? ' draggable="true"' : ''}>
 <button class="chk p${t.priority}${t.status === 'done' ? ' on' : ''}" data-act="toggle" data-id="${t.id}" aria-label="Complete task">${t.status === 'done' ? ic('check', 13) : t.status === 'wontdo' ? ic('slash', 13) : ''}</button>
-<div class="tb"><div class="ttl">${taskIcon(t)}${titleHtml(t)}</div><div class="meta">${t.due ? `<span class="due${isOverdue(t) ? ' late' : ''}">${esc(dueLabel(t))}</span>` : ''}${t.repeat ? ic('repeat', 12) : ''}${metaX(t)}${t.reminder != null ? ic('bell', 12) : ''}${noteBadge(t)}${t.subtasks.length ? `<span>${ic('list', 12)} ${done}/${t.subtasks.length}</span>` : ''}${t.tags.map(tagChip).join('')}</div></div>
+<div class="tb"><div class="ttl">${taskIcon(t)}${titleHtml(t)}</div><div class="meta">${t.due ? `<span class="due${isOverdue(t) ? ' late' : ''}">${esc(dueLabel(t))}</span>` : ''}${t.repeat ? ic('repeat', 12) : ''}${metaX(t)}${remsOf(t).length ? ic('bell', 12) : ''}${noteBadge(t)}${t.subtasks.length ? `<span>${ic('list', 12)} ${done}/${t.subtasks.length}</span>` : ''}${t.tags.map(tagChip).join('')}</div></div>
 ${showList ? `<span class="ln" title="${esc(listLabel(l.id))}"><i style="background:${l.color}"></i>${esc(l.name)}</span>` : ''}</div>`;
 }
 function cardHtml(t) {
@@ -392,7 +392,7 @@ function renderTasks() {
   const pl = proj ? projectListIds(proj) : [], pTarget = proj ? (pl.includes(U.projList[proj.id]) ? U.projList[proj.id] : (proj.listIds || []).find(id => S.lists.some(l => l.id === id))) : null;
   const tgt = isList ? list.name : proj && pTarget ? listLabel(pTarget) : 'Inbox';
   $('#main').innerHTML = (!U.q && isList ? bannerHtml('list', list) : !U.q && proj ? bannerHtml('project', proj) : '') + topHtml(U.q ? `Search “${esc(U.q)}”` : (eff.startsWith('tag:') && tagColor(eff.slice(4)) ? `<span style="color:${tagColor(eff.slice(4))}">${esc(navTitle(eff))}</span>` : esc(navTitle(eff))), tools)
-    + (proj ? projHead(proj, all) : '') + tagBar(eff)
+    + (proj ? projHead(proj, all) : '') + tagBar(eff) + tplStripHtml(eff)
     + (proj && !pTarget ? `<div class="quick"><p class="hint">Link at least one list to this project to add tasks here. <button class="btn sm" data-act="projmenu" data-pid="${esc(proj.id)}">Choose lists</button></p></div>` : flat || kan ? '' : `<div class="quick${proj ? ' withsel' : ''}">${proj && pl.length > 1 ? `<select data-sel="projlist" data-pid="${esc(proj.id)}" title="Add new tasks to…">${opts(pl.map(id => [id, listLabel(id)]), pTarget)}</select>` : ''}<input id="add" autocomplete="off" placeholder="+ Add task to “${esc(tgt)}” — try “Pay rent every month !high #bills”"></div>`)
     + `<div class="body${kan ? ' kb' : ''}">${body}</div>`;
   if (draft && $('#add')) $('#add').value = draft;
@@ -400,7 +400,7 @@ function renderTasks() {
 
 /* ---------- history page ---------- */
 const HIST_ICON = { add: 'plus', edit: 'notes', done: 'check-circle', reopen: 'refresh', wontdo: 'slash', delete: 'trash', restore: 'upload', purge: 'x', import: 'download' };
-const HIST_KIND_NAME = { task: 'Task', list: 'List', project: 'Project', habit: 'Habit', note: 'Note', slot: 'Slot', app: '' };
+const HIST_KIND_NAME = { task: 'Task', list: 'List', project: 'Project', habit: 'Habit', note: 'Note', template: 'Template', slot: 'Slot', app: '' };
 const HIST_FIELD = { title: 'Title', due: 'Due date', time: 'Time', dur: 'Duration', priority: 'Priority', tags: 'Tags', listId: 'List', section: 'Section', repeat: 'Repeat', reminder: 'Reminder', notes: 'Notes', subtasks: 'Subtasks', start: 'Plan start', astart: 'Actual start', slotId: 'Timetable slot', name: 'Name', color: 'Colour', icon: 'Icon', goal: 'Goal', sections: 'Sections', view: 'View', days: 'Days', end: 'End', loc: 'Location', body: 'Text', pinned: 'Pin', projectId: 'Project', banner: 'Banner' };
 function histVal(k, v) {
   if (v == null || v === '') return 'none';
@@ -455,7 +455,7 @@ function histListHtml() {
 function renderHistory() {
   const h = U.hist, base = histFiltered(), cnt = a => base.filter(e => e.a === a).length;
   const acts = Object.keys(HIST_ACT).filter(a => S.history.some(e => e.a === a));
-  const kinds = ['task', 'list', 'project', 'habit', 'note', 'slot'].filter(k => S.history.some(e => e.k === k));
+  const kinds = ['task', 'list', 'project', 'habit', 'note', 'template', 'slot'].filter(k => S.history.some(e => e.k === k));
   $('#main').innerHTML = topHtml('History', `<select data-hsel="sort" title="Order">${opts([['new', 'Newest first'], ['old', 'Oldest first'], ['action', 'By action'], ['name', 'By name']], h.sort)}</select>${S.history.length ? `<button class="btn" data-act="hclear">Clear</button>` : ''}`)
     + `<div class="hfilters"><div class="search hs">${ic('search', 16)}<input id="hq" placeholder="Search the history" autocomplete="off" value="${esc(h.q)}"></div><div class="hchips">${acts.map(a => `<button class="tfc hc a-${a}${h.acts.includes(a) ? ' on' : ''}" data-act="hact" data-a="${a}" aria-pressed="${h.acts.includes(a)}">${HIST_ACT[a]}<small>${cnt(a)}</small></button>`).join('')}${kinds.length > 1 ? '<span class="hsep"></span>' + kinds.map(k => `<button class="tfc${h.kinds.includes(k) ? ' on' : ''}" data-act="hkind" data-k="${k}" aria-pressed="${h.kinds.includes(k)}">${HIST_KIND_NAME[k]}s</button>`).join('') : ''}${h.acts.length || h.kinds.length || h.q ? '<button class="btn sm" data-act="hreset">Reset</button>' : ''}</div></div>`
     + `<div class="body hist" id="hlist">${histListHtml()}</div><p class="hint pad">Kept on this device only (last ${HIST_MAX}). Quick edits to one item are combined.</p>`;
@@ -479,7 +479,8 @@ function repeatDates(t, from, to) {
   for (let i = 0; i < 2500; i++) {
     const nx = nextDue({ repeat: r, due: cur });
     if (!(nx > cur) || nx > to) break; // a rule that does not move forward would loop for ever
-    cur = nx; if (cur >= from) out.push(cur);
+    if (t.until && nx > t.until) break;
+    cur = nx; if (cur >= from && !(excOf(t, cur) || {}).skip) out.push(cur);
   }
   return out;
 }
@@ -491,18 +492,18 @@ function calItems(from, to) {
     if (t.due && t.due >= from && t.due <= to) add(t.due, { t });
     for (const k of repeatDates(t, from, to)) add(k, { t, virt: true, d: k });
   }
-  for (const k of Object.keys(by)) by[k].sort((a, b) => (a.t.time || '').localeCompare(b.t.time || '') || b.t.priority - a.t.priority || (a.virt ? 1 : 0) - (b.virt ? 1 : 0));
+  for (const k of Object.keys(by)) by[k].sort((a, b) => (tmEff(a.t, a.d) || '').localeCompare(tmEff(b.t, b.d) || '') || b.t.priority - a.t.priority || (a.virt ? 1 : 0) - (b.virt ? 1 : 0));
   return by;
 }
 const calDayLabel = k => { const d = pYmd(k), f = fmtDate(k); return ['Today', 'Tomorrow', 'Yesterday'].includes(f) ? `${f} · ${DAYS[d.getDay()]} ${d.getDate()}` : `${FULLDAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)}`; };
 const calChip = it => {
   const t = it.t, rep = it.virt || t.repeat;
-  return `<div class="chip p${t.priority}${t.status !== 'open' ? ' fin' : ''}${it.virt ? ' virt' : ''}${U.sel === t.id ? ' sel' : ''}" data-act="open" data-id="${t.id}"${it.virt ? ` title="Repeats ${esc(repeatLabel(t.repeat).toLowerCase())}: ${esc(fmtDate(it.d))}"` : ''}>${validHM(t.time) ? `<small>${fmtTime(t.time)}</small> ` : ''}${rep && !t.status.startsWith('w') ? ic('repeat', 10) + ' ' : ''}${mdInline(t.title, true)}</div>`;
+  return `<div class="chip p${t.priority}${t.status !== 'open' ? ' fin' : ''}${it.virt ? ' virt' : ''}${U.sel === t.id ? ' sel' : ''}" data-act="open" data-id="${t.id}"${it.virt ? ` title="Repeats ${esc(repeatLabel(t.repeat).toLowerCase())}: ${esc(fmtDate(it.d))}"` : ''}>${validHM(tmEff(t, it.d)) ? `<small>${fmtTime(tmEff(t, it.d))}</small> ` : ''}${rep && !t.status.startsWith('w') ? ic('repeat', 10) + ' ' : ''}${mdInline(t.title, true)}</div>`;
 };
 const calRow = (it, showList = true) => {
   if (!it.virt) return rowHtml(it.t, showList);
   const t = it.t;
-  return `<div class="task virt" data-act="open" data-id="${t.id}" title="A later repeat of this task"><span class="vic">${ic('repeat', 13)}</span><div class="tb"><div class="ttl">${titleHtml(t)}</div><div class="meta"><span>${esc(repeatLabel(t.repeat))}</span>${t.time ? `<span>${t.time}</span>` : ''}${t.tags.map(tagChip).join('')}</div></div>${showList ? `<span class="ln"><i style="background:${listOf(t.listId).color}"></i>${esc(listOf(t.listId).name)}</span>` : ''}</div>`;
+  return `<div class="task virt" data-act="open" data-id="${t.id}" title="A later repeat of this task"><span class="vic">${ic('repeat', 13)}</span><div class="tb"><div class="ttl">${titleHtml(t)}</div><div class="meta"><span>${esc(repeatLabel(t.repeat))}</span>${tmEff(t, it.d) ? `<span>${tmEff(t, it.d)}</span>` : ''}${t.tags.map(tagChip).join('')}</div></div>${showList ? `<span class="ln"><i style="background:${listOf(t.listId).color}"></i>${esc(listOf(t.listId).name)}</span>` : ''}</div>`;
 };
 function renderCal() {
   const view = calView(), d0 = new Date(U.calD.getFullYear(), U.calD.getMonth(), U.calD.getDate()), ws = +S.settings.weekStart, td = todayStr();
@@ -513,28 +514,28 @@ function renderCal() {
     const by = calItems(ymd(start), ymd(addDays(start, 41)));
     const head = Array.from({ length: 7 }, (_, i) => `<div class="dow">${DAYS[(ws + i) % 7]}</div>`).join('');
     const cells = Array.from({ length: 42 }, (_, i) => addDays(start, i)).map(d => {
-      const k = ymd(d), ts = by[k] || [];
-      return `<div class="day${d.getMonth() !== mo ? ' out' : ''}${k === td ? ' today' : ''}" data-act="calday" data-d="${k}"><span class="dn">${d.getDate()}</span>${ts.slice(0, 3).map(calChip).join('')}${ts.length > 3 ? `<div class="more" data-act="calgo" data-d="${k}">+${ts.length - 3} more</div>` : ''}</div>`;
+      const k = ymd(d), ts = by[k] || [], ho = holOn(d);
+      return `<div class="day${d.getMonth() !== mo ? ' out' : ''}${k === td ? ' today' : ''}${ho ? ' hol' : ''}" data-act="calday" data-d="${k}"${ho ? ` style="--hc:${holColor(ho)}"` : ''}><span class="dn">${d.getDate()}</span>${ho ? `<span class="holl mq" title="${esc(holName(ho))}">${esc(holName(ho))}</span>` : ''}${ts.slice(0, 3).map(calChip).join('')}${ts.length > 3 ? `<div class="more" data-act="calgo" data-d="${k}">+${ts.length - 3} more</div>` : ''}</div>`;
     }).join('');
     title = `${MONTHS[mo]} ${y}`;
     body = `<div class="cal"><div class="dows">${head}</div><div class="cgrid">${cells}</div></div>`;
   } else if (view === 'week') {
     const days = Array.from({ length: 7 }, (_, i) => addDays(wkStart(d0), i)), by = calItems(ymd(days[0]), ymd(days[6]));
     title = ttRange(days);
-    body = `<div class="cal-week"><div class="wk-in"><div class="wk-head">${days.map(d => `<button class="wk-dh${ymd(d) === td ? ' today' : ''}" data-act="calgo" data-d="${ymd(d)}" title="Open this day"><small>${DAYS[d.getDay()]}</small><b>${d.getDate()}</b></button>`).join('')}</div><div class="wk-cols">${days.map(d => { const k = ymd(d); return `<div class="wk-col${k === td ? ' today' : ''}" data-act="calday" data-d="${k}">${(by[k] || []).map(calChip).join('')}</div>`; }).join('')}</div></div></div>`;
+    body = `<div class="cal-week"><div class="wk-in"><div class="wk-head">${days.map(d => `<button class="wk-dh${ymd(d) === td ? ' today' : ''}" data-act="calgo" data-d="${ymd(d)}" title="Open this day"><small>${DAYS[d.getDay()]}</small><b>${d.getDate()}</b></button>`).join('')}</div><div class="wk-cols">${days.map(d => { const k = ymd(d), ho = holOn(d); return `<div class="wk-col${k === td ? ' today' : ''}${ho ? ' hol' : ''}" data-act="calday" data-d="${k}"${ho ? ` style="--hc:${holColor(ho)}"` : ''}>${ho ? holBand(ho) : ''}${(by[k] || []).map(calChip).join('')}</div>`; }).join('')}</div></div></div>`;
   } else if (view === 'day') {
     const k = ymd(d0), ts = calItems(k, k)[k] || [];
     title = ttRange([d0]);
-    body = `<div class="quick"><input class="caladd" data-d="${k}" autocomplete="off" placeholder="+ Add task on ${esc(fmtDate(k))} — try “Dentist 3pm !high”"></div><div class="body">${ts.length ? ts.map(it => calRow(it)).join('') : `<div class="empty">${ic('calendar', 44)}<p>Nothing planned for ${esc(fmtDate(k).toLowerCase())}</p></div>`}</div>`;
+    body = (holOn(d0) ? holBand(holOn(d0), 'big') : '') + `<div class="quick"><input class="caladd" data-d="${k}" autocomplete="off" placeholder="+ Add task on ${esc(fmtDate(k))} — try “Dentist 3pm !high”"></div><div class="body">${ts.length ? ts.map(it => calRow(it)).join('') : `<div class="empty">${ic('calendar', 44)}<p>Nothing planned for ${esc(fmtDate(k).toLowerCase())}</p></div>`}</div>`;
   } else {
     const from = ymd(d0), to = ymd(addDays(d0, 29)), by = calItems(from, to), late = from <= td ? S.tasks.filter(t => !t.deleted && t.status === 'open' && t.due && t.due < td && t.due < to) : [];
     const days = Object.keys(by).sort(), n = days.length + (late.length ? 1 : 0);
     const e0 = addDays(d0, 29), dm = x => `${x.getDate()} ${MONTHS[x.getMonth()].slice(0, 3)}`;
     title = `Agenda · ${dm(d0)} – ${dm(e0)}`;
-    body = `<div class="body agenda">${late.length ? `<div class="grp late">Overdue<span>${late.length}</span></div>` + late.sort((a, b) => dueKey(a).localeCompare(dueKey(b))).map(t => rowHtml(t, true)).join('') : ''}${days.map(k => `<div class="grp${k === td ? ' today' : ''}" data-act="calgo" data-d="${k}">${esc(calDayLabel(k))}<span>${by[k].length}</span></div>` + by[k].map(it => calRow(it)).join('')).join('')}${n ? '' : `<div class="empty">${ic('calendar', 44)}<p>Nothing planned in the next 30 days</p></div>`}</div>`;
+    body = `<div class="body agenda">${holIn(from, to).map(o => holBand(o, 'big') ).join('')}${late.length ? `<div class="grp late">Overdue<span>${late.length}</span></div>` + late.sort((a, b) => dueKey(a).localeCompare(dueKey(b))).map(t => rowHtml(t, true)).join('') : ''}${days.map(k => `<div class="grp${k === td ? ' today' : ''}" data-act="calgo" data-d="${k}">${esc(calDayLabel(k))}<span>${by[k].length}</span></div>` + by[k].map(it => calRow(it)).join('')).join('')}${n ? '' : `<div class="empty">${ic('calendar', 44)}<p>Nothing planned in the next 30 days</p></div>`}</div>`;
   }
   const seg = `<div class="seg cal-seg">${CAL_VIEWS.map(([v, n]) => `<button class="${view === v ? 'on' : ''}" data-act="calview" data-v="${v}">${n}</button>`).join('')}</div>`;
-  $('#main').innerHTML = topHtml(esc(title), `<button class="ib" data-act="calprev" title="Previous" aria-label="Previous">${ic('left')}</button><button class="btn" data-act="caltoday">Today</button><button class="ib" data-act="calnext" title="Next" aria-label="Next">${ic('right')}</button>${seg}`) + body;
+  $('#main').innerHTML = topHtml(esc(title), `<button class="ib" data-act="calprev" title="Previous" aria-label="Previous">${ic('left')}</button><button class="btn" data-act="caltoday">Today</button><button class="ib" data-act="calnext" title="Next" aria-label="Next">${ic('right')}</button>${seg}<button class="ib" data-act="holidays" title="Holidays" aria-label="Holidays">${ic('sun')}</button>`) + body;
 }
 
 /* ---------- eisenhower matrix ----------
@@ -635,14 +636,17 @@ function fitTa(ta) {
 function classRows(t) {
   const subjects = typeof scOf === 'function' ? scOf('subject') : [], use = subjects.length || t.subjectId || t.lessonId;
   const kindIc = t.kind === 'exam' ? 'exam' : t.kind === 'homework' ? 'homework' : 'graduation';
-  let h = `<div class="dr"><span>${ic(kindIc, 16)}</span><select data-f="kind" title="Task, homework or exam">${opts([['', 'Task'], ['homework', 'Homework'], ['exam', 'Exam']], t.kind || '')}</select>${use ? `<select data-f="subject" title="Class">${opts(scSubjOpts(), t.subjectId && scSubj(t.subjectId) ? t.subjectId : '')}</select>` : ''}</div>`;
+  // collapsed unless the person opened it for this task, or chose "open school options" in Settings; what they last did to it sticks while the task stays open
+  const sch = (U.schOpen || {})[t.id], open = sch != null ? sch : !!S.settings.ui.schoolOpen, sj0 = t.subjectId && scSubj(t.subjectId);
+  const sum = [t.kind === 'exam' ? 'Exam' : t.kind === 'homework' ? 'Homework' : '', sj0 ? sj0.name : '', t.room || ''].filter(Boolean).join(' · ');
+  let h = `<details class="dr-more sch" data-sch="${esc(t.id)}"${open ? ' open' : ''}><summary>${ic(kindIc, 16)}<span>School</span><small>${esc(sum || 'Class, homework, exam')}</small></summary><div class="dr"><span>${ic(kindIc, 16)}</span><select data-f="kind" title="Task, homework or exam">${opts([['', 'Task'], ['homework', 'Homework'], ['exam', 'Exam']], t.kind || '')}</select>${use ? `<select data-f="subject" title="Class">${opts(scSubjOpts(), t.subjectId && scSubj(t.subjectId) ? t.subjectId : '')}</select>` : ''}</div>`;
   if (use) {
     const ch = scLessonChoices(t), cur = t.lessonId && t.due ? t.lessonId + '|' + t.due : '';
     if (cur && !ch.some(c => c[0] === cur) && scGet(t.lessonId)) ch.unshift([cur, 'Tied to a lesson on another day']);
     h += `<div class="dr"><span>${ic('table', 16)}</span><select data-f="lesson" title="The lesson this belongs to: it is drawn inside that lesson on the timetable">${opts([['', 'Not tied to a lesson'], ...ch], cur && ch.some(c => c[0] === cur) ? cur : '')}</select>${t.subjectId && scSubj(t.subjectId) ? `<button class="btn sm" data-act="nextlesson" title="Due at the next lesson of this class">Next lesson</button>` : ''}</div>`;
   }
   if (t.kind === 'exam' || t.room) h += `<div class="dr"><span>${ic('pin', 16)}</span><input data-f="room" value="${esc(t.room || '')}" placeholder="Room or place" autocomplete="off"></div>`;
-  return h;
+  return h + '</details>';
 }
 function renderDetail() {
   const t = getT(U.sel), el = $('#detail');
@@ -662,8 +666,9 @@ function renderDetail() {
 <div class="dr top"><span>${ic('clock', 16)}</span>${durHtml('task', t.dur)}</div>${slots.length ? `<div class="dr"><span>${ic('table', 16)}</span><select data-f="slot" title="Timetable slot">${opts([['', 'No timetable slot'], ...slots.map(x => [x.id, `${x.title} · ${x.days.map(d => DAYS[d]).join('/')} ${fmtTime(x.start)}`])], t.slotId && slotById(t.slotId) ? t.slotId : '')}</select></div>` : ''}
 ${classRows(t)}<div class="dr"><span>${ic('flag', 16)}</span><div class="pri">${[3, 2, 1, 0].map(p => `<button class="pf p${p}${t.priority === p ? ' on' : ''}" data-act="prio" data-p="${p}">${PRIO[p]}</button>`).join('')}</div></div>
 <div class="dr"><span>${ic('list', 16)}</span><select data-f="list">${opts(listOpts(), t.listId)}</select>${secs.length ? `<select data-f="section">${opts([['', 'Not sectioned'], ...secs.map(s => [s, s])], t.section || '')}</select>` : ''}</div>
-<div class="dr"><span>${ic('repeat', 16)}</span><select data-f="repeat">${opts([['none', 'Does not repeat'], ...Object.keys(RN).map(k => [k, RN[k]]), ...(rk === 'custom' ? [['custom', repeatLabel(t.repeat)]] : [])], rk)}</select></div>
-<div class="dr top"><span>${ic('bell', 16)}</span>${remHtml('task', t.reminder, U.remCustom === t.id)}</div>
+<div class="dr"><span>${ic('repeat', 16)}</span><select data-f="repeat">${opts([['none', 'Does not repeat'], ...Object.keys(RN).map(k => [k, RN[k]]), ...(rk === 'custom' ? [['custom', repeatLabel(t.repeat)]] : []), ['edit', 'Custom…']], rk)}</select></div>
+${repeatMoreHtml(t)}
+<div class="dr top"><span>${ic('bell', 16)}</span>${remListHtml(t)}</div>
 <div class="dr"><span>${ic('sparkles', 16)}</span><button class="btn sm ticbtn" data-act="taskicon" title="Give this task an icon">${t.icon ? iconAny(t.icon, 16) + ' Change icon' : 'Add an icon'}</button>${t.icon ? '<button class="btn sm" data-act="taskiconx">Remove</button>' : ''}</div>
 <div class="dr"><span>${ic('tag', 16)}</span><input data-f="tags" value="${esc(t.tags.map(g => '#' + g).join(' '))}" placeholder="#tags"></div>
 ${gtDetailHtml(t)}
@@ -707,9 +712,9 @@ function ttItems(d, o = {}) {
   for (const t of S.tasks) {
     if (t.deleted || t.status === 'wontdo' || t.due !== k) continue;
     const host = (t.slotId && items.find(o => o.k === 'slot' && o.s.id === t.slotId))
-      || (cls && ((t.lessonId && items.find(o => o.k === 'lesson' && o.l.id === t.lessonId)) || (!t.time && t.subjectId && items.find(o => o.k === 'lesson' && o.l.subjectId === t.subjectId))));
+      || (cls && ((t.lessonId && items.find(o => o.k === 'lesson' && o.l.id === t.lessonId)) || (!tmEff(t) && t.subjectId && items.find(o => o.k === 'lesson' && o.l.subjectId === t.subjectId))));
     if (host) host.tasks.push(t);
-    else if (t.time) { const a = toMin(t.time); items.push({ k: 'task', t, a, b: Math.min(1440, a + (t.dur || 30)) }); }
+    else if (tmEff(t)) { const a = toMin(tmEff(t)); items.push({ k: 'task', t, a, b: Math.min(1440, a + (durEff(t) || 30)) }); }
     else allday.push(t);
   }
   return { items, allday, off };
@@ -773,20 +778,20 @@ function renderTimetablePlan() {
     const s = it.s, nm = s ? s.name : 'Lesson', room = scRoom(it.l, s), te = scTeacherOf(it.l, s), rng = fmtRange(it.a, it.b);
     return `<div class="blk lsn${it.clash ? ' clash' : ''}" style="${pos(it)};--c:${scColor(s)}" data-act="sclesson" data-lid="${it.l.id}" data-date="${ymd(d)}" data-a="${it.a}" data-b="${it.b}" title="${esc(nm)} ${rng}${room ? ' · ' + esc(room) : ''}${it.clash ? ' (overlaps another block)' : ''}" tabindex="0" role="button" aria-label="${esc(nm)}, ${rng}${room ? ', ' + esc(room) : ''}${te ? ', ' + esc(te.name) : ''}">`
       + `<div class="bt">${it.clash && it.n === 1 ? ic('alert', 12) + ' ' : ''}${s ? iconAny(s.icon || 'graduation', 13) + ' ' : ic('graduation', 13) + ' '}<span class="tt-t">${esc(nm)}</span><span class="tt-tm">${rng}</span></div>`
-      + `<div class="bm">${rng}${room ? ` · ${ic('pin', 11)} ${esc(room)}` : ''}${te ? ` · ${esc(te.name)}` : ''}</div>${it.tasks.map(taskLine).join('')}</div>`;
+      + `<div class="bm">${rng}</div>${room || te ? `<div class="lw">${room ? `<span>${ic('pin', 11)}<span class="mq">${esc(room)}</span></span>` : ''}${te ? `<span>${ic('teacher', 11)}<span class="mq">${esc(te.name)}</span></span>` : ''}</div>` : ''}${it.tasks.map(taskLine).join('')}</div>`;
   };
   const block = (it, d) => it.k === 'lesson' ? lessonBlock(it, d) : it.k === 'slot'
     ? `<div class="blk slot${it.clash ? ' clash' : ''}${editedCls(it.s.id)}" style="${pos(it)};--c:${it.s.color}" data-act="ttslot" data-sid="${it.s.id}" data-day="${d.getDay()}" data-a="${it.a}" data-b="${it.b}"${dragAttr()} title="${esc(it.s.title)} ${fmtRange(it.a, it.b)}${it.clash ? ' (overlaps another slot)' : ''}" tabindex="0" role="button" aria-label="${esc(it.s.title)}, ${fmtRange(it.a, it.b)}${it.clash ? ', overlaps another slot' : ''}"><div class="bt">${it.clash && it.n === 1 ? ic('alert', 12) + ' ' : ''}<span class="tt-t">${it.s.icon ? iconAny(it.s.icon, 13) + " " : ""}${esc(it.s.title)}</span><span class="tt-tm">${fmtRange(it.a, it.b)}</span></div><div class="bm">${fmtRange(it.a, it.b)} · ${fmtDur(it.b - it.a)}${it.s.loc ? ` · ${ic('pin', 11)} ${esc(it.s.loc)}` : ''}</div>${it.tasks.map(taskLine).join('')}<i class="rz rz-t" data-e="top" data-k="slot" data-id="${it.s.id}"></i><i class="rz" data-k="slot" data-id="${it.s.id}"></i></div>`
     : `<div class="blk tk p${it.t.priority}${it.t.status !== 'open' ? ' fin' : ''}${U.sel === it.t.id ? ' sel' : ''}${editedCls(it.t.id)}" style="${pos(it)}" data-act="open" data-id="${it.t.id}" data-a="${it.a}" data-b="${it.b}"${dragAttr()} title="${esc(it.t.title)} ${fmtRange(it.a, it.b)}" tabindex="0" role="button" aria-label="${esc(it.t.title)}, ${fmtRange(it.a, it.b)}"><div class="bt"><button class="chk sm p${it.t.priority}${it.t.status === 'done' ? ' on' : ''}" data-act="toggle" data-id="${it.t.id}" aria-label="Complete task">${it.t.status === 'done' ? ic('check', 11) : ''}</button> <span class="tt-t">${titleHtml(it.t)}</span><span class="tt-tm">${fmtRange(it.a, it.b)}</span></div><div class="bm">${fmtRange(it.a, it.b)} · ${fmtDur(it.b - it.a)}</div><i class="rz rz-t" data-e="top" data-k="task" data-id="${it.t.id}"></i><i class="rz" data-k="task" data-id="${it.t.id}"></i></div>`;
   const head = `<div class="tt-row"><div class="tt-cor"></div>${data.map(x => `<button class="tt-dh${x.k === td ? ' today' : ''}" data-act="ttday" data-d="${x.k}" title="Open this day"><small>${DAYS[x.d.getDay()]}</small><b>${x.d.getDate()}</b></button>`).join('')}</div>`;
   const adOpen = tt.adOpen !== false, adN = data.reduce((n, x) => n + x.allday.length + (x.off ? 1 : 0), 0);
-  const allday = `<div class="tt-row tt-adrow${adOpen ? '' : ' closed'}"><div class="tt-cor"><button class="adtog" data-act="ttad" aria-expanded="${adOpen}" title="${adOpen ? 'Hide' : 'Show'} all-day tasks"><span>all day</span>${adN ? `<b>${adN}</b>` : ''}${ic(adOpen ? 'up' : 'down', 12)}</button></div>${data.map(x => `<div class="tt-ad${x.off ? ' hasoff' : ''}" data-d="${x.k}">${x.off ? `<div class="chip offc" title="${esc(scName())}: day off">${ic('sun', 12)}<span class="adt">${esc(x.off.label || 'Day off')}</span></div>` : ''}${x.allday.map(t => `<div class="chip adc p${t.priority}${t.status !== 'open' ? ' fin' : ''}${U.sel === t.id ? ' sel' : ''}${editedCls(t.id)}" data-act="open" data-id="${t.id}"${dragAttr()}><button class="chk sm p${t.priority}${t.status === 'done' ? ' on' : ''}" data-act="toggle" data-id="${t.id}" aria-label="Complete task">${t.status === 'done' ? ic('check', 13) : ''}</button><span class="adt">${titleHtml(t)}</span></div>`).join('')}</div>`).join('')}</div>`;
+  const allday = `<div class="tt-row tt-adrow${adOpen ? '' : ' closed'}"><div class="tt-cor"><button class="adtog" data-act="ttad" aria-expanded="${adOpen}" title="${adOpen ? 'Hide' : 'Show'} all-day tasks"><span>all day</span>${adN ? `<b>${adN}</b>` : ''}${ic(adOpen ? 'up' : 'down', 12)}</button></div>${data.map(x => `<div class="tt-ad${x.off ? ' hasoff' : ''}" data-d="${x.k}">${x.off ? `<div class="chip offc" style="--hc:${holColor(x.off)}" title="${esc(scName())}: day off">${ic('sun', 12)}<span class="adt">${esc(holName(x.off))}</span></div>` : ''}${x.allday.map(t => `<div class="chip adc p${t.priority}${t.status !== 'open' ? ' fin' : ''}${U.sel === t.id ? ' sel' : ''}${editedCls(t.id)}" data-act="open" data-id="${t.id}"${dragAttr()}><button class="chk sm p${t.priority}${t.status === 'done' ? ' on' : ''}" data-act="toggle" data-id="${t.id}" aria-label="Complete task">${t.status === 'done' ? ic('check', 13) : ''}</button><span class="adt">${titleHtml(t)}</span></div>`).join('')}</div>`).join('')}</div>`;
   const hours = Array.from({ length: (to - from) / 60 }, (_, i) => `<span style="top:${i * TT_HH}px">${fmtHour(from / 60 + i)}</span>`).join('');
-  const cols = data.map(x => `<div class="tt-col${x.k === td ? ' today' : ''}${x.off ? ' off' : ''}" data-act="ttcell" data-d="${x.k}" data-from="${from}">${x.items.map(it => block(it, x.d)).join('')}${x.k === td && nowM >= from && nowM <= to ? `<div class="tt-now" style="top:${(nowM - from) * ppm}px"></div>` : ''}</div>`).join('');
+  const cols = data.map(x => `<div class="tt-col${x.k === td ? ' today' : ''}${x.off ? ' off' : ''}" data-act="ttcell" data-d="${x.k}" data-from="${from}">${x.off ? `<div class="tt-hol" style="--hc:${holColor(x.off)}"><span class="mq">${ic('sun', 12)} ${esc(holName(x.off))}</span></div>` : ''}${x.items.map(it => block(it, x.d)).join('')}${x.k === td && nowM >= from && nowM <= to ? `<div class="tt-now" style="top:${(nowM - from) * ppm}px"></div>` : ''}</div>`).join('');
   const trayOn = ttTrayOn(), un = ttUnscheduled();
   const tray = trayOn ? `<aside class="tray"><div class="rs rs-l" data-rs="tray" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize · double-click to reset"></div><div class="trh"><b>Tasks</b><small>${un.length} without a time</small><button class="ib sm" data-act="tttray" title="Hide this panel">${ic('x', 14)}</button></div><input class="tradd" placeholder="+ New task  (try “Study 4pm for 90min”)" autocomplete="off"><div class="trl">${un.slice(0, 80).map(ttTrayItem).join('') || '<p class="hint">Nothing waiting — nice.</p>'}</div><p class="hint">Drag a task onto the grid, or press the clock to pick a time. Pull a block’s top or bottom edge to resize it.</p></aside>` : '';
   const seg = `<div class="seg">${[['day', 'Day'], ['3day', '3 days'], ['week', 'Week']].map(([v, n]) => `<button class="${view === v ? 'on' : ''}" data-act="ttview" data-v="${v}">${n}</button>`).join('')}</div>`;
-  const tools = `<button class="ib" data-act="ttprev" title="Previous">${ic('left')}</button><button class="btn" data-act="tttoday">Today</button><button class="ib" data-act="ttnext" title="Next">${ic('right')}</button>${seg}${ttModeSeg()}<button class="btn pri" data-act="ttadd" title="Add a task or a weekly slot">${ic('plus', 16)}<span class="hide-m"> Add</span></button><button class="ib${trayOn ? ' on' : ''}" data-act="tttray" title="Unscheduled tasks">${ic('list')}</button><button class="ib" data-act="ttset" title="Timetable settings">${ic('sliders')}</button>`;
+  const tools = `<button class="ib" data-act="ttprev" title="Previous">${ic('left')}</button><button class="btn" data-act="tttoday">Today</button><button class="ib" data-act="ttnext" title="Next">${ic('right')}</button>${seg}${ttModeSeg()}<button class="btn pri" data-act="ttadd" title="Add a task or a weekly slot">${ic('plus', 16)}<span class="hide-m"> Add</span></button><button class="ib${trayOn ? ' on' : ''}" data-act="tttray" title="Unscheduled tasks">${ic('list')}</button><button class="ib" data-act="holidays" title="Holidays" aria-label="Holidays">${ic('sun')}</button><button class="ib" data-act="ttset" title="Timetable settings">${ic('sliders')}</button>`;
   const old = $('.tt-scroll'), keep = old && !U.ttRe ? old.scrollTop * (TT_HH / (prevHH || TT_HH)) : null;
   const draft = $('.tradd') ? $('.tradd').value : '';
   const hint = S.slots.length ? '' : `<p class="hint pad">${phone ? 'Tap' : 'Click, or drag across'} the grid to add a task or a weekly slot (a class, shift or routine). Tasks with a time appear here too.</p>`;

@@ -179,7 +179,7 @@ assert.ok(D1.syncBadge === undefined || true);
   await A.vaultEnable(PASS, SCOPES, {}); await A.vDrain();
   await A.syncNow(true);
   const body1 = srv.files.get(FILE).body, r1 = JSON.parse(body1);
-  assert.equal(r1.enc, 1); assert.equal(r1.schema, 4); assert.equal(r1.tasks, undefined, 'no task list in the clear'); assert.ok(!body1.includes(SECRET) && !body1.includes('Welcome to OpenTick'));
+  assert.equal(r1.enc, 1); assert.equal(r1.schema, 5); assert.equal(r1.tasks, undefined, 'no task list in the clear'); assert.ok(!body1.includes(SECRET) && !body1.includes('Welcome to OpenTick'));
   assert.equal(r1.vault.id, A.Vault.cfg.id); assert.equal(A.Sync.state, 'ok'); assert.equal(A.Sync.cfg.encSeen, true);
   // a device without the vault does not upload over it, and does not read it
   const B = makeDev(); link(B); B.S.tasks.push(B.newTask({ title: 'only on B' })); B.save(); B.flush();

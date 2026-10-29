@@ -6,14 +6,14 @@ PKG = json.loads((ROOT / 'package.json').read_text())
 with sync_playwright() as p:
     b, ctx, pg = launch(p, mobile=False)
     # reachable from Settings and from the command palette
-    pg.evaluate('openSettings()'); assert pg.locator('[data-m="help"]').count() == 1 and pg.locator('[data-m="aboutdlg"]').count() == 1
+    pg.evaluate("openSettings('about')"); assert pg.locator('[data-m="help"]').count() == 1 and pg.locator('[data-m="aboutdlg"]').count() == 1
     pg.click('[data-m="help"]'); pg.wait_for_selector('#help-doc')
     assert pg.evaluate("U.page") == 'help' and pg.evaluate("document.body.classList.contains('on-help')")
     heads = pg.evaluate("[...document.querySelectorAll('.help-s h2')].map(h=>h.textContent)")
-    assert len(heads) == 22, heads
-    need = ['Getting started', 'Navigating', 'Timetable', 'matrix', 'Selecting several', 'Attachments', 'Habits', 'history graph', 'Time, dates', 'Notifications', 'Appearance', 'animated background', 'Keyboard, mouse', 'backups and sync', 'Common problems', 'About, source']
+    assert len(heads) == 26, heads
+    need = ['Getting started', 'Navigating', 'Timetable', 'matrix', 'Selecting several', 'Attachments', 'Habits', 'history graph', 'Time, dates', 'Reminders', 'Appearance', 'animated background', 'Keyboard, mouse', 'backups and sync', 'Common problems', 'About, source']
     for n in need: assert any(n.lower() in h.lower() for h in heads), n
-    assert pg.evaluate("document.querySelectorAll('.help-toc a').length") == 22
+    assert pg.evaluate("document.querySelectorAll('.help-toc a').length") == 26
     # contents link scrolls to the section and moves focus there
     pg.click('.help-toc a[data-t="h-habits"]'); pg.wait_for_timeout(1200)
     assert pg.evaluate("document.activeElement.closest('section')?.id") == 'h-habits' and pg.evaluate("document.getElementById('h-habits').getBoundingClientRect().top") < 300
@@ -61,7 +61,7 @@ with sync_playwright() as p:
 
     # ---- About ----
     b, ctx, pg = launch(p, mobile=False); ctx.grant_permissions(['clipboard-read', 'clipboard-write'])
-    pg.evaluate('openSettings()'); pg.click('[data-m="aboutdlg"]'); pg.wait_for_selector('.about-dlg')
+    pg.evaluate("openSettings('about')"); pg.click('[data-m="aboutdlg"]'); pg.wait_for_selector('.about-dlg')
     t = pg.inner_text('.about-dlg')
     assert PKG['version'] in t and pg.evaluate('APP_VERSION') == PKG['version'], 'the version shown is package.json\'s'
     hrefs = pg.evaluate("[...document.querySelectorAll('.about-dlg a')].map(a=>a.href)")

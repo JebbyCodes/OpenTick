@@ -49,9 +49,9 @@ const mkN = (o = {}) => { const n = A.newNote(o); S.notes.push(n); return n; };
   const rb = (v, n, u) => ({ querySelector: s => ({ '.rsel': { value: v }, '.rn': { value: n }, '.ru': { value: u } }[s]) });
   assert.equal(A.remRead(rb('', 1, 1)), null); assert.equal(A.remRead(rb('15', 1, 1)), 15); assert.equal(A.remRead(rb('custom', '2.5', '60')), 150); assert.equal(A.remRead(rb('custom', '3', '1440')), 4320); assert.equal(A.remRead(rb('keep', 1, 1)), undefined);
   const t = mkT('Rem', { due: '2026-10-20' }); A.U.sel = t.id; A.render();
-  const box = rb('custom', '40', '1');
-  A.fire('change', {}, { target: { closest: s => (s === '#detail [data-rem=task]' ? box : null), classList: { contains: c => c === 'rsel' }, value: 'custom', dataset: {} } });
-  assert.equal(t.reminder, 40, 'a custom lead time is stored in minutes');
+  const box = { querySelector: s => ({ '.rn': { value: '40' }, '.ru': { value: '1' } }[s]) };
+  A.ACT.remcustom({ closest: () => box });
+  assert.equal(t.reminder, 40, 'a custom lead time is stored in minutes'); assert.equal(JSON.stringify(A.remsOf(t)), '[40]');
 }
 
 /* ---- timetable: whole day by default ---- */

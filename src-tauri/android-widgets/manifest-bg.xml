@@ -1,0 +1,13 @@
+        <!-- OpenTick background service (added by scripts/android-widgets.mjs) -->
+        <receiver android:name="__PACKAGE__.OpenTickBgReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
+        <service android:name="__PACKAGE__.OpenTickTimetableService" android:exported="false" android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Ongoing notification that shows the current and next lesson from the user's timetable" />
+        </service>
+        <!-- /OpenTick background service -->

@@ -82,11 +82,12 @@ ${S.projects.length ? '<div class="scg">Projects</div>' + S.projects.map(p => ro
   }, 'wide');
 }
 // does the note have anything in its details (tags, a list or project, linked tasks, attachments)? a dot on the phone's details button says so
+const noteDetailCount = n => ((n.tags || []).length ? 1 : 0) + (n.listId ? 1 : 0) + (n.projectId ? 1 : 0) + ((n.files || []).length ? 1 : 0) + ((typeof linkedTasks === 'function' && linkedTasks(n).length) ? 1 : 0);
 const noteHasDetails = n => !!((n.tags || []).length || n.listId || n.projectId || (n.files || []).length || (typeof linkedTasks === 'function' && linkedTasks(n).length));
 function noteEditorHtml(n) {
   const mode = edMode(S.settings.notes.view);
   return `<div class="ne-head"><button class="ib mob2" data-act="noteback" aria-label="Back to the list">${ic('left', 20)}</button><button class="ib ne-ico" data-act="noteicon" title="Note icon" aria-label="Choose an icon for this note">${iconAny(n.icon, 20, 'file-text')}</button><input class="ne-title" data-f="ntitle" value="${esc(n.title)}" placeholder="Untitled note" autocomplete="off">`
-    + `<button class="ib ne-dt${U.nDet ? ' on' : ''}" data-act="notedet" title="Tags, list, links and attachments" aria-label="Details: tags, list, links and attachments" aria-expanded="${!!U.nDet}">${ic('sliders', 18)}${noteHasDetails(n) ? '<i class="ne-dot" aria-hidden="true"></i>' : ''}</button>`
+    + `<button class="ib ne-dt${U.nDet ? ' on' : ''}" data-act="notedet" title="Note details (tags, list, links, files)${noteDetailCount(n) ? ' · ' + noteDetailCount(n) + ' set' : ''}" aria-label="Note details: tags, list, links and attachments${noteDetailCount(n) ? ', ' + noteDetailCount(n) + ' set' : ''}" aria-expanded="${!!U.nDet}">${ic('sliders', 18)}${noteDetailCount(n) ? `<i class="ne-dot" aria-hidden="true">${noteDetailCount(n)}</i>` : ''}</button>`
     + `<button class="ib${n.pinned ? ' on' : ''}" data-act="notepin" title="${n.pinned ? 'Unpin' : 'Pin to the top'}">${ic('star', 18)}</button>${edModeSeg(mode, 'n')}<button class="ib hide-m ne-lt" data-act="notelist" title="${noteListOn() ? 'Hide the note list' : 'Show the note list'}" aria-label="Toggle the note list" aria-pressed="${!noteListOn()}">${ic(noteListOn() ? 'sidebar-close' : 'sidebar-open', 18)}</button><button class="ib ne-fs" data-act="notefull" title="${U.nFull ? 'Leave full screen (Esc)' : 'Full screen'}" aria-label="Full screen" aria-pressed="${!!U.nFull}">${ic(U.nFull ? 'minimize-2' : 'maximize-2', 18)}</button><button class="ib" data-act="notemenu" title="More">${ic('more', 18)}</button></div>`
     + `<div class="ne-det" id="n-det"><div class="ne-props"><div class="ne-tags"><span>${ic('tag', 14)}</span><input data-f="ntags" value="${esc(n.tags.map(g => '#' + g).join(' '))}" placeholder="#tags" autocomplete="off"></div><label class="ne-home" title="Where this note is filed"><span>${ic('folder', 14)}</span><select data-f="nhome" aria-label="List or project">${noteHomeOptions(noteHomeValue(n))}</select></label></div>`
     + `<div class="ne-links" id="n-links">${noteLinksHtml(n)}</div>`
@@ -152,11 +153,11 @@ const NOTE_ACT = {
   // phones: tags, list or project, linked tasks and attachments are folded away until asked for, so the note itself gets the screen
   notedet: () => { U.nDet = !U.nDet; const ed = $('#nt-ed'); if (ed) ed.classList.toggle('det', U.nDet); const b = $('.ne-dt'); if (b) { b.classList.toggle('on', U.nDet); b.setAttribute('aria-expanded', String(U.nDet)); } },
   notepin: () => { const n = noteById(U.noteSel); if (!n) return; n.pinned = !n.pinned; save(); renderMain(); },
-  async notemenu() {
+  async notemenu(el) {
     const n = noteById(U.noteSel); if (!n) return;
     const phone = narrow(820); // the header of a phone has room for the title, not for these two buttons
     const items = [...(phone ? [{ k: 'pin', label: n.pinned ? 'Unpin from the top' : 'Pin to the top' }, { k: 'icon', label: 'Change the icon…' }] : []), { k: 'export', label: 'Export as Markdown file…' }, { k: 'copy', label: 'Copy as Markdown' }, { k: 'dup', label: 'Duplicate' }, { k: 'del', label: 'Delete note', danger: true }];
-    const i = await askMenu(noteTitle(n), items); if (i == null) return;
+    const i = el && el.dataset && el.dataset.pickk ? items.findIndex(x => x.k === el.dataset.pickk) : await askMenu(noteTitle(n), items); if (i == null || i < 0) return;
     const k = items[i].k;
     if (k === 'pin') NOTE_ACT.notepin();
     else if (k === 'icon') NOTE_ACT.noteicon();

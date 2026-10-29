@@ -24,11 +24,11 @@ function mqScan(root) {
     } else if (inner) { while (inner.firstChild) el.insertBefore(inner.firstChild, inner); inner.remove(); el.classList.remove('mq-on'); el.style.removeProperty('--mqx'); }
   }
 }
-function mqScanAll() { for (const id of ['main', 'side', 'detail']) { const r = document.getElementById(id); if (r) mqScan(r); } const w = document.getElementById('modal'); if (w) mqScan(w); }
+function mqScanAll() { for (const id of ['main', 'side', 'detail', 'wgapp']) { const r = document.getElementById(id); if (r) mqScan(r); } const w = document.getElementById('modal'); if (w) mqScan(w); }
 function mqStart() {
   if (MQ_ON || typeof window === 'undefined' || typeof MutationObserver === 'undefined' || typeof requestAnimationFrame === 'undefined') return;
   MQ_ON = true; let raf = 0, t = 0;
-  const targets = ['main', 'side', 'detail', 'modal'].map(id => document.getElementById(id)).filter(Boolean);
+  const targets = ['main', 'side', 'detail', 'modal', 'wgapp'].map(id => document.getElementById(id)).filter(Boolean);
   const obs = new MutationObserver(() => { clearTimeout(t); t = setTimeout(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { obs.disconnect(); try { mqScanAll(); } catch (e) { /* cosmetic only */ } obs.takeRecords(); for (const r of targets) obs.observe(r, { childList: true, subtree: true }); }); }, 90); });
   for (const r of targets) obs.observe(r, { childList: true, subtree: true });
   window.addEventListener('resize', () => { clearTimeout(t); t = setTimeout(() => { try { mqScanAll(); } catch (e) { /* cosmetic only */ } }, 200); });

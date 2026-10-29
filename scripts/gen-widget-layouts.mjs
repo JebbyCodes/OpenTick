@@ -21,7 +21,7 @@ const root = (id, kids) => `<?xml version="1.0" encoding="utf-8"?>\n` + el('Fram
 // header: a bold title, a muted subtitle that takes the room, optional previous / next arrows and a round accent "+"
 const header = (k, o = {}) => lin({ layout_height: '44dp', orientation: 'horizontal', gravity: 'center_vertical', paddingStart: '10dp', paddingEnd: '2dp' },
   tv(k + '_title', { bold: true, size: 16, h: M, gravity: 'center_vertical', text: o.title || '' }) + tv(k + '_sub', { weight: 1, h: M, size: 12, gravity: 'center_vertical', x: { paddingStart: '8dp' } })
-  + (o.nav ? iv(k + '_prev', { w: '34dp', h: '34dp', x: { padding: '8dp' }, src: 'ot_widget_prev', desc: 'Previous month' }) + iv(k + '_next', { w: '34dp', h: '34dp', x: { padding: '8dp' }, src: 'ot_widget_next', desc: 'Next month' }) : '')
+  + (o.nav ? iv(k + '_prev', { w: '34dp', h: '34dp', x: { padding: '8dp' }, src: 'ot_widget_prev', desc: o.navPrev || 'Previous month' }) + iv(k + '_next', { w: '34dp', h: '34dp', x: { padding: '8dp' }, src: 'ot_widget_next', desc: o.navNext || 'Next month' }) : '')
   + (o.add === false ? '' : frame({ layout_width: '40dp', layout_height: '40dp', id: '@+id/' + k + '_addf', clickable: 'false' }, iv(k + '_add', { w: M, h: M, x: { padding: '7dp' }, src: 'ot_widget_circle', desc: o.addDesc || 'Add' }) + iv(k + '_plus', { w: M, h: M, x: { padding: '12dp' }, src: 'ot_widget_plus' }))));
 const empty = k => tv(k + '_empty', { w: M, size: 13, gravity: 'center', multi: true, x: { paddingTop: '16dp', visibility: 'gone' } });
 const more = k => tv(k + '_more', { w: M, size: 11, x: { paddingStart: '14dp', paddingTop: '2dp', visibility: 'gone' } });
@@ -67,7 +67,7 @@ w('layout/ot_widget_calendar.xml', root('ot_cal', header('ot_cal', { title: '', 
   + tv('ot_cal_info', { w: M, size: 12, x: { paddingStart: '10dp', paddingTop: '4dp' } })));
 w('xml/ot_widget_calendar_info.xml', info('calendar', 4, 4, 250, 250));
 // timetable
-w('layout/ot_widget_timetable.xml', root('ot_tt', header('ot_tt', { title: 'Timetable', addDesc: 'Open the timetable' }) + empty('ot_tt') + rows('ot_tt', 8, '44dp', n => hz({}, tv(`ot_tt_t${n}`, { w: '44dp', size: 11 }) + iv(`ot_tt_k${n}`, { w: '4dp', h: '28dp', src: 'ot_widget_bar' }) + vt({ paddingStart: '10dp' }, tv(`ot_tt_n${n}`, { w: M, size: 14, bold: true }) + tv(`ot_tt_s${n}`, { w: M, size: 11 })))) + more('ot_tt')));
+w('layout/ot_widget_timetable.xml', root('ot_tt', header('ot_tt', { title: 'Timetable', nav: true, navPrev: 'Previous day', navNext: 'Next day', addDesc: 'Open the timetable' }) + empty('ot_tt') + rows('ot_tt', 8, '54dp', n => hz({}, tv(`ot_tt_t${n}`, { w: '46dp', size: 11, multi: true, x: { lines: '2', gravity: 'end', layout_marginEnd: '6dp' } }) + iv(`ot_tt_k${n}`, { w: '4dp', h: '36dp', src: 'ot_widget_bar' }) + vt({ paddingStart: '10dp' }, tv(`ot_tt_n${n}`, { w: M, size: 14, bold: true }) + tv(`ot_tt_s${n}`, { w: M, size: 11, x: { ellipsize: 'marquee', marqueeRepeatLimit: 'marquee_forever', scrollHorizontally: 'true' } })))) + more('ot_tt')));
 w('xml/ot_widget_timetable_info.xml', info('timetable', 4, 3, 250, 180));
 // matrix
 const quad = i => frame({ id: `@+id/ot_mx_q${i}`, layout_width: '0dp', layout_height: M, layout_weight: '1', layout_margin: '3dp' },

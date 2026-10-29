@@ -26,8 +26,8 @@ function widgetTheme() {
 function widgetTasks(limit = 12) {
   const td = todayStr();
   return S.tasks.filter(t => !t.deleted && !t.log && t.status === 'open' && t.due && t.due <= td)
-    .sort((a, b) => a.due.localeCompare(b.due) || (a.time || '99:99').localeCompare(b.time || '99:99') || (b.priority || 0) - (a.priority || 0) || (a.order || 0) - (b.order || 0))
-    .slice(0, limit).map(t => ({ id: t.id, t: t.title, due: t.due, time: t.time || '', p: t.priority || 0, c: cssHex(listOf(t.listId).color, '#4772fa'), ln: listOf(t.listId).name }));
+    .sort((a, b) => a.due.localeCompare(b.due) || (tmEff(a) || '99:99').localeCompare(tmEff(b) || '99:99') || (b.priority || 0) - (a.priority || 0) || (a.order || 0) - (b.order || 0))
+    .slice(0, limit).map(t => ({ id: t.id, t: t.title, due: t.due, time: tmEff(t) || '', p: t.priority || 0, c: cssHex(listOf(t.listId).color, '#4772fa'), ln: listOf(t.listId).name }));
 }
 const widgetCount = () => S.tasks.filter(t => !t.deleted && !t.log && t.status === 'open' && t.due && t.due <= todayStr()).length;
 /* what the Android widgets show besides tasks. Each piece is small, and a failure in one leaves the others working. */
@@ -37,12 +37,17 @@ function wgLists() { const td = todayStr(); return S.lists.slice(0, 9).map(l => 
 function wgProjects() { const td = todayStr(); return S.projects.slice(0, 5).map(p => { const st = homeStats(scopeTasks('project:' + p.id)); return { id: p.id, n: p.name, c: cssHex(p.color, '#4772fa'), pct: st.pct, o: st.open, l: st.late }; }); }
 function wgNotes() { return [...S.notes].filter(n => !n.deleted).sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || b.updated - a.updated).slice(0, 6).map(n => ({ id: n.id, t: noteTitle(n), s: noteSnippet(n).slice(0, 90), pin: !!n.pinned })); }
 function wgCal() { const days = {}; for (const t of S.tasks) if (!t.deleted && !t.log && t.status === 'open' && t.due) days[t.due] = (days[t.due] || 0) + 1; return { ws: +S.settings.weekStart || 0, days }; }
+// one day of the timetable for the widgets: every row carries start, end, room and teacher (the widgets always show them)
+function wgTtDay(now) {
+  const wt = typeof scWeekType === 'function' ? scWeekType(now) : 0, sub = FULLDAYS[now.getDay()] + (wt ? ' · ' + scWeekName(wt) : '');
+  const d = ttItems(now), items = d.items.slice().sort((a, b) => a.a - b.a || a.b - b.b).slice(0, 10).map(it => it.k === 'lesson'
+    ? { a: fmtHM(it.a), b: fmtHM(it.b), n: scLessonName(it), s: scRoom(it.l, it.s), r: scRoom(it.l, it.s), te: (scTeacherOf(it.l, it.s) || {}).name || '', c: cssHex(it.s ? it.s.color : '#888888', '#888888'), x: it.tasks.length }
+    : { a: fmtHM(it.a), b: fmtHM(it.b), n: it.k === 'slot' ? it.s.title : it.t.title, s: it.k === 'slot' ? it.s.loc || '' : '', r: it.k === 'slot' ? it.s.loc || '' : '', te: '', c: cssHex(it.k === 'slot' ? it.s.color : listOf(it.t.listId).color, '#4772fa'), x: it.k === 'slot' ? it.tasks.length : 0 });
+  return { k: ymd(now), d: DAYS[now.getDay()], sub, off: d.off ? holName(d.off) : '', items };
+}
 function wgTt() {
-  const now = new Date(), wt = typeof scWeekType === 'function' ? scWeekType(now) : 0, sub = FULLDAYS[now.getDay()] + (wt ? ' · ' + scWeekName(wt) : '');
-  const d = ttItems(now), items = d.items.slice().sort((a, b) => a.a - b.a || a.b - b.b).slice(0, 8).map(it => it.k === 'lesson'
-    ? { a: fmtHM(it.a), b: fmtHM(it.b), n: scLessonName(it), s: scRoom(it.l, it.s), c: cssHex(it.s ? it.s.color : '#888888', '#888888'), x: it.tasks.length }
-    : { a: fmtHM(it.a), b: fmtHM(it.b), n: it.k === 'slot' ? it.s.title : it.t.title, s: '', c: cssHex(it.k === 'slot' ? it.s.color : listOf(it.t.listId).color, '#4772fa'), x: it.k === 'slot' ? it.tasks.length : 0 });
-  return { kind: 'plan', title: typeof scHas === 'function' && scHas() ? scName() : 'Timetable', sub, off: d.off ? (d.off.label || 'Day off') : '', items };
+  const now = new Date(), t0 = wgTtDay(now), days = Array.from({ length: 5 }, (_, i) => wgTtDay(addDays(now, i)));
+  return { kind: 'plan', title: typeof scHas === 'function' && scHas() ? scName() : 'Timetable', sub: t0.sub, off: t0.off, items: t0.items, days };
 }
 function wgMx() { const open = S.tasks.filter(t => !t.deleted && t.status === 'open'); return MQ.map((q, i) => { const ts = sortTasks(open.filter(t => mxOf(t) === i)); return { n: q.n, sub: q.sub, c: cssHex(q.c, '#888888'), k: ts.length, items: ts.slice(0, 3).map(t => ({ id: t.id, t: t.title })) }; }); }
 function wgHabits() { const tk = todayStr(); return S.habits.slice(0, 7).map(h => ({ id: h.id, n: h.name, c: cssHex(h.color, '#34b36b'), e: IC[h.icon] ? '' : (h.icon || ''), s: streak(h), u: habitGoal(h).per, d: !!(h.log && h.log[tk]) })); }
@@ -128,8 +133,8 @@ function wgRunCommand(raw) {
   else if (c.op === 'focus') { U.page = 'focus'; render(); if (c.id === 'start' && !P.run) { pToggle(); render(); } }
   else if (c.op === 'add') { U.page = 'tasks'; setNav('today'); setTimeout(() => { const a = $('#add'); if (a) a.focus(); }, 150); }
 }
-const wgTasksToday = () => { const td = todayStr(); return S.tasks.filter(t => !t.deleted && !t.log && t.status === 'open' && t.due && t.due <= td).sort((a, b) => a.due.localeCompare(b.due) || (a.time || '99').localeCompare(b.time || '99') || (b.priority || 0) - (a.priority || 0)); };
-const W = { month: null, day: null }; // the calendar widget's own state
+const wgTasksToday = () => { const td = todayStr(); return S.tasks.filter(t => !t.deleted && !t.log && t.status === 'open' && t.due && t.due <= td).sort((a, b) => a.due.localeCompare(b.due) || (tmEff(a) || '99').localeCompare(tmEff(b) || '99') || (b.priority || 0) - (a.priority || 0)); };
+const W = { month: null, day: null, tt: null }; // the calendar widget's own state
 function wgBody(kind) {
   const td = todayStr();
   if (kind === 'tasks') { const ts = wgTasksToday(); return { title: 'Today', sub: ts.length ? ts.length + ' to do' : '', html: `<div class="wg-l">${ts.map(t => rowHtml(t, true)).join('') || `<p class="wg-e">${ic('check-circle', 22)}<span>Nothing due today</span></p>`}</div>`, foot: `<form class="wg-a" id="wg-form"><input id="wg-add" placeholder="Add a task…" autocomplete="off" aria-label="Add a task"></form>` }; }
@@ -140,18 +145,20 @@ function wgBody(kind) {
     const m = W.month || (W.month = new Date(new Date().getFullYear(), new Date().getMonth(), 1)), ws = +S.settings.weekStart || 0, first = addDays(m, -((m.getDay() - ws + 7) % 7)), sel = W.day || td;
     const cnt = {}; for (const t of S.tasks) if (!t.deleted && t.status === 'open' && t.due) cnt[t.due] = (cnt[t.due] || 0) + 1;
     const cells = Array.from({ length: 42 }, (_, i) => { const d = addDays(first, i), k = ymd(d), n = cnt[k] || 0; return `<button class="wc-d${d.getMonth() !== m.getMonth() ? ' out' : ''}${k === td ? ' today' : ''}${k === sel ? ' sel' : ''}" data-wd="${k}"><span>${d.getDate()}</span>${n ? `<i>${n > 3 ? '3+' : '•'.repeat(n)}</i>` : ''}</button>`; }).join('');
-    const ts = S.tasks.filter(t => !t.deleted && t.status === 'open' && t.due === sel).sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
+    const ts = S.tasks.filter(t => !t.deleted && t.status === 'open' && t.due === sel).sort((a, b) => (tmEff(a) || '99').localeCompare(tmEff(b) || '99'));
     return { title: MONTHS[m.getMonth()] + ' ' + m.getFullYear(), sub: '', tools: `<button data-wm="-1" aria-label="Previous month">${ic('left', 14)}</button><button data-wm="0" aria-label="This month">${ic('calendar', 14)}</button><button data-wm="1" aria-label="Next month">${ic('right', 14)}</button>`, html: `<div class="wg-l"><div class="wc-w">${Array.from({ length: 7 }, (_, i) => `<span>${DAYS[(ws + i) % 7].slice(0, 2)}</span>`).join('')}</div><div class="wc-g">${cells}</div><h4 class="wc-h">${esc(fmtDate(sel))}</h4>${ts.map(t => rowHtml(t, true)).join('') || '<p class="hint pad">Nothing on this day.</p>'}</div>` };
   }
   if (kind === 'timetable') {
-    const now = new Date(), nowM = now.getHours() * 60 + now.getMinutes(), d = ttItems(now), items = d.items.slice().sort((x, y) => x.a - y.a || x.b - y.b), wt = scWeekType(now);
+    const now = new Date(), isToday = !W.tt || W.tt === td, day = isToday ? now : pYmd(W.tt), nowM = now.getHours() * 60 + now.getMinutes(), d = ttItems(day), items = d.items.slice().sort((x, y) => x.a - y.a || x.b - y.b), wt = scWeekType(day);
     const nm = it => (it.k === 'lesson' ? scLessonName(it) : it.k === 'slot' ? it.s.title : it.t.title), col = it => (it.k === 'lesson' ? (it.s ? it.s.color : '#888888') : it.k === 'slot' ? it.s.color : listOf(it.t.listId).color);
-    const room = it => (it.k === 'lesson' ? scRoom(it.l, it.s) : ''), ico = it => (it.k === 'lesson' && it.s ? iconAny(it.s.icon, 14) + ' ' : '');
-    const cur = items.find(it => it.a <= nowM && nowM < it.b), nxt = items.find(it => it.a > nowM);
-    const card = (lab, it, note) => (it ? `<div class="sc-now" style="--c:${col(it)}"><span class="sc-nl">${lab}</span><b>${ico(it)}${esc(nm(it))}</b><span class="sc-nt">${fmtRange(fmtHM(it.a), fmtHM(it.b))}${room(it) ? ' · ' + esc(room(it)) : ''}${note}</span></div>` : '');
-    const rows = items.map(it => `<div class="wt-row${it.b <= nowM ? ' fin' : it.a <= nowM ? ' live' : ''}" style="--c:${col(it)}"><time>${fmtTime(fmtHM(it.a))}</time><span class="wt-bar"></span><span class="wt-n">${ico(it)}${esc(nm(it))}${(it.tasks || []).length ? ` <i class="wt-k">${ic('check-circle', 12)} ${it.tasks.length}</i>` : ''}</span><small>${fmtRange(fmtHM(it.a), fmtHM(it.b))}${room(it) ? ' · ' + esc(room(it)) : ''}</small></div>`).join('');
-    const none = d.off ? `<p class="wg-e">${ic('calendar', 22)}<span>${esc(d.off.label || 'Day off')}</span></p>` : `<p class="wg-e">${ic('table', 22)}<span>Nothing scheduled today</span></p>`;
-    return { title: scHas() ? scName() : 'Timetable', sub: FULLDAYS[now.getDay()] + (wt ? ' · ' + scWeekName(wt) : ''), html: `<div class="wg-l">${card('Now', cur, ` · ends in ${scSpan(cur ? cur.b - nowM : 0)}`)}${card(cur ? 'Next' : 'Next up', nxt, ` · in ${scSpan(nxt ? nxt.a - nowM : 0)}`)}<div class="wt-list">${rows || none}</div>${d.allday.length ? `<h4 class="wc-h">Any time</h4>${d.allday.map(t => rowHtml(t, true)).join('')}` : ''}</div>` };
+    const room = it => (it.k === 'lesson' ? scRoom(it.l, it.s) : it.k === 'slot' ? it.s.loc || '' : ''), teach = it => (it.k === 'lesson' ? (scTeacherOf(it.l, it.s) || {}).name || '' : ''), ico = it => (it.k === 'lesson' && it.s ? iconAny(it.s.icon, 14) + ' ' : '');
+    const cur = isToday ? items.find(it => it.a <= nowM && nowM < it.b) : null, nxt = isToday ? items.find(it => it.a > nowM) : null;
+    const where = it => [room(it) ? `<span class="mq">${ic('pin', 11)} ${esc(room(it))}</span>` : '', teach(it) ? `<span class="mq">${ic('teacher', 11)} ${esc(teach(it))}</span>` : ''].join('');
+    const card = (lab, it, note) => (it ? `<div class="sc-now" style="--c:${col(it)}"><span class="sc-nl">${lab}</span><b>${ico(it)}${esc(nm(it))}</b><span class="sc-nt">${fmtRange(fmtHM(it.a), fmtHM(it.b))}${room(it) ? ' · ' + esc(room(it)) : ''}${teach(it) ? ' · ' + esc(teach(it)) : ''}${note}</span></div>` : '');
+    const rows = items.map(it => `<div class="wt-row${isToday && it.b <= nowM ? ' fin' : isToday && it.a <= nowM ? ' live' : ''}" style="--c:${col(it)}"><time><b>${fmtTime(fmtHM(it.a))}</b><span>${fmtTime(fmtHM(it.b))}</span></time><span class="wt-bar"></span><span class="wt-n">${ico(it)}${esc(nm(it))}${(it.tasks || []).length ? ` <i class="wt-k">${ic('check-circle', 12)} ${it.tasks.length}</i>` : ''}</span><small class="wt-w">${where(it) || '<span class="hint">No room</span>'}</small></div>`).join('');
+    const none = d.off ? `<p class="wg-e">${ic('sun', 22)}<span>${esc(holName(d.off))}</span></p>` : `<p class="wg-e">${ic('table', 22)}<span>Nothing scheduled</span></p>`;
+    const lab = isToday ? 'Today' : fmtDate(ymd(day)), tools = `<button data-wt="-1" aria-label="Previous day">${ic('left', 14)}</button><button data-wt="0" aria-label="Today">${ic('calendar', 14)}</button><button data-wt="1" aria-label="Next day">${ic('right', 14)}</button>`;
+    return { title: scHas() ? scName() : 'Timetable', sub: FULLDAYS[day.getDay()] + (isToday ? '' : ' ' + day.getDate() + ' ' + MONTHS[day.getMonth()].slice(0, 3)) + (wt ? ' · ' + scWeekName(wt) : ''), tools, html: `<div class="wg-l">${d.off ? holBand(d.off, 'big') : ''}${card('Now', cur, ` · ends in ${scSpan(cur ? cur.b - nowM : 0)}`)}${card(cur ? 'Next' : 'Next up', nxt, ` · in ${scSpan(nxt ? nxt.a - nowM : 0)}`)}<div class="wt-list">${rows || (d.off ? '' : none)}</div>${d.allday.length ? `<h4 class="wc-h">Any time</h4>${d.allday.map(t => rowHtml(t, true)).join('')}` : ''}</div>` };
   }
   if (kind === 'matrix') { const open = S.tasks.filter(t => !t.deleted && t.status === 'open'); return { title: 'Matrix', sub: '', html: `<div class="wg-l"><div class="matrix wmx">${MQ.map((q, i) => { const ts = sortTasks(open.filter(t => mxOf(t) === i)); return `<div class="quad" style="--c:${q.c}"><div class="qh"><b>${q.n}</b><small>${q.sub} · ${ts.length}</small></div><div class="qb">${ts.slice(0, 4).map(t => rowHtml(t, false)).join('') || '<p class="hint qempty">Empty</p>'}${ts.length > 4 ? `<p class="hint pad">+${ts.length - 4} more</p>` : ''}</div></div>`; }).join('')}</div></div>` }; }
   if (kind === 'habits') { const tk = td; return { title: 'Habit', sub: S.habits.length ? S.habits.filter(h => h.log && h.log[tk]).length + '/' + S.habits.length : '', html: `<div class="wg-l">${S.habits.map(h => { const g = habitGoal(h), sk = streak(h); return `<div class="habit wgh" style="--c:${h.color}"><div class="hh"><span class="hi">${iconAny(h.icon || '✓', 20)}</span><div class="hn"><b>${esc(h.name)}</b><small><span class="sk${sk >= FIRE_MIN ? ' hot' : ''}">${sk >= FIRE_MIN ? ic('flame', 12) : ''}${sk} ${g.per} streak</span></small></div><button class="hcheck${h.log && h.log[tk] ? ' on' : ''}" data-act="hday" data-id="${h.id}" data-d="${tk}" aria-pressed="${!!(h.log && h.log[tk])}" aria-label="Check in ${esc(h.name)}">${ic('check', 16)}</button></div></div>`; }).join('') || `<p class="wg-e">${ic('activity', 22)}<span>No habits yet</span></p>`}</div>` }; }
@@ -172,9 +179,10 @@ function renderWidget() {
 function widgetWire() {
   document.addEventListener('click', e => {
     if (!WIDGET) return;
-    const wg = e.target.closest('[data-wg]'), wm = e.target.closest('[data-wm]'), wd = e.target.closest('[data-wd]'), act = e.target.closest('[data-act]');
+    const wg = e.target.closest('[data-wg]'), wm = e.target.closest('[data-wm]'), wtn = e.target.closest('[data-wt]'), wd = e.target.closest('[data-wd]'), act = e.target.closest('[data-act]');
     if (wg) { const a = wg.dataset.wg; if (a === 'main') focusMain(); else if (a === 'close') closeMiniWidget(); return; }
     if (wm) { const n = +wm.dataset.wm, m = W.month || new Date(); W.month = n ? new Date(m.getFullYear(), m.getMonth() + n, 1) : new Date(new Date().getFullYear(), new Date().getMonth(), 1); if (!n) W.day = todayStr(); renderWidget(); return; }
+    if (wtn) { const n = +wtn.dataset.wt, cur = W.tt ? pYmd(W.tt) : new Date(); W.tt = n ? ymd(addDays(cur, n)) : null; renderWidget(); return; }
     if (wd) { W.day = wd.dataset.wd; renderWidget(); return; }
     if (!act) return; const a = act.dataset.act, id = act.dataset.id || (act.closest('[data-id]') || {}).dataset && act.closest('[data-id]').dataset.id;
     e.stopPropagation();

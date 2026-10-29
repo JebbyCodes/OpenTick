@@ -232,7 +232,7 @@ function paletteItems(q) {
     go('Toggle sidebar', '[', () => uiToggle('side')), go('Toggle task details', ']', () => uiToggle('detail')),
     go('Focus mode: hide both panels', '\\', uiFocus),
     go('Toggle compact density', 'Layout', () => { uiCompact(); render(); }),
-    go('New list…', 'Action', () => ACT.addlist()), go('New note', 'Action', () => { U.page = 'notes'; U.sel = null; render(); ACT.noteadd(); }), go('Settings…', 'Action', openSettings),
+    go('New list…', 'Action', () => ACT.addlist()), go('New template…', 'Action', () => TPL_ACT.tpladd()), go('New note', 'Action', () => { U.page = 'notes'; U.sel = null; render(); ACT.noteadd(); }), go('Settings…', 'Action', openSettings),
     go('Keyboard shortcuts', '?', openShortcuts), go('Help & user guide', 'Help', () => openHelp()), go('About OpenTick: version, licences, credits', 'Help', () => openAbout()),
     go('Interface size…', 'Appearance', openSettings), go('Background effects…', 'Appearance', openBgSettings),
     go('Gantt: zoom in', 'Gantt', () => { U.page = 'gantt'; render(); gtZoom(1); }), go('Gantt: zoom out', 'Gantt', () => { U.page = 'gantt'; render(); gtZoom(-1); }),
@@ -242,9 +242,10 @@ function paletteItems(q) {
   ];
   q = q.toLowerCase().trim();
   const hit = out.filter(i => !q || i.label.toLowerCase().includes(q));
+  const tpls = q.length > 0 ? S.templates.filter(x => (x.name + ' ' + x.tags.join(' ')).toLowerCase().includes(q)).slice(0, 6).map(x => go('Use template: ' + (x.name || 'Untitled'), 'Template', () => tplFill(x.id))) : [];
   const notes = q.length > 1 ? S.notes.filter(n => (noteTitle(n) + ' ' + n.body).toLowerCase().includes(q)).slice(0, 5).map(n => go(noteTitle(n), 'Note', () => openNoteById(n.id))) : [];
   const tasks = q.length > 1 ? S.tasks.filter(t => !t.deleted && !t.log && (t.title || '').toLowerCase().includes(q)).slice(0, 8).map(t => go(t.title, 'Task', () => { setNav(t.listId === 'inbox' ? 'inbox' : 'list:' + t.listId); U.sel = t.id; renderMain(); renderDetail(); })) : [];
-  return [...hit, ...notes, ...tasks].slice(0, 14);
+  return [...hit, ...tpls, ...notes, ...tasks].slice(0, 14);
 }
 function openPalette() {
   let sel = 0, items = paletteItems('');
@@ -262,10 +263,7 @@ function openPalette() {
     m.onclick = e => { const i = e.target.closest('.pal-i'); if (i) run(+i.dataset.n); else if (e.target.classList.contains('mback')) closeModal(); };
   }, 'pal');
 }
-function openShortcuts() {
-  const rows = [['Ctrl/Cmd + Shift + P', 'Command palette'], ['Ctrl/Cmd + K  or  /', 'Search'], ['N', 'New task'], ['[', 'Show / hide sidebar'], [']', 'Show / hide task details'], ['\\', 'Focus mode (hide both panels)'], ['Esc', 'Close dialog / details'], ['?', 'This list of shortcuts'], ['Alt + arrow keys', 'Move the focused matrix task to another box'], ['Arrow keys (habit history)', 'Move between days'], ['Settings → Help & user guide', 'The full, printable guide'], ['Ctrl/Cmd + B / I / K', 'Bold / italic / link in notes'], ['Tab / Shift+Tab', 'Indent / outdent list items in notes'], ['Ctrl + scroll (Gantt)', 'Zoom the timeline'], ['Drag a handle', 'Resize a panel · double-click to reset']];
-  openModal(`<h3>Keyboard shortcuts</h3><div class="vlist">${rows.map(([k, d]) => `<div class="vrow"><span><kbd>${esc(k)}</kbd></span><span>${esc(d)}</span></div>`).join('')}</div><div class="mact"><button class="pri" data-m="ok">Done</button></div>`, m => { m.onclick = e => { if (e.target.closest('[data-m=ok]') || e.target.classList.contains('mback')) closeModal(); }; });
-}
+// openShortcuts lives in keys.js
 document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'p') { e.preventDefault(); if (!$('#modal.on')) openPalette(); return; }
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target || {}).tagName || '');

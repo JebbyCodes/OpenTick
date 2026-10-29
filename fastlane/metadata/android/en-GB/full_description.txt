@@ -1,0 +1,28 @@
+OpenTick is a free, open-source planner that keeps your tasks, notes, calendar, school timetable and habits in one place. It works fully offline, needs no account, and has no ads, analytics or tracking.
+
+<b>Tasks and planning</b>
+• Lists, projects, tags, sub-tasks, priorities and a quick-add that understands "tomorrow 9am #work !high every week until 31 Dec"
+• Repeats that can end on a date, with exceptions: move one occurrence to another time, or skip it
+• Reminders at any time before a task (minutes to weeks) or at an exact date and time, as many as you want
+• Calendar, week and day views, a Gantt chart, an Eisenhower matrix, habits and a focus timer
+
+<b>School timetable</b>
+• Periods, classes, rooms and teachers, with room and teacher always visible (long names scroll)
+• Holidays shown as coloured bands in the calendar and timetable
+• A persistent notification with your current or next lesson, a countdown and the whole day when expanded, with the room as its icon
+• Home-screen widgets, including a timetable widget with the coming days
+
+<b>Notes and templates</b>
+• Markdown notes with links, embeds and attachments
+• Templates with {{variables}}: OpenTick asks you the questions you set (text, number, date, choice, yes/no, or another note as the answer), fills the template in, and lets you copy it, save it as a note or turn it into a task
+
+<b>Never miss a reminder</b>
+• Reminders use the system alarm clock and come back after a restart. Quiet hours and a morning summary are optional.
+
+<b>Privacy</b>
+• Your data stays on your device. Optional sync goes to a place you choose (WebDAV, Git, S3-compatible storage or a file), and optional AES-256-GCM encryption protects the data, backups and sync files.
+
+<b>Accessibility</b>
+• High contrast, bold text, a dyslexia-friendly font, text spacing, greyscale, "do not rely on colour" marks, larger tap targets, a strong focus outline, reduced motion and more.
+
+OpenTick is released into the public domain under the Unlicense.
