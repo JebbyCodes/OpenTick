@@ -67,7 +67,6 @@ const EXPECTED_WORKFLOWS = [
   'publish-microsoft-store.yml',
   'publish-scoop.yml',
   'publish-snap-store.yml',
-  'publish-snap.yml',
   'publish-winget.yml',
   'release.yml',
   'test-snap.yml',
