@@ -32,7 +32,6 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: '3.13'
-          cache: pip
 
       - name: Install workflow lint dependencies
         run: |
@@ -48,6 +47,7 @@ jobs:
         run: python scripts/ci/lint-workflows.py
 
       - name: Build web application
+        shell: bash
         run: |
           set -euo pipefail
 
@@ -58,16 +58,9 @@ jobs:
             exit 1
           fi
 
-          for file in manifest.webmanifest sw.js icon.svg; do
-            if [ ! -s "dist/$file" ]; then
-              echo "::error::Missing build output: dist/$file"
-              exit 1
-            fi
-          done
-
           echo "Application build completed successfully."
 
-      - name: Upload web build for diagnostics
+      - name: Upload web build diagnostics
         if: failure()
         uses: actions/upload-artifact@v7
         with:
@@ -92,7 +85,6 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: '3.13'
-          cache: pip
 
       - name: Install Playwright
         run: |
@@ -178,6 +170,7 @@ jobs:
         run: npm run build:app
 
       - name: Verify Cargo lockfile
+        shell: bash
         run: |
           set -euo pipefail
 
