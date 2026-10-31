@@ -227,6 +227,20 @@ assert.ok(
   rd('snap/local/assemble.sh').startsWith('#!/usr/bin/env bash'),
 );
 
+/* ---- CI installs everything the browser tests use ---- */
+// The browser job once crashed because test_background.py imports Pillow and test_help_about.py runs pdfinfo, and neither is on a GitHub runner.
+// Read the tests themselves, so a new dependency that CI does not install is caught here and not as a red run.
+const ci = wf('ci.yml');
+const browserTests = readdirSync(join(root, 'test/browser')).filter(f => f.endsWith('.py')).map(f => rd('test/browser/' + f)).join('\n');
+const needs = [
+  [/^\s*(from|import) PIL\b/m, /pip install[^\n]*\bPillow\b/, 'Pillow (the tests import PIL)'],
+  [/['"]pdfinfo['"]|['"]pdftotext['"]/, /apt-get install[^\n]*poppler-utils/, 'poppler-utils (the tests run pdfinfo / pdftotext)'],
+  [/from playwright\b/, /pip install[^\n]*\bplaywright\b/, 'Playwright (the tests import it)'],
+];
+for (const [used, installed, what] of needs) {
+  if (used.test(browserTests)) assert.ok(installed.test(ci), 'ci.yml installs ' + what);
+}
+
 /* ---- the linter itself ---- */
 const lint = spawnSync('python3', ['scripts/ci/lint-workflows.py'], { cwd: root, encoding: 'utf8' });
 if (lint.error) console.log('python3 not found: workflow lint skipped'); else assert.equal(lint.status, 0, 'workflow lint:\n' + lint.stdout + lint.stderr);

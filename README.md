@@ -32,6 +32,7 @@
 - Fixed: two workflows deployed GitHub Pages and cancelled each other. There is one now.
 - Fixed: the Snap Store upload failed whenever the release had both a 64-bit and an ARM64 Snap, and refused pre-release tags such as `v0.6.0-beta.1`. It now uploads every Snap.
 - Fixed: the Microsoft Store publisher failed when its secrets were not set. Like the other stores, it now skips with a warning.
+- Fixed: the browser tests in CI crashed before running because the runner had neither Pillow nor the PDF tools (`pdfinfo`, `pdftotext`). CI now installs them and checks they are present, and a test fails if a browser test ever needs something CI does not install.
 - Removed workflows that duplicated others: `build.yml`, `deploy-web.yml`, `update-scoop-bucket.yml` and `test-snap.yml`.
 - Every workflow now starts with a plain-language header (what it does, when it runs, which secrets it needs) and comments on each step. `docs/RELEASING.md` lists them all.
 

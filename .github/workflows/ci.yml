@@ -105,11 +105,30 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Install Playwright
-        run: python -m pip install --disable-pip-version-check playwright
+      # What the browser tests import or run:
+      #   playwright    drives Chromium (every test)
+      #   Pillow        test_background.py measures the colours of the animated background ("from PIL import Image")
+      #   poppler-utils test_help_about.py checks the PDF the app prints, with `pdfinfo` and `pdftotext`
+      # None of these are on the runner by default, which made the two tests crash before they could even start.
+      - name: Install the Python packages the browser tests use (Playwright and Pillow)
+        run: python -m pip install --disable-pip-version-check playwright Pillow
+
+      - name: Install the PDF tools the browser tests use (pdfinfo, pdftotext)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends poppler-utils
 
       - name: Install Chromium and its system libraries
         run: python -m playwright install --with-deps chromium
+
+      # Fail here, with a clear message, if a tool is missing; not halfway through a test with a Python traceback.
+      - name: Check that everything the browser tests need is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -c "import PIL, playwright; print('Pillow', PIL.__version__, '+ Playwright import OK')"
+          pdfinfo -v
+          pdftotext -v
 
       - name: Build the web app
         run: npm run build:app
