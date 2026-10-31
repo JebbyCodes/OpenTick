@@ -1,6 +1,6 @@
+
 name: CI
 
-# Tests on every pull request and every push to main. The release workflow runs this same workflow before it publishes anything.
 on:
   push:
     branches: [main]
@@ -12,61 +12,190 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   test:
     name: Unit tests and checks
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+
     steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-node
-      - name: Every file carries the same version
-        run: npm run version:check
-      - name: Unit tests
-        run: npm test
-      - name: Check the workflow files
-        run: python3 scripts/ci/lint-workflows.py
-      - name: Both editions build
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js and install dependencies
+        uses: ./.github/actions/setup-node
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          cache: pip
+
+      - name: Install workflow lint dependencies
         run: |
-          node build-app.mjs --out /tmp/site
-          node build-app.mjs --eink --out /tmp/site-eink
+          python -m pip install --disable-pip-version-check PyYAML
+
+      - name: Check application versions
+        run: npm run version:check
+
+      - name: Run unit and regression tests
+        run: npm test
+
+      - name: Check GitHub Actions workflows
+        run: python scripts/ci/lint-workflows.py
+
+      - name: Build web application
+        run: |
+          set -euo pipefail
+
+          npm run build:app
+
+          if [ ! -s dist/index.html ]; then
+            echo "::error::The application build did not produce dist/index.html."
+            exit 1
+          fi
+
+          for file in manifest.webmanifest sw.js icon.svg; do
+            if [ ! -s "dist/$file" ]; then
+              echo "::error::Missing build output: dist/$file"
+              exit 1
+            fi
+          done
+
+          echo "Application build completed successfully."
+
+      - name: Upload web build for diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-web-build-diagnostics
+          path: dist/
+          if-no-files-found: ignore
+          retention-days: 3
 
   browser:
     name: Browser tests
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+
     steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-node
-      - uses: actions/setup-python@v6
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js and install dependencies
+        uses: ./.github/actions/setup-node
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
         with:
           python-version: '3.13'
-      - name: Install Playwright and Chromium
+          cache: pip
+
+      - name: Install Playwright
         run: |
-          python -m pip install playwright
+          python -m pip install --disable-pip-version-check playwright
+
+      - name: Install Chromium and system dependencies
+        run: |
           python -m playwright install --with-deps chromium
-      - run: npm run build:app
-      - run: npm run test:browser
+
+      - name: Build application
+        run: npm run build:app
+
+      - name: Verify browser test files exist
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! find test/browser -maxdepth 1 -type f -name 'test_*.py' | grep -q .; then
+            echo "::error::No browser test files were found in test/browser."
+            exit 1
+          fi
+
+          echo "Browser test files:"
+          find test/browser -maxdepth 1 -type f -name 'test_*.py' -print | sort
+
+      - name: Run browser tests
+        run: npm run test:browser
+
+      - name: Upload browser test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-test-diagnostics
+          path: |
+            test-results/
+            playwright-report/
+            test/browser/
+          if-no-files-found: ignore
+          retention-days: 3
 
   rust:
-    name: Rust compiles
+    name: Rust compilation
     runs-on: ubuntu-22.04
-    timeout-minutes: 25
+    timeout-minutes: 30
+
     steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-node
-      - name: Install Linux libraries
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends build-essential libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev libgtk-3-dev libwebkit2gtk-4.1-dev
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: swatinem/rust-cache@v2
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js and install dependencies
+        uses: ./.github/actions/setup-node
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
           key: ci
-      - run: npm run build:app
-      # --locked: a Cargo.lock that is out of step with Cargo.toml (for example after a version bump) fails here, not in the release
-      - run: cargo check --locked --manifest-path src-tauri/Cargo.toml
+
+      - name: Install Tauri Linux dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sudo apt-get update
+
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            patchelf
+
+      - name: Build frontend
+        run: npm run build:app
+
+      - name: Verify Cargo lockfile
+        run: |
+          set -euo pipefail
+
+          if [ ! -f src-tauri/Cargo.lock ]; then
+            echo "::error::src-tauri/Cargo.lock is missing."
+            exit 1
+          fi
+
+      - name: Check Rust dependencies and compilation
+        run: cargo check --locked --manifest-path src-tauri/Cargo.toml
+
+      - name: Upload Rust diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: rust-ci-diagnostics
+          path: |
+            src-tauri/target/debug/build/
+            src-tauri/target/debug/.fingerprint/
+          if-no-files-found: ignore
+          retention-days: 3
