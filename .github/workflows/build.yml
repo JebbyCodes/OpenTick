@@ -1,7 +1,7 @@
+
 name: Build OpenTick
 
 on:
-  # Manually build selected platforms from GitHub Actions.
   workflow_dispatch:
     inputs:
       build_desktop:
@@ -15,7 +15,6 @@ on:
         type: boolean
         default: true
 
-  # Build all platforms and publish a release when a version tag is pushed.
   push:
     tags:
       - 'v*'
@@ -100,6 +99,203 @@ jobs:
       - name: Build desktop packages
         run: npx tauri build
 
+      # ---------------------------------------------------------
+      # WINDOWS MSIX PACKAGING
+      # ---------------------------------------------------------
+
+      - name: Install Microsoft WinApp CLI
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          npm install --global @microsoft/winappcli
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to install Microsoft WinApp CLI."
+          }
+
+          winapp --help
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Microsoft WinApp CLI is not available."
+          }
+
+      - name: Build Microsoft Store MSIX package
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          # Find the Tauri Windows executable.
+          $exe = Join-Path $PWD "src-tauri/target/release/opentick.exe"
+
+          if (-not (Test-Path -LiteralPath $exe)) {
+            Write-Host "Available executables:"
+            Get-ChildItem "src-tauri/target/release" -Filter "*.exe" |
+              ForEach-Object { Write-Host $_.FullName }
+
+            throw "Tauri executable not found: $exe"
+          }
+
+          # Determine the four-part MSIX version.
+          # Release tags are the source of truth for tagged builds.
+          if ($env:EVENT_NAME -eq 'push' -and $env:REF_TYPE -eq 'tag') {
+            $rawVersion = $env:RELEASE_TAG -replace '^v', ''
+
+            if ($rawVersion -notmatch '^\d+\.\d+\.\d+(\.\d+)?$') {
+              throw "Invalid release version: $rawVersion. Use vMAJOR.MINOR.PATCH."
+            }
+
+            $parts = $rawVersion.Split('.')
+
+            if ($parts.Count -eq 3) {
+              $rawVersion = "$rawVersion.0"
+            }
+
+            $versionParts = $rawVersion.Split('.')
+
+            foreach ($part in $versionParts) {
+              $number = [int]$part
+
+              if ($number -lt 0 -or $number -gt 65535) {
+                throw "Invalid MSIX version component: $part"
+              }
+            }
+
+            $version = $rawVersion
+          }
+          else {
+            # Manual builds use the version already in the manifest.
+            [xml]$existingManifest = Get-Content `
+              "packaging/msix/Package.appxmanifest" -Raw
+
+            $identity = $existingManifest.SelectSingleNode(
+              "//*[local-name()='Identity']"
+            )
+
+            if (-not $identity) {
+              throw "Package identity not found in manifest."
+            }
+
+            $version = $identity.GetAttribute("Version")
+          }
+
+          Write-Host "MSIX version: $version"
+
+          # Prepare the MSIX staging directory.
+          $stage = Join-Path $PWD "msix-staging"
+
+          if (Test-Path $stage) {
+            Remove-Item $stage -Recurse -Force
+          }
+
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+
+          # Copy the existing application manifest.
+          $manifestSource = "packaging/msix/Package.appxmanifest"
+          $manifestPath = Join-Path $stage "Package.appxmanifest"
+
+          if (-not (Test-Path $manifestSource)) {
+            throw "Missing $manifestSource"
+          }
+
+          Copy-Item $manifestSource $manifestPath
+
+          # Copy all existing Store logo assets.
+          $assetsSource = "packaging/msix/Assets"
+          $assetsTarget = Join-Path $stage "Assets"
+
+          if (-not (Test-Path $assetsSource)) {
+            throw "Missing MSIX assets directory: $assetsSource"
+          }
+
+          Copy-Item $assetsSource $assetsTarget -Recurse -Force
+
+          # Validate every asset referenced by Package.appxmanifest.
+          $requiredAssets = @(
+            "StoreLogo.png",
+            "MedTile.png",
+            "AppList.png",
+            "WideTile.png"
+          )
+
+          foreach ($asset in $requiredAssets) {
+            $assetPath = Join-Path $assetsTarget $asset
+
+            if (-not (Test-Path -LiteralPath $assetPath)) {
+              throw "Missing required MSIX asset: $assetPath"
+            }
+          }
+
+          # Update the manifest version without changing its identity.
+          [xml]$manifest = Get-Content $manifestPath -Raw
+
+          $identity = $manifest.SelectSingleNode(
+            "//*[local-name()='Identity']"
+          )
+
+          if (-not $identity) {
+            throw "Could not find Identity element in MSIX manifest."
+          }
+
+          $identity.SetAttribute("Version", $version)
+
+          $manifest.Save($manifestPath)
+
+          # Copy the Tauri executable.
+          Copy-Item $exe $stage
+
+          # Include any DLL dependencies produced alongside the executable.
+          Get-ChildItem "src-tauri/target/release" -Filter "*.dll" -File |
+            Copy-Item -Destination $stage -Force
+
+          # Verify the executable is the only EXE in the package root.
+          $executables = @(Get-ChildItem $stage -Filter "*.exe" -File)
+
+          if ($executables.Count -ne 1) {
+            throw "Expected exactly one EXE in MSIX staging, found $($executables.Count)."
+          }
+
+          Write-Host "MSIX staging contents:"
+          Get-ChildItem $stage -Recurse |
+            ForEach-Object { Write-Host $_.FullName }
+
+          # The Store signs the package after submission.
+          # Therefore, no self-signed certificate is required.
+          $outputDirectory = "src-tauri/target/release/bundle/msix"
+
+          New-Item -ItemType Directory -Force `
+            -Path $outputDirectory | Out-Null
+
+          $outputFile = Join-Path `
+            $outputDirectory "OpenTick_${version}.msix"
+
+          winapp pack $stage `
+            --manifest $manifestPath `
+            --executable "opentick.exe" `
+            --output $outputFile `
+            --no-sign
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Microsoft WinApp CLI failed to create the MSIX."
+          }
+
+          if (-not (Test-Path -LiteralPath $outputFile)) {
+            throw "MSIX package was not generated: $outputFile"
+          }
+
+          Write-Host "MSIX successfully generated:"
+          Write-Host $outputFile
+
+          Write-Host "Package size:"
+          Get-Item $outputFile |
+            Select-Object Name, Length, FullName
+
       - name: Upload desktop build output
         uses: actions/upload-artifact@v7
         with:
@@ -132,8 +328,6 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # Install modern command-line tools and platform-tools.
-      # Do not request the obsolete Android SDK "tools" package.
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
@@ -225,12 +419,9 @@ jobs:
 
           chmod +x src-tauri/gen/android/gradlew
 
-      # Home-screen widgets: copy the Kotlin/XML from src-tauri/android-widgets into the generated project and register them in the manifest.
       - name: Add the OpenTick home-screen widgets
         run: node scripts/android-widgets.mjs
 
-      # Decode the private key and configure signing only on the runner.
-      # No keystore or password is committed to the repository.
       - name: Configure Android release signing
         shell: bash
         env:
@@ -252,14 +443,11 @@ jobs:
 
           chmod 600 "$KEYSTORE_PATH"
 
-          # Check the keystore and alias before changing Gradle configuration.
           keytool -list \
             -keystore "$KEYSTORE_PATH" \
             -storepass "$ANDROID_KEY_PASSWORD" \
             -alias "$ANDROID_KEY_ALIAS" >/dev/null
 
-          # Write a runner-only properties file.
-          # The key password is assumed to equal the keystore password.
           {
             printf 'storePassword=%s\n' "$ANDROID_KEY_PASSWORD"
             printf 'keyPassword=%s\n' "$ANDROID_KEY_PASSWORD"
@@ -269,7 +457,6 @@ jobs:
 
           chmod 600 "$ANDROID_DIR/keystore.properties"
 
-          # Configure the generated Kotlin Gradle build file.
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -277,21 +464,18 @@ jobs:
           path = Path("src-tauri/gen/android/app/build.gradle.kts")
           text = path.read_text(encoding="utf-8")
 
-          # Ensure the imports required for reading signing properties exist.
           if "import java.util.Properties" not in text:
               text = "import java.util.Properties\n" + text
 
           if "import java.io.FileInputStream" not in text:
               text = "import java.io.FileInputStream\n" + text
 
-          # Add the release signing configuration if it is not already present.
           if 'create("release")' not in text:
               match = re.search(r'(?m)^(\s*)buildTypes\s*\{', text)
 
               if not match:
                   raise SystemExit(
-                      "Could not find the Gradle buildTypes block; "
-                      "refusing to modify the generated file."
+                      "Could not find the Gradle buildTypes block."
                   )
 
               indent = match.group(1)
@@ -312,7 +496,6 @@ jobs:
 
               text = text[:match.start()] + block + text[match.start():]
 
-          # Find the release build type.
           match = re.search(
               r'(?m)^(\s*)getByName\("release"\)\s*\{',
               text
@@ -320,11 +503,9 @@ jobs:
 
           if not match:
               raise SystemExit(
-                  'Could not find getByName("release") in build.gradle.kts; '
-                  "refusing to guess where signing should be configured."
+                  'Could not find getByName("release").'
               )
 
-          # Locate the end of the release block.
           start = match.end()
           depth = 1
           i = start
@@ -341,7 +522,6 @@ jobs:
 
           release_block = text[match.start():i]
 
-          # Avoid adding the signing assignment twice.
           if "signingConfig = signingConfigs.getByName" not in release_block:
               indent = match.group(1) + "    "
 
@@ -363,11 +543,9 @@ jobs:
       - name: Build Android APK
         run: npx tauri android build --apk
 
-      # versionName / versionCode are generated from the version in tauri.conf.json: prove they still equal package.json's
       - name: Check the Android version matches package.json
         run: node scripts/check-android-version.mjs --generated
 
-      # Fail the job rather than upload an unsigned or invalid APK.
       - name: Verify APK signatures
         shell: bash
         run: |
@@ -392,9 +570,7 @@ jobs:
 
           for apk in "${apks[@]}"; do
             echo "Verifying APK: $apk"
-
             "$APKSIGNER" verify --verbose --print-certs "$apk"
-
             echo "APK signature verified: $apk"
           done
 
@@ -414,7 +590,6 @@ jobs:
       - android
     runs-on: ubuntu-latest
 
-    # Permissions required to publish the release and generate attestations.
     permissions:
       contents: write
       id-token: write
@@ -427,7 +602,6 @@ jobs:
           path: release-assets
           merge-multiple: false
 
-      # Exclude bundle internals such as copyright files and shared libraries.
       - name: Collect installer packages and APK only
         shell: bash
         run: |
@@ -441,6 +615,7 @@ jobs:
               -iname '*.exe' -o \
               -iname '*.msi' -o \
               -iname '*.msix' -o \
+              -iname '*.msixbundle' -o \
               -iname '*.appx' -o \
               -iname '*.deb' -o \
               -iname '*.rpm' -o \
@@ -452,7 +627,6 @@ jobs:
 
           if [ "${#packages[@]}" -eq 0 ]; then
             echo "::error::No installer packages or APKs were found."
-            echo "Downloaded files:"
             find release-assets -type f -print | sort
             exit 1
           fi
@@ -472,9 +646,9 @@ jobs:
           echo
           echo "Final release files:"
           find release-files -maxdepth 1 -type f -printf '%f\n' | sort
+
           echo "Total files: ${#packages[@]}"
 
-      # Generate signed SLSA build-provenance attestations for installers.
       - name: Generate release artifact attestations
         uses: actions/attest-build-provenance@v4
         with:
@@ -488,3 +662,17 @@ jobs:
           fail_on_unmatched_files: true
           preserve_order: true
           overwrite_files: true
+
+  # -----------------------------------------------------------
+  # MICROSOFT STORE
+  # -----------------------------------------------------------
+
+  microsoft-store:
+    name: Publish to Microsoft Store
+    needs: release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    uses: ./.github/workflows/publish-microsoft-store.yml
+    with:
+      tag: ${{ github.ref_name }}
+      draft: false
+    secrets: inherit
