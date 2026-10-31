@@ -18,9 +18,9 @@ RepoType: git
 Repo: https://github.com/JebbyCodes/OpenTick.git
 
 Builds:
-  - versionName: 0.5.1
-    versionCode: 5001
-    commit: v0.5.1
+  - versionName: 0.5.3
+    versionCode: 5003
+    commit: v0.5.3
     sudo:
       - apt-get update
       - apt-get install -y nodejs npm libwebkit2gtk-4.1-dev
@@ -39,5 +39,5 @@ Builds:
 
 AutoUpdateMode: Version v%v
 UpdateCheckMode: Tags ^v[0-9.]+$
-CurrentVersion: 0.5.1
-CurrentVersionCode: 5001
+CurrentVersion: 0.5.3
+CurrentVersionCode: 5003

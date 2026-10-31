@@ -24,7 +24,13 @@
   <img src="docs/images/gantt.png" width="32%" alt="Gantt chart">
 </p>
 
-## What's new in 0.5.1
+## What's new in 0.5.3
+
+- TODO: describe what is new in this release.
+
+Earlier releases are listed in [CHANGELOG.md](CHANGELOG.md).
+
+## What was new in 0.5.1
 
 - Fixed: on phones the Day / 3 days / Week switch in the timetable was pushed off the screen. The toolbar now wraps and the switch has its own row.
 - Tooltips on every button: hover with a mouse, press and hold on a touch screen (letting go does not press the button), or Tab to it. Settings → Accessibility → Button tooltips turns them off.

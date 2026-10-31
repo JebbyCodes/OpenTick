@@ -14,7 +14,7 @@
   <Identity
     Name="Jebby.OpenTick"
     Publisher="CN=15641029-37C5-42A0-8297-2EAC5C6A0BD5"
-    Version="0.5.1.0" />
+    Version="0.5.3.0" />
 
   <Properties>
     <DisplayName>OpenTick</DisplayName>
