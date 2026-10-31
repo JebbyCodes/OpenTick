@@ -28,3 +28,5 @@ src-tauri/gen/android/keystore.properties
 
 # Snap Store credentials (never commit these)
 snapcraft-login*.txt
+
+__pycache__/
