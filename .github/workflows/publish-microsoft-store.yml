@@ -1,29 +1,41 @@
+
 name: Publish / Microsoft Store
 
-# Submits the MSIX bundle from a GitHub Release to the Microsoft Store.
-#
-# The old workflow tried to point an *unpackaged* (EXE/MSI) Store listing at a download URL. OpenTick's listing is an MSIX app (Store ID 9P…),
-# so that never matched. This one uploads the .msixbundle the Release now contains, with `msstore publish`.
-#
-# Needs: secrets AZURE_AD_TENANT_ID, AZURE_AD_APPLICATION_CLIENT_ID, AZURE_AD_APPLICATION_SECRET, SELLER_ID; and the Store ID of the app, as the
-# repository variable MS_STORE_APP_ID (Partner Center → your app → Product identity → Store ID; looks like 9PDNNTK8TZ39).
+# Publishes an MSIX package from a GitHub Release
+# to the Microsoft Store using Microsoft's Store CLI.
+
 on:
   workflow_call:
     inputs:
       tag:
-        description: Release tag (for example v0.5.1)
-        required: true
-        type: string
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: Release tag (for example v0.5.1)
+        description: Release tag (e.g. v0.5.1)
         required: true
         type: string
       draft:
-        description: Upload but do not submit for certification (keeps the submission as a draft)
+        description: Upload without committing for certification
+        required: false
         type: boolean
         default: false
+      asset_name:
+        description: Exact release asset filename (optional)
+        required: false
+        type: string
+
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag (e.g. v0.5.1)
+        required: true
+        type: string
+      draft:
+        description: Upload without committing for certification
+        required: false
+        type: boolean
+        default: false
+      asset_name:
+        description: Exact release asset filename (optional)
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -34,45 +46,220 @@ concurrency:
 
 jobs:
   publish:
-    name: Submit to the Store
+    name: Submit to Microsoft Store
     runs-on: windows-latest
     timeout-minutes: 30
+
     env:
       APP_ID: ${{ vars.MS_STORE_APP_ID || '9PDNNTK8TZ39' }}
+
     steps:
-      - name: Credentials present?
+      # 1. Check credentials
+      - name: Check Microsoft Store credentials
         id: gate
         shell: pwsh
         env:
-          T: ${{ secrets.AZURE_AD_TENANT_ID }}
-          C: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
-          S: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
-          I: ${{ secrets.SELLER_ID }}
+          TENANT: ${{ secrets.AZURE_AD_TENANT_ID }}
+          CLIENT: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
+          SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
+          SELLER: ${{ secrets.SELLER_ID }}
         run: |
-          if ($env:T -and $env:C -and $env:S -and $env:I) { "ready=true" >> $env:GITHUB_OUTPUT }
-          else { "ready=false" >> $env:GITHUB_OUTPUT; Write-Host "::warning title=Microsoft Store skipped::Add AZURE_AD_TENANT_ID, AZURE_AD_APPLICATION_CLIENT_ID, AZURE_AD_APPLICATION_SECRET and SELLER_ID." }
+          $missing = @()
 
-      - name: Download the bundle from the release
+          if (-not $env:TENANT) { $missing += "AZURE_AD_TENANT_ID" }
+          if (-not $env:CLIENT) { $missing += "AZURE_AD_APPLICATION_CLIENT_ID" }
+          if (-not $env:SECRET) { $missing += "AZURE_AD_APPLICATION_SECRET" }
+          if (-not $env:SELLER) { $missing += "SELLER_ID" }
+
+          if ($missing.Count -gt 0) {
+            throw "Missing GitHub secrets: $($missing -join ', ')"
+          }
+
+          "ready=true" >> $env:GITHUB_OUTPUT
+
+      # 2. Check Store ID
+      - name: Validate Store application ID
+        if: steps.gate.outputs.ready == 'true'
+        shell: pwsh
+        run: |
+          if (-not $env:APP_ID) {
+            throw "Missing MS_STORE_APP_ID."
+          }
+
+          Write-Host "Store ID: $env:APP_ID"
+
+      # 3. Discover the package
+      - name: Find Microsoft Store package
+        if: steps.gate.outputs.ready == 'true'
+        id: asset
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          REQUESTED_ASSET: ${{ inputs.asset_name }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          if (-not $env:TAG) {
+            throw "Release tag was not supplied."
+          }
+
+          Write-Host "Checking release: $env:TAG"
+
+          $assets = @(
+            gh release view $env:TAG `
+              --repo $env:GITHUB_REPOSITORY `
+              --json assets `
+              --jq '.assets[].name'
+          )
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Unable to retrieve release $env:TAG."
+          }
+
+          if ($assets.Count -eq 0) {
+            throw "The release contains no assets."
+          }
+
+          Write-Host "Available release assets:"
+          $assets | ForEach-Object { Write-Host " - $_" }
+
+          if ($env:REQUESTED_ASSET) {
+            $matches = @(
+              $assets | Where-Object {
+                $_ -ceq $env:REQUESTED_ASSET
+              }
+            )
+
+            if ($matches.Count -ne 1) {
+              throw "Requested asset not found: $env:REQUESTED_ASSET"
+            }
+
+            $selected = $matches[0]
+          }
+          else {
+            $uploads = @(
+              $assets | Where-Object {
+                $_ -match '\.msixupload$'
+              }
+            )
+
+            $bundles = @(
+              $assets | Where-Object {
+                $_ -match '\.msixbundle$'
+              }
+            )
+
+            $packages = @(
+              $assets | Where-Object {
+                $_ -match '\.msix$'
+              }
+            )
+
+            if ($uploads.Count -eq 1) {
+              $selected = $uploads[0]
+            }
+            elseif ($uploads.Count -gt 1) {
+              throw "Multiple MSIX uploads found. Specify asset_name."
+            }
+            elseif ($bundles.Count -eq 1) {
+              $selected = $bundles[0]
+            }
+            elseif ($bundles.Count -gt 1) {
+              throw "Multiple MSIX bundles found. Specify asset_name."
+            }
+            elseif ($packages.Count -eq 1) {
+              $selected = $packages[0]
+            }
+            elseif ($packages.Count -gt 1) {
+              throw "Multiple MSIX packages found. Specify asset_name."
+            }
+            else {
+              throw "No .msix, .msixbundle or .msixupload asset found."
+            }
+          }
+
+          Write-Host "Selected package: $selected"
+
+          "name=$selected" >> $env:GITHUB_OUTPUT
+
+      # 4. Download the selected package
+      - name: Download release package
         if: steps.gate.outputs.ready == 'true'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
+          ASSET: ${{ steps.asset.outputs.name }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $version = $env:TAG -replace '^v', ''
-          New-Item -ItemType Directory -Force -Path store | Out-Null
-          gh release download $env:TAG --repo $env:GITHUB_REPOSITORY --pattern "OpenTick_${version}.msixbundle" --dir store
-          if ($LASTEXITCODE -ne 0) { throw "Release $($env:TAG) has no OpenTick_${version}.msixbundle." }
-          # the Store's upload format is a zip holding the bundle
-          Compress-Archive -Path "store/OpenTick_${version}.msixbundle" -DestinationPath "store/OpenTick_${version}.zip" -Force
-          Move-Item "store/OpenTick_${version}.zip" "store/OpenTick_${version}.msixupload" -Force
-          "UPLOAD=$((Resolve-Path "store/OpenTick_${version}.msixupload").Path)" >> $env:GITHUB_ENV
 
-      - name: Set up the Microsoft Store CLI
+          New-Item -ItemType Directory -Force -Path store | Out-Null
+
+          gh release download $env:TAG `
+            --repo $env:GITHUB_REPOSITORY `
+            --pattern $env:ASSET `
+            --dir store
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to download $env:ASSET."
+          }
+
+          $downloaded = Join-Path "store" $env:ASSET
+
+          if (-not (Test-Path -LiteralPath $downloaded)) {
+            throw "Downloaded package not found: $downloaded"
+          }
+
+          "DOWNLOADED=$((Resolve-Path -LiteralPath $downloaded).Path)" >> $env:GITHUB_ENV
+
+      # 5. Prepare upload
+      - name: Prepare Microsoft Store upload
+        if: steps.gate.outputs.ready == 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $source = $env:DOWNLOADED
+          $extension = [IO.Path]::GetExtension($source).ToLowerInvariant()
+
+          switch ($extension) {
+            '.msixupload' {
+              $upload = $source
+            }
+
+            '.msix' {
+              $upload = $source
+            }
+
+            '.msixbundle' {
+              $upload = Join-Path $PWD "store/OpenTick.msixupload"
+
+              Compress-Archive `
+                -LiteralPath $source `
+                -DestinationPath $upload `
+                -Force
+            }
+
+            default {
+              throw "Unsupported package format: $extension"
+            }
+          }
+
+          if (-not (Test-Path -LiteralPath $upload)) {
+            throw "Store upload package was not created."
+          }
+
+          Write-Host "Prepared package: $upload"
+
+          "UPLOAD=$((Resolve-Path -LiteralPath $upload).Path)" >> $env:GITHUB_ENV
+
+      # 6. Install Microsoft Store CLI
+      - name: Set up Microsoft Store CLI
         if: steps.gate.outputs.ready == 'true'
         uses: microsoft/microsoft-store-apppublisher@v1.4
 
+      # 7. Configure authentication
       - name: Sign in to Partner Center
         if: steps.gate.outputs.ready == 'true'
         shell: pwsh
@@ -82,17 +269,55 @@ jobs:
           SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
           SELLER: ${{ secrets.SELLER_ID }}
         run: |
-          msstore reconfigure --tenantId $env:TENANT --sellerId $env:SELLER --clientId $env:CLIENT --clientSecret $env:SECRET
-          if ($LASTEXITCODE -ne 0) { throw 'Microsoft Store CLI sign-in failed. Check the four secrets.' }
+          $ErrorActionPreference = 'Stop'
 
-      - name: Upload and submit
+          msstore reconfigure `
+            --tenantId $env:TENANT `
+            --sellerId $env:SELLER `
+            --clientId $env:CLIENT `
+            --clientSecret $env:SECRET
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Microsoft Store authentication failed."
+          }
+
+          Write-Host "Partner Center credentials configured."
+
+      # 8. Publish
+      - name: Upload and submit to Microsoft Store
         if: steps.gate.outputs.ready == 'true'
         shell: pwsh
+        env:
+          DRAFT: ${{ inputs.draft }}
         run: |
           $ErrorActionPreference = 'Stop'
-          Write-Host "Submitting $env:UPLOAD to Store ID $env:APP_ID"
-          $cli = @('publish', (Resolve-Path store).Path, '--inputFile', $env:UPLOAD, '--appId', $env:APP_ID)
-          if ('${{ inputs.draft }}' -eq 'true') { $cli += '--noCommit' }
-          msstore @args
-          if ($LASTEXITCODE -ne 0) { throw "msstore publish failed ($LASTEXITCODE). Is MS_STORE_APP_ID the Store ID of an MSIX app, and is the version higher than the last submission?" }
-          Write-Host 'Submitted. Microsoft certification can take a few days.'
+
+          Write-Host "------------------------------------"
+          Write-Host "OpenTick Microsoft Store submission"
+          Write-Host "------------------------------------"
+          Write-Host "Store ID: $env:APP_ID"
+          Write-Host "Package: $env:UPLOAD"
+          Write-Host "Draft mode: $env:DRAFT"
+
+          $cli = @(
+            'publish'
+            (Resolve-Path "store").Path
+            '--inputFile'
+            $env:UPLOAD
+            '--appId'
+            $env:APP_ID
+          )
+
+          if ($env:DRAFT -eq 'true') {
+            Write-Host "Draft submission enabled."
+            $cli += '--noCommit'
+          }
+
+          msstore @cli
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Microsoft Store publication failed ($LASTEXITCODE). Check package identity, version and Partner Center permissions."
+          }
+
+          Write-Host "Microsoft Store submission completed."
+          Write-Host "Certification and publication are handled by Microsoft."
