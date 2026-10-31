@@ -1,0 +1,209 @@
+name: Publish / Docker
+
+# =====================================================================================================================================
+#  Publish / Docker: push the image to the container registry
+# =====================================================================================================================================
+#  Builds ONE multi-architecture image (64-bit Intel/AMD, 64-bit ARM, 32-bit ARM and 32-bit Intel behind a single tag) and pushes it to
+#  the GitHub Container Registry:   ghcr.io/<owner>/opentick
+#  and also to Docker Hub if the DOCKERHUB_USERNAME and DOCKERHUB_TOKEN secrets exist.
+#
+#  Tags it creates for a stable release such as v0.5.3:
+#    0.5.3      this exact version (never changes)
+#    0.5        the newest 0.5.x
+#    latest     the newest stable release
+#  A pre-release (v0.6.0-beta.1) only gets its own exact tag, so `latest` and `0.6` are never moved to an unfinished build.
+#
+#  Why it runs last: Release calls this only after the GitHub Release has been created, so `latest` cannot move for a release that
+#  did not happen. The same image is also attached to the release as downloadable files (see Build / Docker).
+#
+#  Needs: nothing for GitHub's registry (the built-in token is enough, `packages: write` below). Optional: DOCKERHUB_USERNAME, DOCKERHUB_TOKEN.
+#  One-time step: GitHub makes a new package PRIVATE. After the first push open the package page (the run summary links to it) ->
+#  Package settings -> Change visibility -> Public, or nobody but you can `docker pull` it. This workflow checks and tells you.
+#
+#  Called by: Release.   Retry by hand: Actions -> Publish / Docker -> Run workflow -> tag (for example v0.5.3).
+# =====================================================================================================================================
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag (for example v0.5.3)
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag (for example v0.5.3)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write   # push to ghcr.io
+
+concurrency:
+  group: publish-docker-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Push the image
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      # ---- 1. Is this a tag we understand? ----------------------------------------------------------------------------------------
+      - name: Check the tag
+        id: tag
+        shell: bash
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::'$TAG' is not a release tag like v1.2.3 or v1.2.3-beta.1"
+            exit 1
+          fi
+          version="${TAG#v}"
+          stable=true
+          case "$version" in *-*) stable=false ;; esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "stable=$stable"   >> "$GITHUB_OUTPUT"
+
+      # Build exactly what was tagged, even when this workflow is run by hand from another branch.
+      - name: Check out the tagged code
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+
+      # ---- 2. Tools and logins ---------------------------------------------------------------------------------------------------
+      - name: Set up QEMU (CPU emulation)
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to the GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Secrets cannot be tested directly in an `if:`, so look at them here and keep the answer.
+      - name: Is Docker Hub configured? (optional)
+        id: hub
+        shell: bash
+        env:
+          HUB_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          HUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [ -n "$HUB_USER" ] && [ -n "$HUB_TOKEN" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Docker Hub skipped::Add DOCKERHUB_USERNAME and DOCKERHUB_TOKEN to also publish to Docker Hub."
+          fi
+
+      - name: Log in to Docker Hub
+        if: steps.hub.outputs.enabled == 'true'
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # ---- 3. Which names and tags? ------------------------------------------------------------------------------------------------
+      - name: Work out the image names and tags
+        id: meta
+        shell: bash
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          STABLE: ${{ steps.tag.outputs.stable }}
+          HUB_ENABLED: ${{ steps.hub.outputs.enabled }}
+          HUB_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          set -euo pipefail
+          ghcr="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/opentick"
+          images=("$ghcr")
+          [ "$HUB_ENABLED" = "true" ] && images+=("docker.io/${HUB_USER,,}/opentick")
+
+          tags=()
+          for image in "${images[@]}"; do
+            tags+=("$image:$VERSION")
+            if [ "$STABLE" = "true" ]; then
+              tags+=("$image:${VERSION%.*}" "$image:latest")   # ${VERSION%.*} turns 0.5.3 into 0.5
+            fi
+          done
+
+          echo "image=$ghcr" >> "$GITHUB_OUTPUT"
+          { echo "tags<<EOF"; printf '%s\n' "${tags[@]}"; echo "EOF"; } >> "$GITHUB_OUTPUT"
+          echo "Tags that will be pushed:"
+          printf '  %s\n' "${tags[@]}"
+
+      # ---- 4. Build for every CPU and push ----------------------------------------------------------------------------------------
+      # The cache is shared with Build / Docker, so most of this is already done by the time it runs.
+      - name: Build and push the multi-architecture image
+        id: push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64,linux/arm/v7,linux/386
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: VERSION=${{ steps.tag.outputs.version }}
+          cache-from: type=gha,scope=opentick-docker
+          provenance: mode=max   # signed record of how the image was built
+          sbom: true             # list of everything inside it
+
+      # ---- 5. Can the public pull it? ---------------------------------------------------------------------------------------------
+      # A brand-new GitHub package is private. Ask the registry for the manifest WITHOUT logging in; if that fails, say how to fix it.
+      - name: Check that anyone can pull the image
+        id: public
+        shell: bash
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          set -uo pipefail
+          path="${IMAGE#ghcr.io/}"
+          token="$(curl -fsS "https://ghcr.io/token?service=ghcr.io&scope=repository:${path}:pull" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("token",""))' || true)"
+          code="$(curl -s -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer ${token}" \
+            -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json' \
+            "https://ghcr.io/v2/${path}/manifests/${VERSION}")"
+          if [ "$code" = "200" ]; then
+            echo "public=true" >> "$GITHUB_OUTPUT"
+            echo "Anyone can pull ${IMAGE}:${VERSION}."
+          else
+            echo "public=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=The Docker image is private::The registry answered ${code} to an anonymous pull. Open https://github.com/${GITHUB_REPOSITORY}/pkgs/container/opentick -> Package settings -> Change visibility -> Public."
+          fi
+
+      # ---- 6. A readable summary on the run page ----------------------------------------------------------------------------------
+      - name: Write the run summary
+        shell: bash
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+          VERSION: ${{ steps.tag.outputs.version }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+          PUBLIC: ${{ steps.public.outputs.public }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          {
+            echo "### Docker image published"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Image | \`${IMAGE}\` |"
+            echo "| Version | \`${VERSION}\` |"
+            echo "| Digest | \`${DIGEST}\` |"
+            echo "| Public pull | $([ "$PUBLIC" = "true" ] && echo "yes" || echo "**no, the package is private: see the warning above**") |"
+            echo "| Registry page | https://github.com/${GITHUB_REPOSITORY}/pkgs/container/opentick |"
+            echo
+            echo "Tags:"
+            echo
+            echo '```'
+            echo "$TAGS"
+            echo '```'
+            echo
+            echo "Try it: \`docker run -d -p 8080:8080 ${IMAGE}:${VERSION}\` then open http://localhost:8080"
+          } >> "$GITHUB_STEP_SUMMARY"

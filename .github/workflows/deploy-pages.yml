@@ -1,6 +1,20 @@
 name: Deploy / Website
 
-# GitHub Pages: the web app at the site root, the e-ink edition under /eink/, and the privacy policy.
+# =====================================================================================================================================
+#  Deploy / Website: the hosted web app on GitHub Pages
+# =====================================================================================================================================
+#  What ends up online
+#    /                       the normal web app
+#    /eink/                  the e-ink edition (black and white, no animation, page buttons)
+#    /privacy-policy.html    the privacy policy, built from docs/privacy-policy.md
+#
+#  When it runs: on every push to `main`, or by hand (Actions -> Deploy / Website -> Run workflow).
+#  One-time setup: Settings -> Pages -> Source = "GitHub Actions".
+#
+#  This is the ONLY workflow that deploys the website. (There used to be a second one that used the same concurrency group, so the two
+#  cancelled each other and sometimes deployed a site without the e-ink edition.)
+# =====================================================================================================================================
+
 on:
   push:
     branches: [main]
@@ -9,42 +23,59 @@ on:
 permissions:
   contents: read
 
+# Only one deployment at a time; a newer push replaces an older one that has not finished.
 concurrency:
   group: github-pages
   cancel-in-progress: true
 
 jobs:
+  # -------------------------------------------------------------------------------------------------------------------------------
+  # 1. Build the site into a folder
+  # -------------------------------------------------------------------------------------------------------------------------------
   build:
-    name: Build website
+    name: Build the website
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-node
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js and install npm packages
+        uses: ./.github/actions/setup-node
+
       - name: Build both editions and the privacy policy
         shell: bash
         run: |
           set -euo pipefail
-          node build-app.mjs --out site
-          node build-app.mjs --eink --out site/eink
+          node build-app.mjs --out site              # the normal app at the root
+          node build-app.mjs --eink --out site/eink  # the e-ink edition under /eink/
           test -f docs/privacy-policy.md
           npx --yes marked --gfm --output site/privacy-policy.html docs/privacy-policy.md
-          test -f site/index.html && test -f site/eink/index.html
+          test -f site/index.html
+          test -f site/eink/index.html
+          echo "The site contains:"
           find site -maxdepth 2 -type f | sort
-      - uses: actions/upload-pages-artifact@v5
+
+      - name: Package the site for GitHub Pages
+        uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
+  # -------------------------------------------------------------------------------------------------------------------------------
+  # 2. Publish the folder
+  # -------------------------------------------------------------------------------------------------------------------------------
   deploy:
     name: Publish to GitHub Pages
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
-      pages: write
-      id-token: write
+      pages: write      # publish the site
+      id-token: write   # prove to Pages that this run is allowed to
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - id: deployment
+      - name: Publish
+        id: deployment
         uses: actions/deploy-pages@v5

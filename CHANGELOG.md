@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.3
+
+**Releases and packaging**
+- Docker is now part of every release. The release page has a Docker section with the image as downloads (`OpenTick_<version>_docker-amd64.tar.gz`, `-arm64`, `-armv7`, `-i386`) that load with `docker load`, a compose file pinned to that version, and the `docker run` command. Before, the image only went to the container registry and never showed on the Releases page.
+- The Docker image is pushed to the registry only after the GitHub Release exists, so `latest` never moves for a release that did not happen. The image is started and checked (`/healthz`, the app and `/eink/`) before a release is made, and a warning says how to fix it if the registry package is still private.
+- Fixed: pushing a version tag started two release workflows at once, each making its own release and each submitting to the Microsoft Store. The old `Build OpenTick` workflow is gone; Release is the only one.
+- Fixed: two workflows deployed GitHub Pages and cancelled each other. There is one now.
+- Fixed: the Snap Store upload failed whenever the release had both a 64-bit and an ARM64 Snap, and refused pre-release tags such as `v0.6.0-beta.1`. It now uploads every Snap.
+- Fixed: the Microsoft Store publisher failed when its secrets were not set. Like the other stores, it now skips with a warning.
+- Removed workflows that duplicated others: `build.yml`, `deploy-web.yml`, `update-scoop-bucket.yml` and `test-snap.yml`.
+- Every workflow now starts with a plain-language header (what it does, when it runs, which secrets it needs) and comments on each step. `docs/RELEASING.md` lists them all.
+
 ## 0.5.2
 
 - Internal maintenance.

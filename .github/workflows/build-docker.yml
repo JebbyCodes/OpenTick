@@ -1,103 +1,191 @@
 name: Build / Docker
 
-# Multi-architecture image (64-bit, ARM64, ARMv7 and 32-bit x86) with both the normal and the e-ink web app.
-# Pushed to the GitHub Container Registry (ghcr.io/<owner>/opentick), and to Docker Hub too if DOCKERHUB_USERNAME / DOCKERHUB_TOKEN are set.
+# =====================================================================================================================================
+#  Build / Docker: the self-hosting image, as files that go into the GitHub Release
+# =====================================================================================================================================
+#  Why this exists
+#    The Docker image used to be pushed straight to the container registry and never showed up on the Releases page. Now every
+#    release carries the image as ordinary downloads, so you can see it, check it against SHA256SUMS.txt, and load it on a machine
+#    that cannot reach the registry (`gunzip -c <file> | docker load`).
+#
+#  What it makes (one job per row of the matrix, all at once)
+#    OpenTick_<v>_docker-amd64.tar.gz     64-bit Intel / AMD          (PCs, servers, most NAS boxes)
+#    OpenTick_<v>_docker-arm64.tar.gz     64-bit ARM                  (Raspberry Pi 4/5, Apple Silicon, cloud ARM)
+#    OpenTick_<v>_docker-armv7.tar.gz     32-bit ARM                  (older Raspberry Pi, some NAS)      optional
+#    OpenTick_<v>_docker-i386.tar.gz      32-bit Intel                (very old PCs)                      optional
+#    OpenTick_<v>_docker-compose.yml      a ready-made compose file pinned to this exact version
+#
+#  The amd64 job also starts the image and checks that the website answers (normal app and /eink/), so a broken image fails the release
+#  here and not on somebody's server.
+#
+#  What it does NOT do: push anything to a registry. That happens in Publish / Docker, which Release runs only AFTER the GitHub Release
+#  exists, so the `latest` tag can never move for a release that did not happen.
+#
+#  Artifacts: pkg-docker-amd64, pkg-docker-arm64, pkg-docker-armv7, pkg-docker-i386, pkg-docker-compose.
+#  Called by: Release.   By hand: Actions -> Build / Docker -> Run workflow (files stay in the run's artifacts).
+# =====================================================================================================================================
+
 on:
   workflow_call:
     inputs:
       version:
-        description: Version being built (x.y.z)
+        description: Version being built (x.y.z); used in file names and image tags
         required: true
         type: string
-      push:
-        description: Push the image (false = build only, to prove it works)
-        required: false
-        type: boolean
-        default: true
-      prerelease:
-        description: A prerelease does not move the `latest` tag
-        required: false
-        type: boolean
-        default: false
   workflow_dispatch:
     inputs:
       version:
-        description: Version to tag the image with (x.y.z)
+        description: Version being built (x.y.z); used in file names and image tags
         required: true
         type: string
-      push:
-        description: Push the image
-        required: true
-        type: boolean
-        default: false
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
-  image:
-    name: Image (${{ inputs.push && 'build and push' || 'build only' }})
+  # -------------------------------------------------------------------------------------------------------------------------------
+  # 1. One image archive per CPU family
+  # -------------------------------------------------------------------------------------------------------------------------------
+  archive:
+    name: Image for ${{ matrix.name }}
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
+    # the 32-bit images are a courtesy; if one fails the release still goes ahead and lists it as missing
+    continue-on-error: ${{ matrix.optional }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { id: amd64, name: '64-bit Intel / AMD', platform: linux/amd64,  optional: false }
+          - { id: arm64, name: '64-bit ARM',         platform: linux/arm64,  optional: false }
+          - { id: armv7, name: '32-bit ARM',         platform: linux/arm/v7, optional: true }
+          - { id: i386,  name: '32-bit Intel',       platform: linux/386,    optional: true }
     steps:
-      - uses: actions/checkout@v7
+      - name: Check out the repository
+        uses: actions/checkout@v7
 
-      - uses: docker/setup-qemu-action@v4
-      - uses: docker/setup-buildx-action@v4
+      # The final stage of the Dockerfile only copies files, so nothing has to run on the target CPU. QEMU is installed anyway: it costs
+      # a few seconds and keeps this job working if someone ever adds a RUN line to the final stage.
+      - name: Set up QEMU (CPU emulation)
+        uses: docker/setup-qemu-action@v4
 
-      - name: Log in to the GitHub Container Registry
-        if: inputs.push
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
 
-      - name: Docker Hub login (optional)
-        id: hub
-        if: inputs.push
-        env:
-          U: ${{ secrets.DOCKERHUB_USERNAME }}
-          T: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Work out the image name
+        id: name
         shell: bash
         run: |
-          if [ -n "$U" ] && [ -n "$T" ]; then echo "on=true" >> "$GITHUB_OUTPUT"; else echo "on=false" >> "$GITHUB_OUTPUT"; fi
-      - if: steps.hub.outputs.on == 'true'
-        uses: docker/login-action@v4
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          # container registry names must be lower case
+          echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/opentick" >> "$GITHUB_OUTPUT"
 
-      - name: Work out the image names and tags
-        id: meta
-        shell: bash
-        env:
-          VERSION: ${{ inputs.version }}
-          PRERELEASE: ${{ inputs.prerelease }}
-          HUB_ON: ${{ steps.hub.outputs.on }}
-          HUB_USER: ${{ secrets.DOCKERHUB_USERNAME }}
-        run: |
-          set -euo pipefail
-          images=("ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/opentick")
-          [ "$HUB_ON" = "true" ] && images+=("docker.io/$HUB_USER/opentick")
-          tags=()
-          for i in "${images[@]}"; do
-            tags+=("$i:$VERSION")
-            if [ "$PRERELEASE" != "true" ]; then tags+=("$i:${VERSION%.*}" "$i:latest"); fi
-          done
-          { echo "tags<<EOF"; printf '%s\n' "${tags[@]}"; echo "EOF"; } >> "$GITHUB_OUTPUT"
-          printf '%s\n' "${tags[@]}"
-
-      - name: Build${{ inputs.push && ' and push' || '' }}
+      # `outputs: type=docker,dest=...` writes the finished image to a .tar file instead of pushing it.
+      - name: Build the image for ${{ matrix.platform }}
         uses: docker/build-push-action@v7
         with:
           context: .
-          platforms: linux/amd64,linux/arm64,linux/arm/v7,linux/386
-          push: ${{ inputs.push }}
-          tags: ${{ steps.meta.outputs.tags }}
+          platforms: ${{ matrix.platform }}
+          push: false
+          outputs: type=docker,dest=${{ runner.temp }}/opentick-image.tar
+          tags: ${{ steps.name.outputs.image }}:${{ inputs.version }}
           build-args: VERSION=${{ inputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          provenance: mode=max
-          sbom: true
+          provenance: false   # a single-platform .tar cannot carry attestations; the registry image gets them in Publish / Docker
+          sbom: false
+          cache-from: type=gha,scope=opentick-docker
+          cache-to: type=gha,mode=max,scope=opentick-docker
+
+      # ---- Does the image actually work? (only on the CPU this runner has) ----------------------------------------------------------
+      - name: Start the image and check the website answers
+        if: matrix.id == 'amd64'
+        shell: bash
+        env:
+          IMAGE: ${{ steps.name.outputs.image }}:${{ inputs.version }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          docker load -i "$RUNNER_TEMP/opentick-image.tar"
+          docker run -d --name opentick-test -p 8080:8080 "$IMAGE"
+
+          # give nginx up to 30 seconds to come up
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8080/healthz >/dev/null 2>&1 && break
+            sleep 1
+          done
+
+          # (the pages are saved to files first: `curl | grep -q` can fail on a big page because grep quits before curl has finished)
+          echo "--- /healthz"
+          curl -fsS http://127.0.0.1:8080/healthz
+          echo "--- / (normal app, must carry version $VERSION)"
+          curl -fsS -o "$RUNNER_TEMP/app.html" http://127.0.0.1:8080/
+          grep -q "\"version\":\"$VERSION\"" "$RUNNER_TEMP/app.html"
+          echo "--- /eink/ (e-ink edition, must be switched on by default)"
+          curl -fsS -o "$RUNNER_TEMP/eink.html" http://127.0.0.1:8080/eink/
+          grep -q '"eink":true' "$RUNNER_TEMP/eink.html"
+          echo "The image works."
+          docker rm -f opentick-test >/dev/null
+
+      - name: Show the container logs if the check failed
+        if: failure() && matrix.id == 'amd64'
+        run: docker logs opentick-test || true
+
+      # ---- Package it as a download -------------------------------------------------------------------------------------------------
+      - name: Compress the image into a download
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p staged
+          gzip -9 -c "$RUNNER_TEMP/opentick-image.tar" > "staged/OpenTick_${VERSION}_docker-${{ matrix.id }}.tar.gz"
+          ls -l staged
+
+      - name: Upload the file (artifact pkg-docker-${{ matrix.id }})
+        uses: actions/upload-artifact@v7
+        with:
+          name: pkg-docker-${{ matrix.id }}
+          path: staged/*.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+  # -------------------------------------------------------------------------------------------------------------------------------
+  # 2. A compose file pinned to this version
+  # -------------------------------------------------------------------------------------------------------------------------------
+  compose:
+    name: Compose file
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Write the compose file
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p staged
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/opentick:${VERSION}"
+          cat > "staged/OpenTick_${VERSION}_docker-compose.yml" <<EOF
+          # OpenTick ${VERSION} as a website you host yourself.
+          #
+          #   docker compose -f OpenTick_${VERSION}_docker-compose.yml up -d
+          #
+          # then open http://localhost:8080   (the e-ink edition is at http://localhost:8080/eink/)
+          #
+          # OpenTick keeps its data in your browser and syncs over WebDAV, so there is no database and nothing to back up on the server.
+          # This file is pinned to ${VERSION}. To follow new releases automatically, change the tag to :latest.
+          services:
+            opentick:
+              image: ${image}
+              container_name: opentick
+              ports:
+                - "8080:8080"
+              restart: unless-stopped
+          EOF
+          cat "staged/OpenTick_${VERSION}_docker-compose.yml"
+
+      - name: Upload the file (artifact pkg-docker-compose)
+        uses: actions/upload-artifact@v7
+        with:
+          name: pkg-docker-compose
+          path: staged/*.yml
+          if-no-files-found: error
+          retention-days: 14

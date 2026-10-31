@@ -1,38 +1,64 @@
 name: Publish / Scoop
 
-# Opens a pull request on the Scoop bucket (JebbyCodes/OpenTick-Scoop) that points at the new installer.
+# =====================================================================================================================================
+#  Publish / Scoop: `scoop install opentick`
+# =====================================================================================================================================
+#  Scoop installs from a "bucket" (a separate GitHub repository of small JSON files). This workflow downloads the new 64-bit installer
+#  from the GitHub Release, works out its SHA-256 checksum, edits the manifest in the bucket repository (JebbyCodes/OpenTick-Scoop) and
+#  opens a PULL REQUEST there. It never pushes straight to the bucket: you review the checksum and merge it yourself.
+#
+#  Secret: OPENTICK_SCOOP_TOKEN, a personal access token that can open pull requests on the bucket repository.
+#  Without it this workflow skips itself with a warning.
+#
+#  This is the only Scoop workflow. (An older one waited for a "release published" event, which GitHub never sends for releases made by
+#  another workflow, and used the same pull-request branch, so the two would have fought over it.)
+#
+#  Called by: Release (stable releases only).
+#  Retry by hand: Actions -> Publish / Scoop -> Run workflow -> tag (for example v0.5.3).
+# =====================================================================================================================================
+
 on:
   workflow_call:
     inputs:
       tag:
-        description: Release tag (for example v0.5.1)
+        description: Release tag (for example v0.5.3)
         required: true
         type: string
   workflow_dispatch:
     inputs:
       tag:
-        description: Release tag (for example v0.5.1)
+        description: Release tag (for example v0.5.3)
         required: true
         type: string
 
 permissions:
   contents: read
 
+concurrency:
+  group: scoop-${{ inputs.tag }}
+  cancel-in-progress: false
+
 jobs:
   scoop:
-    name: Update the bucket
+    name: Update the Scoop bucket
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Token present?
+      # ---- 1. Is there a token? -----------------------------------------------------------------------------------------------------
+      - name: Check for the bucket token
         id: gate
         shell: bash
         env:
-          T: ${{ secrets.OPENTICK_SCOOP_TOKEN }}
+          TOKEN: ${{ secrets.OPENTICK_SCOOP_TOKEN }}
         run: |
-          if [ -n "$T" ]; then echo "ready=true" >> "$GITHUB_OUTPUT"
-          else echo "ready=false" >> "$GITHUB_OUTPUT"; echo "::warning title=Scoop skipped::Add the OPENTICK_SCOOP_TOKEN secret (a token that can open pull requests on the bucket repository)."; fi
+          if [ -n "$TOKEN" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Scoop skipped::Add the OPENTICK_SCOOP_TOKEN secret (a token that can open pull requests on the bucket repository)."
+          fi
 
+      # ---- 2. Edit the manifest -----------------------------------------------------------------------------------------------------
       - name: Check out the Scoop bucket
         if: steps.gate.outputs.ready == 'true'
         uses: actions/checkout@v7
@@ -42,7 +68,7 @@ jobs:
           token: ${{ secrets.OPENTICK_SCOOP_TOKEN }}
           path: scoop-bucket
 
-      - name: Update the manifest
+      - name: Update the manifest (version, download address, checksum)
         if: steps.gate.outputs.ready == 'true'
         shell: bash
         env:
@@ -51,23 +77,31 @@ jobs:
           set -euo pipefail
           version="${TAG#v}"
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || { echo "::error::Unexpected tag: $TAG"; exit 1; }
+
           url="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/OpenTick_${version}_x64-setup.exe"
           curl -fsSL "$url" -o setup.exe
           hash="$(sha256sum setup.exe | cut -d' ' -f1)"
-          echo "SHA-256: $hash"
-          f=scoop-bucket/bucket/opentick.json
-          VERSION="$version" URL="$url" HASH="$hash" python3 - "$f" <<'PY'
+          echo "Installer: $url"
+          echo "SHA-256:   $hash"
+
+          manifest=scoop-bucket/bucket/opentick.json
+          VERSION="$version" URL="$url" HASH="$hash" python3 - "$manifest" <<'PY'
           import json, os, sys
-          p = sys.argv[1]; m = json.load(open(p, encoding='utf-8'))
+          path = sys.argv[1]
+          m = json.load(open(path, encoding='utf-8'))
           m['version'] = os.environ['VERSION']
           m['architecture']['64bit']['url'] = os.environ['URL']
           m['architecture']['64bit']['hash'] = os.environ['HASH']
+          # the address Scoop itself uses to find future versions ($version is Scoop's variable, not ours)
           m.setdefault('autoupdate', {}).setdefault('architecture', {}).setdefault('64bit', {})['url'] = \
             'https://github.com/JebbyCodes/OpenTick/releases/download/v$version/OpenTick_$version_x64-setup.exe'
-          open(p, 'w', encoding='utf-8').write(json.dumps(m, indent=4) + '\n')
+          open(path, 'w', encoding='utf-8').write(json.dumps(m, indent=4) + '\n')
           PY
-          python3 -c "import json;m=json.load(open('$f'));assert m['version']=='$version'"
 
+          # read it back to prove the edit worked
+          python3 -c "import json; m = json.load(open('$manifest')); assert m['version'] == '$version', 'version was not written'"
+
+      # ---- 3. Ask a human to review it ------------------------------------------------------------------------------------------------
       - name: Open or update the pull request
         if: steps.gate.outputs.ready == 'true'
         uses: peter-evans/create-pull-request@v8
@@ -82,7 +116,7 @@ jobs:
             Automated Scoop manifest update for OpenTick ${{ inputs.tag }}.
 
             - Updates the version and the Windows installer URL.
-            - SHA-256 is calculated from the downloaded installer.
+            - The SHA-256 checksum was calculated from the installer downloaded from the release.
             - Updates the automatic-update URL.
 
             Please check the installer and checksum before merging.

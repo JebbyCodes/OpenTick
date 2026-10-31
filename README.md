@@ -24,15 +24,22 @@
   <img src="docs/images/gantt.png" width="32%" alt="Gantt chart">
 </p>
 
-## What's new in 0.5.2
+## What's new in 0.5.3
 
-- TODO: describe what is new in this release.
+- Docker is now part of every release. The release page has a Docker section with the image as downloads (`OpenTick_<version>_docker-amd64.tar.gz`, `-arm64`, `-armv7`, `-i386`) that load with `docker load`, a compose file pinned to that version, and the `docker run` command. Before, the image only went to the container registry and never showed on the Releases page.
+- The Docker image is pushed to the registry only after the GitHub Release exists, so `latest` never moves for a release that did not happen. The image is started and checked (`/healthz`, the app and `/eink/`) before a release is made, and a warning says how to fix it if the registry package is still private.
+- Fixed: pushing a version tag started two release workflows at once, each making its own release and each submitting to the Microsoft Store. The old `Build OpenTick` workflow is gone; Release is the only one.
+- Fixed: two workflows deployed GitHub Pages and cancelled each other. There is one now.
+- Fixed: the Snap Store upload failed whenever the release had both a 64-bit and an ARM64 Snap, and refused pre-release tags such as `v0.6.0-beta.1`. It now uploads every Snap.
+- Fixed: the Microsoft Store publisher failed when its secrets were not set. Like the other stores, it now skips with a warning.
+- Removed workflows that duplicated others: `build.yml`, `deploy-web.yml`, `update-scoop-bucket.yml` and `test-snap.yml`.
+- Every workflow now starts with a plain-language header (what it does, when it runs, which secrets it needs) and comments on each step. `docs/RELEASING.md` lists them all.
 
 Earlier releases are listed in [CHANGELOG.md](CHANGELOG.md).
 
-## What was new in 0.5.3
+## What was new in 0.5.2
 
-- TODO: describe what is new in this release.
+- Internal maintenance.
 
 Earlier releases are listed in [CHANGELOG.md](CHANGELOG.md).
 
@@ -146,6 +153,8 @@ docker run -d -p 8080:8080 --name opentick ghcr.io/jebbycodes/opentick:latest
 ```
 
 Open http://localhost:8080 (the e-ink edition is at `/eink/`). Images exist for 64-bit and 32-bit x86, ARM64 and ARMv7. Your data stays in your browser; the container only serves the app. [`docker/compose.example.yml`](docker/compose.example.yml) is a ready-made compose file.
+
+Every [release](https://github.com/JebbyCodes/OpenTick/releases) also has the image as plain downloads, so you can install without the registry: `OpenTick_<version>_docker-amd64.tar.gz` (also `arm64`, `armv7`, `i386`) loaded with `gunzip -c <file> | docker load`, and a compose file pinned to that version (`OpenTick_<version>_docker-compose.yml`).
 
 ## E-ink
 

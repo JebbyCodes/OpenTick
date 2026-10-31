@@ -1,1 +1,1 @@
-• TODO: describe what is new in this release.
+• Docker is now part of every release. The release page has a Docker section with the image as downloads (OpenTick_<version>_docker-amd64.tar.gz, -arm64, -armv7, -i386) that load with docker load, a compose file pinned to that version, and the docker run command. Before, the image only went to the container registry and never showed on the Releases page.

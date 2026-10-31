@@ -1,29 +1,37 @@
 name: Set up the Android build
 description: >
-  JDK, Android SDK and NDK, Rust targets, the generated Tauri Android project (with the OpenTick widgets and background service added) and
-  release signing from repository secrets. After this, `npx tauri android build ...` produces signed APKs. Nothing secret is written to the repository.
+  Everything an Android build needs, in the order it is needed: Java, the Android SDK and NDK, the Rust compiler with the four Android targets,
+  the generated Tauri Android project (with the OpenTick home-screen widgets and background service added) and release signing taken from
+  repository secrets. After this step, `npx tauri android build ...` produces signed APKs. The signing key lives only on the runner and
+  is never written to the repository.
+
 inputs:
   targets:
-    description: Rust targets to install
+    description: Rust targets to install (the four Android CPU families by default)
     default: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
   key-base64:
-    description: Base64 of the release keystore (.jks)
+    description: The release keystore (.jks file) encoded as base64
     required: true
   key-password:
-    description: Keystore and key password
+    description: Password for the keystore and the key (they must be the same)
     required: true
   key-alias:
-    description: Key alias
+    description: Name of the key inside the keystore
     required: true
+
 runs:
   using: composite
   steps:
-    - uses: actions/setup-java@v6
+    # ---- 1. Java: Gradle (the Android build tool) needs JDK 17 -------------------------------------------------------------------------
+    - name: Install Java 17
+      uses: actions/setup-java@v6
       with:
         distribution: temurin
         java-version: '17'
 
-    - uses: android-actions/setup-android@v4
+    # ---- 2. The Android SDK ------------------------------------------------------------------------------------------------------------
+    - name: Install the Android command-line tools
+      uses: android-actions/setup-android@v4
       with:
         packages: platform-tools
         accept-android-sdk-licenses: 'true'
@@ -38,17 +46,21 @@ runs:
       run: |
         set -euo pipefail
         sdkmanager --install "platforms;android-${ANDROID_API}" "build-tools;${BUILD_TOOLS}" "ndk;${NDK}" >/dev/null
+        # later steps (and Tauri) find the NDK and the signing tool through these two variables
         {
           echo "NDK_HOME=$ANDROID_HOME/ndk/$NDK"
           echo "ANDROID_BUILD_TOOLS=$ANDROID_HOME/build-tools/$BUILD_TOOLS"
         } >> "$GITHUB_ENV"
         test -d "$ANDROID_HOME/ndk/$NDK"
 
-    - uses: dtolnay/rust-toolchain@stable
+    # ---- 3. Rust, with a build cache so repeat builds are quick -----------------------------------------------------------------------
+    - name: Install Rust with the Android targets
+      uses: dtolnay/rust-toolchain@stable
       with:
         targets: ${{ inputs.targets }}
 
-    - uses: swatinem/rust-cache@v2
+    - name: Cache the Rust build
+      uses: swatinem/rust-cache@v2
       with:
         workspaces: src-tauri -> target
         key: android
@@ -62,6 +74,7 @@ runs:
         key: gradle-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock', 'src-tauri/tauri.conf.json') }}
         restore-keys: gradle-${{ runner.os }}-
 
+    # ---- 4. The Android project Tauri generates, plus OpenTick's own additions ---------------------------------------------------------
     - name: Generate the Android project and add the OpenTick widgets and service
       shell: bash
       run: |
@@ -73,7 +86,8 @@ runs:
         node scripts/android/android-widgets.mjs
         npx tauri icon src-tauri/icons/icon.png >/dev/null
 
-    - name: Configure release signing (key stays on the runner)
+    # ---- 5. Release signing ------------------------------------------------------------------------------------------------------------
+    - name: Configure release signing (the key stays on the runner)
       shell: bash
       env:
         ANDROID_KEY_BASE64: ${{ inputs.key-base64 }}

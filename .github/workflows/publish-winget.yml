@@ -1,19 +1,30 @@
 name: Publish / Winget
 
-# Opens a pull request on microsoft/winget-pkgs for the new release. Only updates a package that already exists there, so it stays switched
-# off until you set the repository variable WINGET_IDENTIFIER (for example JebbyCodes.OpenTick) and the secret WINGET_TOKEN
-# (a classic personal access token with public_repo, from an account that has forked microsoft/winget-pkgs).
+# =====================================================================================================================================
+#  Publish / Winget: `winget install JebbyCodes.OpenTick`
+# =====================================================================================================================================
+#  Opens a pull request on microsoft/winget-pkgs that points the existing OpenTick package at the new release. Microsoft's bots and
+#  moderators review it. This only UPDATES a package that already exists there; the very first submission is done once, by hand.
+#
+#  It stays switched off (skipped with a notice, never red) until you set:
+#    variable  WINGET_IDENTIFIER   the package ID, for example JebbyCodes.OpenTick
+#    secret    WINGET_TOKEN        a classic personal access token with `public_repo`, from an account that has forked microsoft/winget-pkgs
+#
+#  Called by: Release (stable releases only).
+#  Retry by hand: Actions -> Publish / Winget -> Run workflow -> tag (for example v0.5.3).
+# =====================================================================================================================================
+
 on:
   workflow_call:
     inputs:
       tag:
-        description: Release tag (for example v0.5.1)
+        description: Release tag (for example v0.5.3)
         required: true
         type: string
   workflow_dispatch:
     inputs:
       tag:
-        description: Release tag (for example v0.5.1)
+        description: Release tag (for example v0.5.3)
         required: true
         type: string
 
@@ -26,17 +37,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Configured?
+      - name: Check that Winget is set up
         id: gate
         shell: bash
         env:
-          ID: ${{ vars.WINGET_IDENTIFIER }}
-          T: ${{ secrets.WINGET_TOKEN }}
+          IDENTIFIER: ${{ vars.WINGET_IDENTIFIER }}
+          TOKEN: ${{ secrets.WINGET_TOKEN }}
         run: |
-          if [ -n "$ID" ] && [ -n "$T" ]; then echo "ready=true" >> "$GITHUB_OUTPUT"
-          else echo "ready=false" >> "$GITHUB_OUTPUT"; echo "::notice title=Winget skipped::Set the WINGET_IDENTIFIER variable and the WINGET_TOKEN secret to publish to winget."; fi
+          if [ -n "$IDENTIFIER" ] && [ -n "$TOKEN" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Winget skipped::Set the WINGET_IDENTIFIER variable and the WINGET_TOKEN secret to publish to winget."
+          fi
 
-      - name: Submit
+      # The regular expression picks out the installers to list: 64-bit, 32-bit and ARM64 setup programs.
+      - name: Submit the update
         if: steps.gate.outputs.ready == 'true'
         uses: vedantmgoyal9/winget-releaser@v2
         with:
