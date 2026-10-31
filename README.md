@@ -24,7 +24,13 @@
   <img src="docs/images/gantt.png" width="32%" alt="Gantt chart">
 </p>
 
-## What's new in 0.5.3
+## What's new in 0.5.2
+
+- TODO: describe what is new in this release.
+
+Earlier releases are listed in [CHANGELOG.md](CHANGELOG.md).
+
+## What was new in 0.5.3
 
 - TODO: describe what is new in this release.
 

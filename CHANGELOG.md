@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.2
+
+- TODO: describe what is new in this release.
+
 ## 0.5.3
 
 - TODO: describe what is new in this release.
