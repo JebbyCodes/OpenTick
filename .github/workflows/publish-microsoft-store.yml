@@ -34,6 +34,7 @@ on:
         description: Exact release file name to use (leave blank to choose automatically)
         required: false
         type: string
+
   workflow_dispatch:
     inputs:
       tag:
@@ -65,6 +66,7 @@ jobs:
     timeout-minutes: 30
     env:
       APP_ID: ${{ vars.MS_STORE_APP_ID || '9PDNNTK8TZ39' }}
+
     steps:
       # ---- 1. Are the credentials there? (skip politely if not, like every other publisher) --------------------------------------
       - name: Check for the Partner Center credentials
@@ -205,10 +207,22 @@ jobs:
           Write-Host "Package    : $env:UPLOAD"
           Write-Host "Draft only : $env:DRAFT"
 
-          $arguments = @('publish', (Resolve-Path 'store').Path, '--inputFile', $env:UPLOAD, '--appId', $env:APP_ID)
-          if ($env:DRAFT -eq 'true') { $arguments += '--noCommit' }   # upload, but do not send for certification
+          $packageDirectory = (Resolve-Path 'store').Path
+
+          $arguments = @(
+            'publish'
+            '--inputDirectory'
+            $packageDirectory
+            '--appId'
+            $env:APP_ID
+          )
+
+          if ($env:DRAFT -eq 'true') {
+            $arguments += '--noCommit'
+          }
 
           msstore @arguments
+
           if ($LASTEXITCODE -ne 0) {
             throw "Microsoft Store submission failed ($LASTEXITCODE). Check the package identity, that this version is higher than the last one, and the Partner Center permissions."
           }
