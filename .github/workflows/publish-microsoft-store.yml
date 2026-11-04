@@ -207,12 +207,11 @@ jobs:
           Write-Host "Package    : $env:UPLOAD"
           Write-Host "Draft only : $env:DRAFT"
 
-          $packageDirectory = (Resolve-Path 'store').Path
-
+          # Pass the package file as the required positional argument. --inputDirectory
+          # is only a search option and does not replace the required publish path.
           $arguments = @(
             'publish'
-            '--inputDirectory'
-            $packageDirectory
+            $env:UPLOAD
             '--appId'
             $env:APP_ID
           )
