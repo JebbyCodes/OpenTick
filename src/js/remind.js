@@ -48,7 +48,7 @@ function remEntries(from, to) {
     const rs = remsOf(t); if (!rs.length) continue;
     const dates = [t.due]; if (t.repeat) for (const d of repeatDates(t, t.due, lastKey)) dates.push(d);
     dates.forEach((d, i) => {
-      const tm = tmEff(t, d) || '', base = new Date(`${d}T${tm || '09:00'}`).getTime(), body = 'Due ' + fmtDate(d) + (validHM(tm) ? ' ' + fmtTime(tm) : '');
+      const tm = tmEff(t, d) || '', base = i === 0 && tm && tm === t.time && typeof tzAnchored === 'function' && tzAnchored(t) ? tzToUtc(t.zd, t.zt, t.tz) : new Date(`${d}T${tm || '09:00'}`).getTime(), body = 'Due ' + fmtDate(d) + (validHM(tm) ? ' ' + fmtTime(tm) : '');
       for (const r of rs) {
         if (typeof r === 'number') add(`${t.id}|${d}|${tm}|${r}`, base - r * 60000, base - r * 60000 + 864e5, { kind: 'task', id: t.id, title: t.title, body });
         else if (i === 0) { const at = new Date(r).getTime(); add(`${t.id}|abs|${r}`, at, at + 864e5, { kind: 'task', id: t.id, title: t.title, body }); }
@@ -71,6 +71,16 @@ function remEntries(from, to) {
       const d = addDays(day0, i), k = ymd(d); if (!sl.days.includes(d.getDay())) continue;
       const st = new Date(`${k}T${sl.start}`).getTime(), en = new Date(`${k}T${sl.end}`).getTime();
       add(`s|${sl.id}|${k}|${sl.start}|${sl.remind}`, st - sl.remind * 60000, en, { kind: 'slot', id: sl.id, title: sl.title, body: `${fmtRange(sl.start, sl.end)}${sl.loc ? ' · ' + sl.loc : ''}` });
+    }
+  }
+  // countdowns: a reminder before (or at) the moment, for the next occurrence of a yearly one too
+  if (typeof cdLeft === 'function') for (const c of S.countdowns) {
+    if (c.archived || !c.remind.length) continue;
+    const L = cdLeft(c, from), body = typeof cdWhen === 'function' ? cdWhen(c, from) : c.date;
+    for (const r of c.remind) {
+      // a countdown with no time is reminded at 09:00 on its day
+      const at0 = c.time ? L.at : L.at + 9 * 36e5, at = at0 - r * 60000;
+      add(`c|${c.id}|${L.date}|${r}`, at, at + 864e5, { kind: 'countdown', id: c.id, title: c.name || 'Countdown', body: r === 0 ? 'It is time. ' + body : (r >= 1440 ? Math.round(r / 1440) + (r === 1440 ? ' day' : ' days') : r >= 60 ? Math.round(r / 60) + ' hour' : r + ' min') + ' to go. ' + body });
     }
   }
   // morning digest

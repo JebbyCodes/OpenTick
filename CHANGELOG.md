@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.0 (unreleased)
+
+**App**
+- Fixed: stepping the timetable widget to next week and beyond showed "Can't load widget" on Android. The widget now gets four weeks of days, its steps are kept inside the data it holds (and shift when the data is older than today), the arrows gain week steps, and a widget that cannot be drawn falls back to a plain message instead of failing. The cause could not be reproduced without an Android device, so this hardens every path that could fail.
+- Less cramped: Settings → Appearance → Spacing (Roomy is the new default, Standard is the old look, Compact fits more), the details panel waits until you pick a task, key hints show on hover, the view grid shows two rows with a More button, and the timetable has a one-line hint.
+- New: **Countdowns**. To a date or an exact moment, in your own time or a fixed zone, yearly repeat, reminders, icon and colour, linked to lists, projects and tags. They show in a strip on those pages and on Today, and any task can start one.
+- New: **Time zones**. Save the places you work with and see one day as a row of hours per zone, with working hours shaded and the shared hours marked. Make a task or a countdown from the chosen moment. The timetable can show a second zone beside the hours; a task keeps the zone it was planned in.
+- New: **Boards**. Kanban boards with headings of your own (add, rename, recolour, reorder, limit, "done" headings that finish cards), scoped to everything, a list, a project or a tag. Drag with a mouse, press and hold on a touch screen, Alt + arrows, or the card's menu.
+- New: **Connect other apps** (Settings → Integrations, off by default). One documented interface (pairing, permissions, x-callback links on Android and the installed web app, postMessage, change feed) so companion apps can read or add tasks, tick them off and log focus time; see `docs/INTEGRATION.md`.
+- New: **Countdowns widgets**. A Countdowns mini-window on desktop (Settings → Widgets) and a Countdowns home-screen widget on Android. The Android widget works out days and hours from the clock each time it is drawn, so they stay right between refreshes.
+- New: `opentick://` links now work on **desktop and iOS** as well (Linux and Windows register the scheme when Connect other apps is on; macOS and iOS declare it in their Info.plist). Links reach the running app through its existing single-instance socket, so a second copy never starts.
+- Changed: **a task's time zone is now real.** A task planned in "New York 09:00" keeps that moment. Travel, and your own date and time shift; the plan, the reminder and a repeat's zone wall-time stay put (a daily 09:00 New York task is still 09:00 there after daylight saving ends). Changing the zone is not an edit, so nothing is synced when you merely travel.
+- Countdowns, time zones and boards sync with everything else and are encrypted with it. The sync file is now schema 6; older versions refuse to overwrite it instead of dropping the new data.
+
 ## 0.5.3
 
 **Releases and packaging**

@@ -51,7 +51,7 @@ for (const [k, v] of Object.entries(res)) if (k.startsWith('layout/')) {
 // every widget in the manifest has its class, info file, label and description, and is refreshed with the others
 const mf = rd(wdir + 'manifest-snippet.xml'), strings = res['values/ot_widget_strings.xml'];
 const recv = [...mf.matchAll(/<receiver android:name="__PACKAGE__\.(\w+)"[^>]*label="@string\/(\w+)"[\s\S]*?resource="@xml\/(\w+)"/g)];
-assert.equal(recv.length, 10, 'ten widgets: tasks, quick add, lists, projects, notes, calendar, timetable, matrix, habits, focus');
+assert.equal(recv.length, 11, 'eleven widgets: tasks, quick add, lists, projects, notes, calendar, timetable, matrix, habits, countdowns, focus');
 for (const [, cls, label, info] of recv) {
   assert.ok(kt[cls + '.kt'], cls + '.kt'); assert.match(kt['OtUi.kt'], new RegExp(cls + '::class\\.java'), cls + ' is in OtUi.refreshAll');
   assert.ok(strings.includes(`name="${label}"`) && strings.includes(`name="${label.replace('_label', '_desc')}"`), label + ' and its description');

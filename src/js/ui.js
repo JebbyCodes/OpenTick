@@ -16,7 +16,7 @@ function uiApply() {
   if (st && st.setProperty) {
     st.setProperty('--sw-u', u.sideW + 'px'); st.setProperty('--dw-u', u.detailW + 'px'); st.setProperty('--trw', u.trayW + 'px'); st.setProperty('--gtw', g.trayW + 'px');
   }
-  b.toggle('shide', !u.side); b.toggle('dhide', !u.detail); b.toggle('compact', !!u.compact);
+  b.toggle('shide', !u.side); b.toggle('dhide', !u.detail); b.toggle('compact', u.density === 'compact'); b.toggle('roomy', u.density === 'roomy'); b.toggle('dauto', !!(u.autoDetail && !U.sel));
 }
 function uiInit() {
   const app = $('#app'); if (!app || !app.appendChild) return; // (the test harness has no real DOM)
@@ -152,6 +152,21 @@ function pagesShown() {
   const u = S.settings.ui, order = pageOrder();
   return order.map(k => PAGES.find(p => p[0] === k)).filter(p => !u.hidePages.includes(p[0]) || p[0] === U.page);
 }
+// Settings → Appearance: how much space the interface leaves around things, and whether the details panel waits for a task
+function densitySetting() {
+  const u = S.settings.ui;
+  return `<div class="a11y-r"><span><b>Spacing</b><small>Roomy gives lists, menus and panels more air. Compact fits more on screen.</small></span><select data-pf="ui.density">${opts([['roomy', 'Roomy'], ['standard', 'Standard'], ['compact', 'Compact']], u.density)}</select></div>`
+    + `<label class="a11y-r tg"><span><b>Show the details panel only when a task is picked</b><small>Gives the main view the full width the rest of the time.</small></span><input type="checkbox" data-pf="ui.autoDetail"${u.autoDetail ? ' checked' : ''}></label>`;
+}
+// the page grid shows two rows of four; the rest sit behind "More" (the page you are on is always shown)
+const PG_MAX = 8;
+function pagesGrid() {
+  const all = pagesShown(); if (U.pgx || all.length <= PG_MAX) return all;
+  const list = all.slice(0, PG_MAX - 1), cur = all.find(p => p[0] === U.page);
+  if (cur && !list.includes(cur)) list[list.length - 1] = cur;
+  return list;
+}
+const pagesMoreBtn = () => { const n = pagesShown().length; return n <= PG_MAX ? '' : `<button class="pg pgmore" data-act="pgmore" aria-expanded="${!!U.pgx}" title="${U.pgx ? 'Show fewer views' : 'Show all views'}">${ic(U.pgx ? 'up' : 'more', 20)}<small>${U.pgx ? 'Less' : 'More'}</small></button>`; };
 function uiSidebarSettings() {
   const u = S.settings.ui, order = pageOrder();
   return `<div class="vlist">${order.map((k, i) => { const p = PAGES.find(x => x[0] === k); return `<div class="vrow"><label><input type="checkbox" data-pg="${k}"${u.hidePages.includes(k) ? '' : ' checked'}> ${ic(p[2], 16)} ${esc(p[1])}</label><span><button class="ib sm" data-pgmv="${k}" data-d="-1"${i ? '' : ' disabled'} title="Move up">${ic('up', 14)}</button><button class="ib sm" data-pgmv="${k}" data-d="1"${i < order.length - 1 ? '' : ' disabled'} title="Move down">${ic('down', 14)}</button></span></div>`; }).join('')}</div><p class="hint">Hide the views you do not use. You can also drag the tabs in the sidebar to reorder them.</p>`;
@@ -218,7 +233,7 @@ function uiNavDrop(el) {
 }
 
 /* ---------- command palette (Ctrl+Shift+P), shortcut help (?), compact density, print ---------- */
-function uiCompact(on) { const u = S.settings.ui; u.compact = on == null ? !u.compact : on; save(); document.body.classList.toggle('compact', !!u.compact); }
+function uiCompact(on) { const u = S.settings.ui; u.density = (on == null ? u.density !== 'compact' : on) ? 'compact' : 'roomy'; u.compact = u.density === 'compact'; save(); uiApply(); }
 function paletteItems(q) {
   const go = (label, hint, run) => ({ label, hint, run });
   const out = [

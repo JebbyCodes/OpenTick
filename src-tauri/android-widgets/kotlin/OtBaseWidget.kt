@@ -25,12 +25,15 @@ abstract class OtBaseWidget : AppWidgetProvider() {
         push(context, manager, id)
     }
 
+    // A widget host shows "Can't load widget" when this receiver throws, so nothing in here is allowed to: a tap that goes wrong is dropped.
     override fun onReceive(context: Context, intent: Intent) {
-        super.onReceive(context, intent)
-        if (intent.action == OtUi.ACTION_ACT) {
-            onAction(context, intent)
-            OtUi.refreshAll(context)
-        }
+        try { super.onReceive(context, intent) } catch (e: Throwable) { /* the next update draws the widget again */ }
+        try {
+            if (intent.action == OtUi.ACTION_ACT) {
+                onAction(context, intent)
+                OtUi.refreshAll(context)
+            }
+        } catch (e: Throwable) { /* ignore: see above */ }
     }
 
     /** By default a tap that did not open the app (a task or habit ticked) is noted for the app to apply. */
@@ -39,13 +42,19 @@ abstract class OtBaseWidget : AppWidgetProvider() {
         OtData.queueAction(context, op, intent.getStringExtra("id"))
     }
 
+    /**
+     * Draws the widget. If filling it in fails half-way, what was filled is thrown away and the plain layout is shown instead: a half-filled
+     * RemoteViews can hold an action the home screen cannot apply, and then the whole widget shows "Can't load widget".
+     */
     fun push(context: Context, manager: AppWidgetManager, id: Int) {
-        val rv = RemoteViews(context.packageName, layout)
+        var rv = RemoteViews(context.packageName, layout)
         try {
             val data = OtData.readData(context)
             fill(context, manager, id, rv, data, OtTheme.from(data?.optJSONObject("theme")))
-        } catch (e: Exception) { /* show the empty layout rather than nothing */ }
-        manager.updateAppWidget(id, rv)
+        } catch (e: Throwable) { rv = RemoteViews(context.packageName, layout) }
+        try { manager.updateAppWidget(id, rv) } catch (e: Throwable) {
+            try { manager.updateAppWidget(id, RemoteViews(context.packageName, layout)) } catch (e2: Throwable) { /* nothing more can be done */ }
+        }
     }
 
     /** How many rows of this height fit under a header, from the widget's current size. */

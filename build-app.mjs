@@ -7,7 +7,7 @@ import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync, statS
 import { join, dirname, extname, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const root = dirname(fileURLToPath(import.meta.url)), src = join(root, 'src'), DIST = join(root, 'dist');
-export const JS_ORDER = ['vault', 'core', 'sfx', 'md', 'files', 'views', 'icons', 'home', 'notes', 'templates', 'blocks', 'bed', 'banner', 'batch', 'zoom', 'bgfx', 'help', 'licenses.gen', 'privacy.gen', 'about', 'mxdrag', 'habitmap', 'sync', 'import', 'gantt', 'school', 'holiday', 'remind', 'recur', 'ui', 'keys', 'ctxmenu', 'tips', 'prefs', 'eink', 'marquee', 'themes', 'data', 'widget', 'bg', 'vaultui', 'main'];
+export const JS_ORDER = ['vault', 'core', 'sfx', 'md', 'files', 'views', 'icons', 'home', 'notes', 'templates', 'blocks', 'bed', 'banner', 'batch', 'zoom', 'bgfx', 'help', 'licenses.gen', 'privacy.gen', 'about', 'mxdrag', 'habitmap', 'sync', 'import', 'gantt', 'school', 'holiday', 'remind', 'recur', 'forms', 'countdown', 'zones', 'kanban', 'bridge', 'ui', 'keys', 'ctxmenu', 'tips', 'prefs', 'eink', 'marquee', 'themes', 'data', 'widget', 'bg', 'vaultui', 'main'];
 const INLINE_MAX = 200 * 1024; // logos up to this size are embedded in index.html, so the single file still stands alone
 
 export const readVersion = () => JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
@@ -47,6 +47,8 @@ export function build(opt = {}) {
   writeFileSync(join(dist, 'manifest.webmanifest'), JSON.stringify({
     name: eink ? 'OpenTick (e-ink)' : 'OpenTick', short_name: 'OpenTick', description: 'Open-source to-do, calendar, notes, habit and focus app', version,
     start_url: '.', display: 'standalone', background_color: eink ? '#ffffff' : '#1d2021', theme_color: eink ? '#ffffff' : '#1d2021', icons: icon,
+    // other apps can reach the installed web app with web+opentick: links (the OpenTick Bridge, docs/INTEGRATION.md)
+    protocol_handlers: [{ protocol: 'web+opentick', url: './?link=%s' }],
   }, null, 2));
   // service worker: the cache name carries the version, so every release drops the old cache
   const files = ['./', 'index.html', 'manifest.webmanifest', logo.file];

@@ -53,6 +53,12 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/ot_widget_habits_info" />
         </receiver>
+        <receiver android:name="__PACKAGE__.OpenTickCountdownWidget" android:exported="true" android:label="@string/ot_widget_countdowns_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/ot_widget_countdowns_info" />
+        </receiver>
         <receiver android:name="__PACKAGE__.OpenTickFocusWidget" android:exported="true" android:label="@string/ot_widget_focus_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -60,5 +66,14 @@
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/ot_widget_focus_info" />
         </receiver>
         <activity android:name="__PACKAGE__.OpenTickWidgetActivity" android:exported="false" android:theme="@android:style/Theme.Translucent.NoTitleBar" android:excludeFromRecents="true" android:noHistory="true" android:taskAffinity="" />
+        <!-- OpenTick Bridge: opentick:// links from other apps (they are only queued here; the app decides) -->
+        <activity android:name="__PACKAGE__.OpenTickLinkActivity" android:exported="true" android:theme="@android:style/Theme.Translucent.NoTitleBar" android:excludeFromRecents="true" android:noHistory="true" android:taskAffinity="">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="opentick" />
+            </intent-filter>
+        </activity>
         <provider android:name="__PACKAGE__.OpenTickWidgetBoot" android:authorities="${applicationId}.widgetboot" android:exported="false" />
         <!-- /OpenTick home-screen widgets -->

@@ -34,6 +34,9 @@ function ctxTask(id) {
     { sep: true },
     { label: 'Move to a list…', icon: 'list', run: async () => { const ls = S.lists; const i = await askMenu('Move to', ls.map(l => ({ label: listLabel(l.id), color: l.color }))); if (i != null) { t.listId = ls[i].id; t.section = null; save(); refresh(); toast('Moved to “' + ls[i].name + '”'); } } },
     { label: 'Duplicate', icon: 'copy', run: () => { U.sel = id; ACT.dup(); } },
+    { label: 'Countdown to this task…', icon: 'hourglass', run: () => cdFromTask(t).then(c => { if (c && !c.deleted) toast('Countdown added'); }) },
+    ...(typeof brSendable === 'function' && brSendable() ? [{ label: 'Open in your other app', icon: 'link', run: () => BR_ACT.bropen({ dataset: { id } }) }] : []),
+    ...(U.page === 'kanban' && typeof kbCurrent === 'function' && kbCurrent() ? [{ label: 'Move to heading…', icon: 'columns', run: () => KB_ACT.knmove({ dataset: { id } }) }] : []),
     { label: 'Copy the title', icon: 'copy', run: () => tplCopy(t.title) },
     { sep: true },
     { label: 'Move to bin', icon: 'trash', danger: true, keys: 'Delete', run: () => { U.sel = id; ACT.del(); } },
@@ -42,7 +45,7 @@ function ctxTask(id) {
 function ctxItems(target) {
   const g = sel => target.closest(sel);
   let el;
-  if ((el = g('.task[data-id]:not(.virt),.card[data-id],.blk.tk[data-id],.chip[data-act=open][data-id],.tri[data-id],.bl[data-id]'))) { return ctxTask(el.dataset.id); }
+  if ((el = g('.task[data-id]:not(.virt),.card[data-id],.kncard[data-id],.blk.tk[data-id],.chip[data-act=open][data-id],.tri[data-id],.bl[data-id]'))) { return ctxTask(el.dataset.id); }
   if ((el = g('.virt[data-id]'))) return ctxTask(el.dataset.id);
   if ((el = g('.navrow[data-lid]'))) {
     const id = el.dataset.lid; if (id === 'inbox') return null;

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- opentick:// links from other apps (the OpenTick Bridge, docs/INTEGRATION.md): the system starts OpenTick and hands it the link -->
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>com.opentick.app</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>opentick</string>
+      </array>
+    </dict>
+  </array>
+</dict>
+</plist>

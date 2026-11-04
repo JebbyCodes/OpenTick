@@ -24,7 +24,22 @@
   <img src="docs/images/gantt.png" width="32%" alt="Gantt chart">
 </p>
 
-## What's new in 0.5.3
+## What's new in 0.6.0
+
+- Fixed: stepping the timetable widget to next week and beyond showed "Can't load widget" on Android. The widget now gets four weeks of days, its steps are kept inside the data it holds (and shift when the data is older than today), the arrows gain week steps, and a widget that cannot be drawn falls back to a plain message instead of failing. The cause could not be reproduced without an Android device, so this hardens every path that could fail.
+- Less cramped: Settings → Appearance → Spacing (Roomy is the new default, Standard is the old look, Compact fits more), the details panel waits until you pick a task, key hints show on hover, the view grid shows two rows with a More button, and the timetable has a one-line hint.
+- New: **Countdowns**. To a date or an exact moment, in your own time or a fixed zone, yearly repeat, reminders, icon and colour, linked to lists, projects and tags. They show in a strip on those pages and on Today, and any task can start one.
+- New: **Time zones**. Save the places you work with and see one day as a row of hours per zone, with working hours shaded and the shared hours marked. Make a task or a countdown from the chosen moment. The timetable can show a second zone beside the hours; a task keeps the zone it was planned in.
+- New: **Boards**. Kanban boards with headings of your own (add, rename, recolour, reorder, limit, "done" headings that finish cards), scoped to everything, a list, a project or a tag. Drag with a mouse, press and hold on a touch screen, Alt + arrows, or the card's menu.
+- New: **Connect other apps** (Settings → Integrations, off by default). One documented interface (pairing, permissions, x-callback links on Android and the installed web app, postMessage, change feed) so companion apps can read or add tasks, tick them off and log focus time; see `docs/INTEGRATION.md`.
+- New: **Countdowns widgets**. A Countdowns mini-window on desktop (Settings → Widgets) and a Countdowns home-screen widget on Android. The Android widget works out days and hours from the clock each time it is drawn, so they stay right between refreshes.
+- New: `opentick://` links now work on **desktop and iOS** as well (Linux and Windows register the scheme when Connect other apps is on; macOS and iOS declare it in their Info.plist). Links reach the running app through its existing single-instance socket, so a second copy never starts.
+- Changed: **a task's time zone is now real.** A task planned in "New York 09:00" keeps that moment. Travel, and your own date and time shift; the plan, the reminder and a repeat's zone wall-time stay put (a daily 09:00 New York task is still 09:00 there after daylight saving ends). Changing the zone is not an edit, so nothing is synced when you merely travel.
+- Countdowns, time zones and boards sync with everything else and are encrypted with it. The sync file is now schema 6; older versions refuse to overwrite it instead of dropping the new data.
+
+Earlier releases are listed in [CHANGELOG.md](CHANGELOG.md).
+
+## What was new in 0.5.3
 
 - Docker is now part of every release. The release page has a Docker section with the image as downloads (`OpenTick_<version>_docker-amd64.tar.gz`, `-arm64`, `-armv7`, `-i386`) that load with `docker load`, a compose file pinned to that version, and the `docker run` command. Before, the image only went to the container registry and never showed on the Releases page.
 - The Docker image is pushed to the registry only after the GitHub Release exists, so `latest` never moves for a release that did not happen. The image is started and checked (`/healthz`, the app and `/eink/`) before a release is made, and a warning says how to fix it if the registry package is still private.
@@ -76,6 +91,13 @@ Earlier releases are listed in [CHANGELOG.md](CHANGELOG.md).
 - **Room and teacher are always visible** on lessons, in the grid, agenda, widgets and notifications; long text scrolls instead of being cut off.
 - **Holidays**: named, coloured date ranges that show as a band in the calendar and timetable, and hide the class timetable on those days. Manage them from the calendar or timetable toolbar.
 - **Widgets**: the timetable widget shows start and end times, room and teacher on every row, and you can step through the next days.
+
+**Countdowns, Time zones, Boards and connecting apps (new)**
+- **Countdowns** to a date or an exact moment (in your own time or a fixed zone), yearly repeats and reminders, tied to lists, projects and tags.
+- **Time zones**: saved places as rows of hours with working hours and the shared hours marked; make a task or countdown from the chosen moment; a second zone beside the timetable hours.
+- **Boards**: kanban with headings you name, scoped to everything, a list, a project or a tag.
+- **Connect other apps** (off by default): one documented interface for companion apps. See [docs/INTEGRATION.md](docs/INTEGRATION.md).
+- All of it syncs and is encrypted with the rest of your data.
 
 **Templates (new page)**
 - Write a template with `{{variables}}` (with `{{name|fallback}}`, built-ins like `{{today}}` and `{{note:Title}}`), choose the questions it asks (text, long text, number, date, choice, yes/no or another note as the answer), fill it in step by step with a live preview, then copy it, save it as a note or make a task. Templates have tags, a list and a project, and show up there too.
@@ -173,7 +195,7 @@ For e-paper tablets and readers (Boox, reMarkable-style browsers, Kindle browser
 - **Habits and focus:** streaks, history charts, and a Pomodoro timer with session tracking.
 - **Markdown notes:** preview, checklists, note links, attachments and import/export.
 - **Customisation:** themes, custom CSS themes, colours, banners, adjustable panels and keyboard shortcuts.
-- **Widgets:** desktop mini-window, Android home-screen widgets and a compact web widget.
+- **Widgets:** desktop mini-window, Android home-screen widgets (tasks, lists, projects, notes, calendar, timetable, matrix, habits, countdowns, focus) and a compact web widget.
 - **Offline-first storage:** data stays on your device unless you enable sync.
 - **Optional encryption:** AES-256-GCM encryption for selected local data, backups and cloud sync, protected by a passphrase and recovery key.
 - **Flexible sync:** WebDAV or a JSON file in a folder synced by another app; additional Git and S3-compatible providers are available.

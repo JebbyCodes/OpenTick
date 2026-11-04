@@ -5,12 +5,10 @@
 <LinearLayout android:layout_width="match_parent" android:layout_height="44dp" android:orientation="horizontal" android:gravity="center_vertical" android:paddingStart="10dp" android:paddingEnd="2dp">
 <TextView android:id="@+id/ot_tt_title" android:layout_width="wrap_content" android:layout_height="match_parent" android:textSize="16sp" android:textStyle="bold" android:singleLine="true" android:ellipsize="end" android:gravity="center_vertical" android:text="Timetable" />
 <TextView android:id="@+id/ot_tt_sub" android:layout_width="wrap_content" android:layout_height="match_parent" android:layout_weight="1" android:textSize="12sp" android:singleLine="true" android:ellipsize="end" android:gravity="center_vertical" android:paddingStart="8dp" />
-<ImageView android:id="@+id/ot_tt_prev" android:layout_width="34dp" android:layout_height="34dp" android:padding="8dp" android:importantForAccessibility="yes" android:contentDescription="Previous day" android:src="@drawable/ot_widget_prev" />
-<ImageView android:id="@+id/ot_tt_next" android:layout_width="34dp" android:layout_height="34dp" android:padding="8dp" android:importantForAccessibility="yes" android:contentDescription="Next day" android:src="@drawable/ot_widget_next" />
-<FrameLayout android:layout_width="40dp" android:layout_height="40dp" android:id="@+id/ot_tt_addf" android:clickable="false">
-<ImageView android:id="@+id/ot_tt_add" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="7dp" android:importantForAccessibility="yes" android:contentDescription="Open the timetable" android:src="@drawable/ot_widget_circle" />
-<ImageView android:id="@+id/ot_tt_plus" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="12dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_plus" />
-</FrameLayout>
+<ImageView android:id="@+id/ot_tt_pw" android:layout_width="30dp" android:layout_height="34dp" android:padding="6dp" android:importantForAccessibility="yes" android:contentDescription="Previous week" android:src="@drawable/ot_widget_prev_week" />
+<ImageView android:id="@+id/ot_tt_prev" android:layout_width="30dp" android:layout_height="34dp" android:padding="6dp" android:importantForAccessibility="yes" android:contentDescription="Previous day" android:src="@drawable/ot_widget_prev" />
+<ImageView android:id="@+id/ot_tt_next" android:layout_width="30dp" android:layout_height="34dp" android:padding="6dp" android:importantForAccessibility="yes" android:contentDescription="Next day" android:src="@drawable/ot_widget_next" />
+<ImageView android:id="@+id/ot_tt_nw" android:layout_width="30dp" android:layout_height="34dp" android:padding="6dp" android:importantForAccessibility="yes" android:contentDescription="Next week" android:src="@drawable/ot_widget_next_week" />
 </LinearLayout>
 <TextView android:id="@+id/ot_tt_empty" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="13sp" android:singleLine="false" android:gravity="center" android:paddingTop="16dp" android:visibility="gone" />
 <FrameLayout android:layout_width="match_parent" android:layout_height="54dp" android:id="@+id/ot_tt_r0" android:layout_marginBottom="3dp" android:visibility="gone">

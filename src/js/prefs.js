@@ -8,7 +8,9 @@ function prefSet(path, v) {
   o[last] = v; save(); prefApplied(path);
 }
 function prefApplied(path) {
-  if (path.startsWith('a11y.')) a11yApply();
+  if (path === 'bridge.on' && typeof bridgeNative === 'function') bridgeNative(); // register (or remove) the opentick:// scheme with the system
+  if (path.startsWith('ui.')) { uiApply(); if (path === 'ui.density' || path === 'ui.autoDetail') { S.settings.ui.compact = S.settings.ui.density === 'compact'; renderDetail(); } }
+  else if (path.startsWith('a11y.')) a11yApply();
   else if (path.startsWith('eink.')) { motionApply(); a11yApply(); }
   else if (path.startsWith('keys.')) skHintsRefresh();
   else if (path.startsWith('svc.') && typeof bgSync === 'function') bgSync(true);

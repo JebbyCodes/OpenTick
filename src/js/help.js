@@ -47,8 +47,8 @@ const HELP = [
 <li><b>Your own files:</b> attach an audio or video file and it plays inside the note on this device.</li>
 <li>Type <code>/</code> in the block editor and pick <i>Embed</i> or <i>Embed a note</i>, or use the two toolbar buttons in Source and Split mode.</li></ul>`],
   ['widgets', 'Widgets', `
-<p><b>Desktop and web:</b> Settings → Widgets opens a small always-on-top window for Tasks, Lists, Projects, Notes, Calendar, Timetable, Matrix, Habit or Focus. They are made of the app’s own pieces, so they match your theme, and ticking a task or habit there updates everything. Tapping something that needs the big window (a task, a note, a list) brings OpenTick forward and opens it. The Focus widget runs its own timer; finished sessions are saved with your data.</p>
-<p><b>Android:</b> long-press the home screen → Widgets → OpenTick. There are widgets for tasks, quick add, lists, projects, notes, calendar, timetable, matrix, habits and focus. They use your theme’s colours and refresh when you leave the app; a task or habit ticked on a widget is applied the next time OpenTick opens. The Focus widget counts down by itself while a session runs.</p>`],
+<p><b>Desktop and web:</b> Settings → Widgets opens a small always-on-top window for Tasks, Lists, Projects, Notes, Calendar, Timetable, Matrix, Habit, Countdowns or Focus. They are made of the app’s own pieces, so they match your theme, and ticking a task or habit there updates everything. Tapping something that needs the big window (a task, a note, a list) brings OpenTick forward and opens it. The Focus widget runs its own timer; finished sessions are saved with your data.</p>
+<p><b>Android:</b> long-press the home screen → Widgets → OpenTick. There are widgets for tasks, quick add, lists, projects, notes, calendar, timetable, matrix, habits, countdowns and focus. They use your theme’s colours and refresh when you leave the app; a task or habit ticked on a widget is applied the next time OpenTick opens. The Focus widget counts down by itself while a session runs.</p>`],
   ['home', 'Projects home screen and start screen', `
 <p>The <b>Projects</b> page gives an overview: one card per project with its progress, lists and next task, the lists that are in no project, and what needs attention today. <b>Settings → Start screen</b> picks what OpenTick opens on: Projects, Today, any other page, or a particular list or project.</p>
 <p>In a project, each list is a <b>foldable section</b>, and in a list with sublists each sublist is one too. Click a header to fold it; the button next to the sort box folds or unfolds all. In the sidebar, the arrow beside a project shows its lists.</p>`],
@@ -95,6 +95,24 @@ const HELP = [
 <li><b>Use</b> a template to answer the questions one by one with a live preview, then <b>Copy</b>, <b>Save as note</b> or <b>Make a task</b>.</li>
 <li>Give a template <b>tags</b>, a <b>list</b> and a <b>project</b>: it then also shows in those places.</li>
 <li>Templates sync and are encrypted with the rest of your data.</li></ul>`],
+  ['countdowns', 'Countdowns', `
+<p>The <b>Countdowns</b> page counts down to a date or an exact moment. Leave the time empty to count whole days. Pick a <b>time zone</b> to make it one real moment ("9:00 in New York"), shown beside your own time; "My own time" follows you when you travel. A <b>yearly</b> countdown moves on to its next date by itself, and a <b>reminder</b> can come before it.</p>
+<ul><li>Give one a <b>list</b>, a <b>project</b> and <b>tags</b>: it then shows in a strip on those pages, and the page's filter narrows to them.</li>
+<li>Right-click a task and choose <b>Countdown to this task</b>.</li>
+<li>Countdowns sync and are encrypted with the rest of your data.</li></ul>`],
+  ['timezones', 'Time zones', `
+<p>The <b>Time zones</b> page lays one day out as a row of hours for each place you saved. Hours inside working hours (Settings are on the page) are shaded, and hours when <i>everyone</i> is working are marked. Click an hour to choose it, press the clock on a row to read the day from that place's clock, then <b>Make a task</b>, <b>Make a countdown</b> or <b>Copy</b> the times for a message.</p>
+<ul><li>The timetable can show a second zone beside the hours (the globe button, or Timetable settings).</li>
+<li>A task planned in a zone (the <b>Planned in</b> row in its details) keeps that moment. If you travel, its date and time on this device shift with you, while the planned time stays put; reminders follow it. Repeats keep the zone's own wall time across daylight-saving changes.</li>
+<li>Daylight-saving changes come from your device's own time zone data, so they are right without any download.</li></ul>`],
+  ['boards', 'Boards', `
+<p><b>Boards</b> are kanban boards whose headings you choose. Start from a preset, then type a new heading in the last column, or use a heading's menu to rename, recolour, move, limit or delete it. A board shows everything, one list, one project or one tag. Mark a heading as <b>done</b> and cards dropped there are finished (and reopened when moved out).</p>
+<ul><li>Move cards by dragging (press and hold on a touch screen), with <b>Alt + arrow keys</b>, or from the card's <b>⋯</b> menu.</li>
+<li>A card is a normal task, so ticking it elsewhere moves it to the done heading. The same task can sit on several boards.</li>
+<li>Boards sync and are encrypted with the rest of your data.</li></ul>`],
+  ['integrations', 'Connecting other apps', `
+<p><b>Settings → Integrations</b> lets other apps you trust read or add tasks, tick them off or log focus time. It is <b>off</b> until you switch it on, each app asks once and you choose what it may do, and you can disconnect it any time. Nothing goes over the internet: apps talk to OpenTick on your own device. Developers: see <code>docs/INTEGRATION.md</code>.</p>
+<p>You can also set a link that opens a task in another app (for example a focus timer) from a task's menu.</p>`],
   ['appearance', 'Appearance and interface size', `
 <p><b>Settings → Appearance</b> has the built-in themes (light and dark) and lets you import your own. <b>Interface size</b> makes everything larger or smaller, from 80% to 150% (100% is the default): text, buttons and spacing scale together and the layout adapts, so a large setting on a small screen switches to the phone layout. Use the slider, the − and + buttons, or <b>Reset</b>. The value is applied when you let go of the slider and is remembered. It is separate from your browser’s zoom and from zooming the Gantt chart. Printing always uses 100%.</p>`],
   ['bg', 'The animated background', `
