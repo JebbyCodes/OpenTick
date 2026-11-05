@@ -1,3 +1,4 @@
+
 name: CI
 
 # =====================================================================================================================================
@@ -56,14 +57,17 @@ jobs:
       - name: Install PyYAML (used by the workflow linter)
         run: python -m pip install --disable-pip-version-check PyYAML
 
-      # The cheap, fast checks come first so a mistake is reported in seconds rather than after the whole test suite.
+      # The cheap, fast checks come first so a mistake is reported quickly.
       - name: Check that every file carries the same version number
         run: npm run version:check
 
       - name: Check the GitHub workflow files for mistakes
         run: python scripts/ci/lint-workflows.py
 
-      - name: Build web application
+      - name: Run the unit and regression tests
+        run: npm test
+
+      - name: Build the web app
         shell: bash
         run: |
           set -euo pipefail
@@ -74,9 +78,6 @@ jobs:
           fi
           echo "The web app built successfully."
 
-          echo "Application build completed successfully."
-
-      - name: Upload web build diagnostics
       - name: Keep the build output if something failed (to help debugging)
         if: failure()
         uses: actions/upload-artifact@v7
@@ -107,9 +108,8 @@ jobs:
 
       # What the browser tests import or run:
       #   playwright    drives Chromium (every test)
-      #   Pillow        test_background.py measures the colours of the animated background ("from PIL import Image")
-      #   poppler-utils test_help_about.py checks the PDF the app prints, with `pdfinfo` and `pdftotext`
-      # None of these are on the runner by default, which made the two tests crash before they could even start.
+      #   Pillow        test_background.py measures colours of the animated background
+      #   poppler-utils test_help_about.py checks the PDF the app prints
       - name: Install the Python packages the browser tests use (Playwright and Pillow)
         run: python -m pip install --disable-pip-version-check playwright Pillow
 
@@ -121,7 +121,7 @@ jobs:
       - name: Install Chromium and its system libraries
         run: python -m playwright install --with-deps chromium
 
-      # Fail here, with a clear message, if a tool is missing; not halfway through a test with a Python traceback.
+      # Fail here, with a clear message, if a tool is missing.
       - name: Check that everything the browser tests need is present
         shell: bash
         run: |
@@ -133,7 +133,7 @@ jobs:
       - name: Build the web app
         run: npm run build:app
 
-      # A typo in a folder name must not make this job "pass" by running zero tests.
+      # A typo in a folder name must not make this job pass by running zero tests.
       - name: Make sure there are browser tests to run
         shell: bash
         run: |
@@ -165,7 +165,7 @@ jobs:
   # -------------------------------------------------------------------------------------------------------------------------------
   rust:
     name: Rust check
-    # 22.04 on purpose: it has the WebKitGTK 4.1 packages Tauri 2 links against, and matches the Linux release build.
+    # 22.04 on purpose: it has the WebKitGTK 4.1 packages Tauri 2 links against.
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:
@@ -198,7 +198,6 @@ jobs:
       - name: Build the web app (the Rust code embeds it)
         run: npm run build:app
 
-      - name: Verify Cargo lockfile
       - name: Make sure Cargo.lock is committed
         shell: bash
         run: |
@@ -208,7 +207,7 @@ jobs:
             exit 1
           fi
 
-      # --locked refuses to change Cargo.lock, so a stale lock file is an error here rather than a surprise in the release build.
+      # --locked refuses to change Cargo.lock, so a stale lock file is an error here.
       - name: Check that the Rust code compiles
         run: cargo check --locked --manifest-path src-tauri/Cargo.toml
 
