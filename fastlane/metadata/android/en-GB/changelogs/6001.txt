@@ -1,0 +1,1 @@
+• Fixed: the time was missing on phones. One style rule hid the clock on every screen narrower than 820 px, so only the sync cloud was left. The date and time show again beside the cloud (as "Wed 4 Nov" on a phone), and tapping the clock opens Time zones; its tip lists the time in each of your saved places.

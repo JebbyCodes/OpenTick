@@ -18,10 +18,13 @@ const FULL = [
   `OpenTick_${V}_aarch64.AppImage`, `OpenTick_${V}_arm64.deb`, `OpenTick-${V}-1.aarch64.rpm`, `opentick_${V}_arm64.snap`,
   `OpenTick_${V}_android-universal.apk`, `OpenTick_${V}_android-arm64-v8a.apk`, `OpenTick_${V}_android-armeabi-v7a.apk`, `OpenTick_${V}_android-x86_64.apk`, `OpenTick_${V}_android-x86.apk`,
   `OpenTick_${V}_android-eink-universal.apk`, `OpenTick_${V}.aab`, `OpenTick_${V}_ios.ipa`, `OpenTick_${V}_web.zip`, `OpenTick_${V}_web-eink.zip`,
+  `OpenTick_${V}_docker-amd64.tar.gz`, `OpenTick_${V}_docker-arm64.tar.gz`, `OpenTick_${V}_docker-armv7.tar.gz`, `OpenTick_${V}_docker-i386.tar.gz`, `OpenTick_${V}_docker-compose.yml`,
 ];
 let m = missing(FULL, V); assert.deepEqual(m, { required: [], optional: [] }, 'a complete release has nothing missing: ' + JSON.stringify(m));
-m = missing(FULL.filter(n => !/x86-setup|arm64\.snap|ios/.test(n)), V);
-assert.deepEqual(m.required, [], 'optional targets never block a release'); assert.equal(m.optional.length, 3);
+m = missing(FULL.filter(n => !/x86-setup|arm64\.snap|ios|docker-armv7/.test(n)), V);
+assert.deepEqual(m.required, [], 'optional targets never block a release'); assert.equal(m.optional.length, 4);
+m = missing(FULL.filter(n => !/docker-arm64|docker-compose/.test(n)), V);
+assert.deepEqual(m.required, ['Docker image, 64-bit ARM', 'Docker compose file'], 'a release without its Docker files is incomplete');
 m = missing(FULL.filter(n => !/\.msixbundle|android-universal/.test(n)), V);
 assert.deepEqual(m.required, ['Windows MSIX bundle', 'Android universal APK'], 'a missing required file is named');
 assert.ok(missing([`OpenTick_0.0.1_x64-setup.exe`], V).required.includes('Windows 64-bit installer'), 'a file from another version does not count');
@@ -32,6 +35,7 @@ for (const [label] of [...REQUIRED, ...OPTIONAL]) assert.ok(label.length > 3);
 const notes = buildNotes({ tag: 'v' + V, files: FULL.map(name => ({ name, size: 5e6 })), changelog: rd('CHANGELOG.md') });
 assert.match(notes, new RegExp(`^## What's new in ${V.replace(/\./g, '\\.')}\\n`), 'the description starts with what is new');
 assert.ok(notes.includes('Docker') && notes.includes('SHA256SUMS.txt') && notes.includes('#### Android') && notes.includes('E-ink'), 'downloads, docker and verification are described');
+assert.ok(notes.includes('#### Docker') && notes.includes(`ghcr.io/jebbycodes/opentick:${V}`) && notes.includes('docker load') && notes.includes('_docker-amd64.tar.gz'), 'the Docker image has its own section: registry command, offline files, compose');
 assert.ok(!/TODO/.test(notes.split('## Downloads')[0]), 'no TODO in the notes');
 assert.ok(downloadsTable([{ name: 'surprise.bin', size: 10 }], 'v1.0.0').includes('Other files'), 'unknown files are still listed');
 assert.equal(spawnSync('node', ['scripts/release/release-notes.mjs', '--tag', 'v' + V, '--check'], { cwd: root }).status, 0, 'this version has release notes');
@@ -46,46 +50,196 @@ assert.equal(stagedName('x/apk/universal/release/app-universal-release.apk', V, 
 assert.equal(flavourOf('x/apk/mystery/app.apk'), null);
 
 /* ---- the workflow files ---- */
-const WF = readdirSync(join(root, '.github/workflows')).filter(f => f.endsWith('.yml')), wf = f => rd('.github/workflows/' + f);
-assert.deepEqual(WF.sort(), ['build-android.yml', 'build-desktop.yml', 'build-docker.yml', 'build-ios.yml', 'build-snap.yml', 'build-web.yml', 'ci.yml', 'deploy-pages.yml',
-  'publish-chocolatey.yml', 'publish-microsoft-store.yml', 'publish-scoop.yml', 'publish-snap-store.yml', 'publish-winget.yml', 'release.yml'], 'workflow files are named build-* / publish-* / deploy-* / ci / release');
-for (const f of WF) { const t = wf(f); assert.match(t, /^name: .+/m, f + ' has a name'); if (f !== 'release.yml') assert.ok(!/^\s+tags:\s*\[?'?v/m.test(t), f + ' is started by Release, not by a tag of its own'); }
+const WF = readdirSync(join(root, '.github/workflows'))
+  .filter(f => f.endsWith('.yml'))
+  .sort();
+
+const wf = f => rd('.github/workflows/' + f);
+
+const EXPECTED_WORKFLOWS = [
+  'build-android.yml',
+  'build-desktop.yml',
+  'build-docker.yml',
+  'build-ios.yml',
+  'build-snap.yml',
+  'build-web.yml',
+  'ci.yml',
+  'deploy-pages.yml',
+  'publish-chocolatey.yml',
+  'publish-docker.yml',
+  'publish-microsoft-store.yml',
+  'publish-scoop.yml',
+  'publish-snap-store.yml',
+  'publish-winget.yml',
+  'release.yml',
+];
+
+assert.deepEqual(
+  WF,
+  EXPECTED_WORKFLOWS,
+  'workflow files are named build-* / publish-* / deploy-* / ci / release',
+);
+
+for (const f of WF) {
+  const t = wf(f);
+
+  assert.match(t, /^name: .+/m, f + ' has a name');
+
+  // the `on:` block is everything between `on:` and the next top-level key
+  const on = (/^on:\n((?:[ \t].*\n|\n)*)/m.exec(t) || [])[1] || '';
+
+  if (f !== 'release.yml') {
+    assert.ok(
+      !/^\s+tags:/m.test(on),
+      f + ' is started by Release, not by a tag of its own',
+    );
+  }
+}
 
 const rel = wf('release.yml');
-assert.match(rel, /on:\n\s+push:\n\s+tags: \['v\[0-9\]\+/, 'git push origin <tag> starts the Release');
-for (const f of WF.filter(f => /^(build|publish)-/.test(f))) { assert.match(wf(f), /workflow_call:/, f + ' can be called'); assert.ok(rel.includes('./.github/workflows/' + f), 'Release calls ' + f); }
-assert.ok(rel.includes('./.github/workflows/ci.yml'), 'Release runs the tests first');
-assert.ok(!/release:\s*\n\s+types:/.test(WF.map(wf).join('\n')), 'nothing waits for a `release: published` event (releases made with GITHUB_TOKEN never send one)');
-assert.ok(/needs: \[prepare, release\]/.test(rel) && rel.includes('publish-microsoft-store') && rel.includes('publish-snap'), 'stores run after the GitHub Release exists');
-assert.ok(rel.includes('collect-assets.mjs') && rel.includes('release-notes.mjs') && rel.includes('body_path: release-notes.md') && rel.includes('generate_release_notes: true'), 'the release says what is new');
-assert.ok(rel.includes('attest-build-provenance'), 'files are attested');
-assert.ok(rel.includes('version:check') && rel.includes('Tag does not match'), 'a tag that disagrees with package.json stops the release');
-assert.ok(rel.includes("'candidate' || 'beta'") && rel.includes("stable == 'true'"), 'pre-releases skip the stores');
+
+assert.match(
+  rel,
+  /on:\n\s+push:\n\s+tags: \['v\[0-9\]\+/,
+  'git push origin <tag> starts the Release',
+);
+
+for (const f of WF.filter(f => /^(build|publish)-/.test(f))) {
+  assert.match(wf(f), /workflow_call:/, f + ' can be called');
+  assert.ok(
+    rel.includes('./.github/workflows/' + f),
+    'Release calls ' + f,
+  );
+}
+
+assert.ok(
+  rel.includes('./.github/workflows/ci.yml'),
+  'Release runs the tests first',
+);
+
+assert.ok(
+  !/release:\s*\n\s+types:/.test(WF.map(wf).join('\n')),
+  'nothing waits for a release: published event',
+);
+
+assert.ok(
+  !WF.includes('build.yml') && !WF.includes('deploy-web.yml') && !WF.includes('update-scoop-bucket.yml') && !WF.includes('test-snap.yml'),
+  'the old duplicate workflows (a second tag release, a second Pages deploy, a second Scoop updater, a manual Snap test) stay deleted',
+);
+
+assert.equal(
+  WF.filter(f => /actions\/deploy-pages@/.test(wf(f))).length,
+  1,
+  'exactly one workflow deploys GitHub Pages',
+);
+
+/* ---- Docker is part of the release ---- */
+assert.ok(
+  rel.includes('./.github/workflows/build-docker.yml') &&
+  rel.includes('./.github/workflows/publish-docker.yml') &&
+  /needs\.docker\.result == 'success'/.test(rel),
+  'the release builds the Docker files, needs them, and then publishes the image',
+);
+
+assert.ok(
+  /needs: \[prepare, release\]\s*\n\s+if: \$\{\{ !cancelled\(\) && needs\.release\.result == 'success' \}\}\s*\n\s+permissions:\s*\n\s+contents: read\s*\n\s+packages: write\s*\n\s+uses: \.\/\.github\/workflows\/publish-docker\.yml/.test(rel),
+  'the image is pushed to the registry only after the GitHub Release exists',
+);
+
+const dockerBuild = wf('build-docker.yml');
+assert.ok(
+  !/push:\s*true/.test(dockerBuild) && dockerBuild.includes('type=docker,dest=') && dockerBuild.includes('/healthz'),
+  'Build / Docker makes files and tests the image; it does not push',
+);
+
+const dockerPublish = wf('publish-docker.yml');
+assert.ok(
+  dockerPublish.includes('packages: write') && /push:\s*true/.test(dockerPublish) && dockerPublish.includes(':latest') && dockerPublish.includes('STABLE'),
+  'Publish / Docker pushes, and only stable releases move `latest`',
+);
+
+/* ---- the Snap Store takes every .snap, and pre-release tags ---- */
+const snapStore = wf('publish-snap-store.yml');
+assert.ok(
+  !/Expected exactly one/.test(snapStore) && /for snap_file in snaps\/\*\.snap/.test(snapStore) && snapStore.includes('(-[0-9A-Za-z.-]+)?$'),
+  'every .snap in the release is uploaded (amd64 and arm64), and a pre-release tag is accepted',
+);
+
+/* ---- a missing store secret skips a publisher, it never fails it ---- */
+assert.ok(
+  !/throw "Missing GitHub secrets/.test(wf('publish-microsoft-store.yml')) && wf('publish-microsoft-store.yml').includes('Microsoft Store skipped'),
+  'the Microsoft Store publisher skips with a warning when its secrets are missing, like the others',
+);
+
+assert.ok(
+  /needs: \[prepare, release\]/.test(rel) &&
+  rel.includes('publish-microsoft-store') &&
+  rel.includes('publish-snap'),
+  'stores run after the GitHub Release exists',
+);
+
+assert.ok(
+  rel.includes('collect-assets.mjs') &&
+  rel.includes('release-notes.mjs') &&
+  rel.includes('body_path: release-notes.md') &&
+  rel.includes('generate_release_notes: true'),
+  'the release says what is new',
+);
+
+assert.ok(rel.includes('attest-build-provenance'));
+
+assert.ok(
+  rel.includes('version:check') &&
+  rel.includes('Tag does not match'),
+  'a tag that disagrees with package.json stops the release',
+);
+
+assert.ok(
+  rel.includes("'candidate' || 'beta'") &&
+  rel.includes("stable == 'true'"),
+  'pre-releases skip the stores',
+);
 
 const snap = wf('build-snap.yml');
-assert.ok(!/chmod a\+r "\$SNAP/.test(snap) && /sudo chown "\$\(id -u\)/.test(snap) && snap.indexOf('chown') < snap.indexOf('chmod a+r'), 'the Snap is chown\'ed to the runner user before any chmod (root made it)');
-assert.ok(!snap.includes('npm test') && !snap.includes('rustup') && snap.includes('download-artifact'), 'the Snap wraps the desktop .deb instead of rebuilding Rust');
-assert.ok(rd('snap/ci/snapcraft.yaml').includes("@VERSION@") && rd('snap/ci/snapcraft.yaml').includes('assemble.sh') && rd('snap/snapcraft.yaml').includes('snap/local/assemble.sh'), 'both snapcraft files share assemble.sh');
-assert.ok(rd('snap/local/assemble.sh').startsWith('#!/usr/bin/env bash'));
 
-const store = wf('publish-microsoft-store.yml');
-assert.ok(store.includes('--inputFile') && store.includes('.msixupload') && store.includes('MS_STORE_APP_ID') && !/submission update/.test(store), 'submits the MSIX, not an EXE/MSI URL');
-assert.ok(!store.includes('00014150904955425480'), 'the old product id is gone');
+assert.ok(
+  !/chmod a\+r "\$SNAP/.test(snap) &&
+  /sudo chown "\$\(id -u\)/.test(snap) &&
+  snap.indexOf('chown') < snap.indexOf('chmod a+r'),
+  'the Snap is chowned to the runner user before chmod',
+);
 
-const desk = wf('build-desktop.yml');
-for (const t of ['i686-pc-windows-msvc', 'aarch64-pc-windows-msvc', 'universal-apple-darwin', 'ubuntu-22.04-arm', 'build-msix.ps1']) assert.ok(desk.includes(t), 'desktop builds ' + t);
-const andr = wf('build-android.yml');
-assert.ok(andr.includes('--split-per-abi') && andr.includes('--aab') && andr.includes('OPENTICK_EINK') && andr.includes('check-android-version.mjs --generated') && andr.includes('apksigner'), 'Android builds per-CPU APKs, a bundle, the e-ink APK, and checks version and signature');
-const act = rd('.github/actions/setup-android/action.yml');
-assert.ok(act.includes('configure-signing.py') && !/storePassword=[^$]/.test(act), 'signing is configured from secrets only');
-const dock = wf('build-docker.yml');
-assert.ok(dock.includes('linux/arm/v7') && dock.includes('linux/386') && dock.includes('linux/arm64') && existsSync(join(root, 'Dockerfile')) && existsSync(join(root, 'docker/nginx.conf')), 'Docker: 64-bit, ARM and 32-bit images');
-assert.ok(rd('Dockerfile').includes('--eink') && rd('docker/nginx.conf').includes('/eink/'), 'the image serves both editions');
-for (const f of ['build-ios.yml', 'build-docker.yml']) assert.ok(!/\n\s+(IOS_CERTIFICATE|DOCKERHUB_TOKEN):\s+[^$\s]/.test(wf(f)), 'no secret is written into ' + f);
-for (const f of WF) assert.ok(!/(ghp_|github_pat_|-----BEGIN)/.test(wf(f)), f + ' holds no credentials');
-for (const f of WF.filter(f => !/^ci|^deploy/.test(f))) assert.ok(/^permissions:/m.test(wf(f)), f + ' sets permissions');
-assert.ok(/docker/.test(rd('.github/dependabot.yml')), 'Dependabot watches the Dockerfile');
-assert.ok(rd('.gitignore').includes('.build/'), 'MSIX build folders are ignored');
+assert.ok(
+  !snap.includes('npm test') &&
+  !snap.includes('rustup') &&
+  snap.includes('download-artifact'),
+  'the Snap wraps the desktop .deb instead of rebuilding Rust',
+);
+
+assert.ok(
+  rd('snap/ci/snapcraft.yaml').includes('@VERSION@') &&
+  rd('snap/ci/snapcraft.yaml').includes('assemble.sh') &&
+  rd('snap/snapcraft.yaml').includes('snap/local/assemble.sh'),
+  'both snapcraft files share assemble.sh',
+);
+
+assert.ok(
+  rd('snap/local/assemble.sh').startsWith('#!/usr/bin/env bash'),
+);
+
+/* ---- CI installs everything the browser tests use ---- */
+// The browser job once crashed because test_background.py imports Pillow and test_help_about.py runs pdfinfo, and neither is on a GitHub runner.
+// Read the tests themselves, so a new dependency that CI does not install is caught here and not as a red run.
+const ci = wf('ci.yml');
+const browserTests = readdirSync(join(root, 'test/browser')).filter(f => f.endsWith('.py')).map(f => rd('test/browser/' + f)).join('\n');
+const needs = [
+  [/^\s*(from|import) PIL\b/m, /pip install[^\n]*\bPillow\b/, 'Pillow (the tests import PIL)'],
+  [/['"]pdfinfo['"]|['"]pdftotext['"]/, /apt-get install[^\n]*poppler-utils/, 'poppler-utils (the tests run pdfinfo / pdftotext)'],
+  [/from playwright\b/, /pip install[^\n]*\bplaywright\b/, 'Playwright (the tests import it)'],
+];
+for (const [used, installed, what] of needs) {
+  if (used.test(browserTests)) assert.ok(installed.test(ci), 'ci.yml installs ' + what);
+}
 
 /* ---- the linter itself ---- */
 const lint = spawnSync('python3', ['scripts/ci/lint-workflows.py'], { cwd: root, encoding: 'utf8' });

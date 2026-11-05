@@ -14,7 +14,9 @@ function skMove(d) {
   U.sel = n.dataset.id; renderDetail(); $$('#main .task.sel').forEach(x => x.classList.remove('sel')); n.classList.add('sel'); if (n.scrollIntoView) n.scrollIntoView({ block: 'nearest' });
 }
 const skTask = () => (U.page === 'tasks' || U.page === 'calendar' || U.page === 'timetable' || U.page === 'matrix' || U.page === 'home') && U.sel ? getT(U.sel) : null;
-const skPageGo = i => { const p = pagesShown()[i]; if (p) ACT.page({ dataset: { page: p[0] } }); };
+const skPageGo = i => { const p = sectionsShown()[i]; if (p) ACT.page({ dataset: { page: sectionTarget(p[0]) } }); };
+// V / Shift+V: the next / previous view of the section you are in (List, Board, Matrix, Timeline …)
+function skCycleView(d) { const sec = secOf(U.page); if (!sec) return; const vs = viewsOf(sec); if (vs.length < 2) return; const i = vs.indexOf(U.page); ACT.page({ dataset: { page: vs[(i + d + vs.length) % vs.length] } }); }
 const skCalPage = () => U.page === 'calendar' || U.page === 'timetable';
 function skShift(d) {
   if (U.page === 'calendar') ACT[d < 0 ? 'calprev' : 'calnext']();
@@ -28,7 +30,9 @@ function skToday() {
 // [id, keys, label, group, when, run, legacy]
 const SK_GROUPS = ['Go to', 'Create', 'Search & commands', 'Tasks', 'Calendar & timetable', 'Focus timer', 'Panels', 'Editing', 'This window'];
 const SK = [
-  ...Array.from({ length: 9 }, (_, i) => ({ id: 'go' + (i + 1), keys: [String(i + 1)], label: () => { const p = pagesShown()[i]; return p ? 'Go to ' + p[1] : 'Go to view ' + (i + 1); }, group: 'Go to', run: () => skPageGo(i), when: () => !!pagesShown()[i] })),
+  ...Array.from({ length: 9 }, (_, i) => ({ id: 'go' + (i + 1), keys: [String(i + 1)], label: () => { const p = sectionsShown()[i]; return p ? 'Go to ' + p[1] : 'Go to section ' + (i + 1); }, group: 'Go to', run: () => skPageGo(i), when: () => !!sectionsShown()[i] })),
+  { id: 'viewnext', keys: ['v'], label: 'Next view in this section (List, Board, Matrix …)', group: 'Go to', run: () => skCycleView(1), when: () => { const s = secOf(U.page); return !!s && viewsOf(s).length > 1; } },
+  { id: 'viewprev', keys: ['Shift+V'], label: 'Previous view in this section', group: 'Go to', run: () => skCycleView(-1), when: () => { const s = secOf(U.page); return !!s && viewsOf(s).length > 1; } },
   { id: 'newtask', keys: ['n'], label: 'New task', group: 'Create', legacy: true },
   { id: 'newnote', keys: ['Shift+N'], label: 'New note', group: 'Create', run: () => { U.page = 'notes'; U.sel = null; render(); ACT.noteadd(); } },
   { id: 'newtpl', keys: ['Shift+T'], label: 'New template', group: 'Create', run: () => TPL_ACT.tpladd() },
@@ -121,6 +125,8 @@ function skApplyHints(root) {
       const tip = skText(combo); el.title = (el.title ? el.title.replace(/\s*\(.{1,24}\)$/, '') : el.getAttribute('aria-label') || '') + (el.title || el.getAttribute('aria-label') ? ' ' : '') + `(${tip})`;
       if (el.tagName === 'INPUT') { el.setAttribute('aria-keyshortcuts', tip); return; }
       el.setAttribute('aria-keyshortcuts', tip.replace(/\+/g, '+'));
+      // a small icon button (the "+" beside Lists) has no room for key caps: they spilled out sideways and were clipped. Its tooltip carries the shortcut instead.
+      if (el.closest('.sec') || (el.classList.contains('ib') && el.classList.contains('sm'))) return;
       el.insertAdjacentHTML('beforeend', `<span class="skh" aria-hidden="true">${skCaps(combo).map(x => `<kbd>${esc(x)}</kbd>`).join('')}</span>`);
     });
   }

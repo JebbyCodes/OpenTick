@@ -4,7 +4,7 @@ import { makeApp, clock } from './harness.mjs';
 const eq = (a, b, m) => assert.deepEqual(JSON.parse(JSON.stringify(a)), JSON.parse(JSON.stringify(b)), m); // the app runs in its own VM realm
 
 const app = makeApp();
-const { S, U, uiToggle, uiFocus, pagesShown, uiMovePage, uiNavDrop, gtApply, ganttDates, gtStatus, gtPct, GT_COLS, gtCols, gtSetCols, UIC } = app;
+const { S, U, uiToggle, uiFocus, pagesShown, sectionsShown, sectionTarget, secOf, viewsOf, uiMoveSection, SECTIONS, vtabsHtml, uiMovePage, uiNavDrop, gtApply, ganttDates, gtStatus, gtPct, GT_COLS, gtCols, gtSetCols, UIC } = app;
 
 /* defaults + hiding panels */
 assert.equal(S.settings.ui.side, true); assert.equal(S.settings.ui.detail, true); assert.equal(S.settings.ui.sideW, 300);
@@ -18,11 +18,30 @@ app.S.settings.ui.detail = true;
 const c = UIC.side; assert.equal(app.uiSetWidth(c, 50), 220); assert.equal(app.uiSetWidth(c, 5000) <= 520, true);
 
 /* sidebar views: order + hide, but the page you are on never disappears */
-eq(pagesShown().map(p => p[0]), ['home', 'tasks', 'notes', 'calendar', 'timetable', 'gantt', 'matrix', 'habits', 'focus', 'templates']);
+eq(pagesShown().map(p => p[0]), ['home', 'tasks', 'notes', 'calendar', 'timetable', 'gantt', 'matrix', 'habits', 'focus', 'templates', 'countdowns', 'zones', 'kanban']);
 uiMovePage('gantt', -1); eq(pagesShown().map(p => p[0]).slice(0, 6), ['home', 'tasks', 'notes', 'calendar', 'gantt', 'timetable']);
 app.S.settings.ui.hidePages = ['habits', 'gantt']; U.page = 'gantt';
-eq(pagesShown().map(p => p[0]), ['home', 'tasks', 'notes', 'calendar', 'gantt', 'timetable', 'matrix', 'focus', 'templates'], 'current page stays; habits hidden');
+eq(pagesShown().map(p => p[0]), ['home', 'tasks', 'notes', 'calendar', 'gantt', 'timetable', 'matrix', 'focus', 'templates', 'countdowns', 'zones', 'kanban'], 'current page stays; habits hidden');
 U.page = 'tasks'; assert.equal(pagesShown().some(p => p[0] === 'gantt'), false);
+
+/* sections: 13 views live in 5 places, and every view is in exactly one of them */
+app.S.settings.ui.hidePages = []; app.S.settings.ui.pageOrder = []; U.page = 'tasks'; U.secLast = {};
+eq(sectionsShown().map(s => s[0]), ['home', 'tasks', 'notes', 'calendar', 'habits']);
+eq(SECTIONS.flatMap(s => s[3]).sort(), pagesShown().map(p => p[0]).sort(), 'every view belongs to a section, none twice');
+for (const [k, , , vs] of SECTIONS) for (const v of vs) assert.equal(secOf(v), k);
+eq(viewsOf('tasks'), ['tasks', 'kanban', 'matrix', 'gantt']); eq(viewsOf('calendar'), ['calendar', 'timetable', 'countdowns', 'zones']);
+assert.equal(secOf('help'), null, 'Help and History belong to no section');
+U.page = 'tasks'; assert.match(vtabsHtml(), /data-page="kanban"[\s\S]*data-page="matrix"[\s\S]*data-page="gantt"/, 'the switcher lists the views of the section');
+U.page = 'home'; assert.equal(vtabsHtml(), '', 'a section with one view has no switcher');
+U.page = 'zones'; assert.equal(secOf(U.page), 'calendar'); U.secLast = { calendar: 'zones' }; assert.equal(sectionTarget('calendar'), 'zones', 'a section reopens on the view last used');
+app.S.settings.ui.hidePages = ['zones', 'countdowns']; U.page = 'tasks'; U.secLast = { calendar: 'zones' };
+eq(viewsOf('calendar'), ['calendar', 'timetable']); assert.equal(sectionTarget('calendar'), 'calendar', 'a hidden view is not opened');
+app.S.settings.ui.hidePages = ['habits', 'focus']; eq(sectionsShown().map(s => s[0]), ['home', 'tasks', 'notes', 'calendar'], 'a section with every view hidden goes');
+U.page = 'focus'; assert.ok(sectionsShown().some(s => s[0] === 'habits'), 'but not while you are in it');
+app.S.settings.ui.hidePages = []; U.page = 'tasks';
+uiMoveSection('calendar', -1); eq(sectionsShown().map(s => s[0]), ['home', 'tasks', 'calendar', 'notes', 'habits']);
+uiMoveSection('calendar', -5); eq(sectionsShown().map(s => s[0]).slice(0, 3), ['home', 'tasks', 'calendar'], 'moving past the top does nothing');
+app.S.settings.ui.pageOrder = []; app.S.settings.ui.hidePages = [];
 
 /* dropping a task on the sidebar */
 const t = app.newTask({ title: 'drag me' }); app.S.tasks.push(t);

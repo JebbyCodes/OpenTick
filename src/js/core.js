@@ -231,6 +231,9 @@ const PREF_DEF = {
   svc: { on: true, tray: true, autostart: false, persist: true, keep: true },
   tips: { on: true },
   eink: { mode: 'auto', pager: true },
+  cd: { sort: 'soon', show: 'upcoming', list: '', project: '', tag: '' },
+  tz: { start: 8, end: 18, base: '' },
+  bridge: { on: false, apps: {}, openUrl: '' },
 };
 function migrate(r) {
   r.lists = r.lists || [];
@@ -239,6 +242,9 @@ function migrate(r) {
   r.tasks.forEach(t => { t.tags = t.tags || []; t.subtasks = t.subtasks || []; t.notes = t.notes || ''; t.status = t.status || 'open'; if (t.links && !Array.isArray(t.links)) t.links = []; });
   r.habits = r.habits || []; r.pomo = r.pomo || []; r.fired = r.fired || {}; r.tomb = r.tomb || {};
   r.tags = r.tags || []; r.slots = r.slots || []; r.templates = Array.isArray(r.templates) ? r.templates.filter(x => x && x.id) : []; r.school = Array.isArray(r.school) ? r.school.filter(x => x && x.id && x.k) : []; r.notes = Array.isArray(r.notes) ? r.notes : [];
+  // the three newer collections (their normalisers are function declarations in countdown.js, zones.js and kanban.js, so they exist when this first runs)
+  r.countdowns = Array.isArray(r.countdowns) ? r.countdowns.filter(x => x && x.id) : []; r.zones = Array.isArray(r.zones) ? r.zones.filter(x => x && x.id) : []; r.boards = Array.isArray(r.boards) ? r.boards.filter(x => x && x.id) : [];
+  r.countdowns.forEach(cdNormalise); r.zones.forEach(tzNormalise); r.boards.forEach(kbNormalise);
   migrateClasses(r);
   r.notes.forEach(n => { n.title = n.title || ''; n.body = n.body || ''; n.tags = n.tags || []; n.created = n.created || Date.now(); n.updated = n.updated || n.created; });
   r.slots.forEach(x => { x.days = x.days || []; });
@@ -250,7 +256,8 @@ function migrate(r) {
   r.settings.gantt = { scale: 'week', mode: 'both', zoom: 1, nameW: 290, cols: ['plan', 'actual'], hatch: true, progress: true, tray: true, trayW: 220, lanes: true, ...(r.settings.gantt || {}) };
   // layout is per device: panel widths, which panels are hidden, folded sidebar sections, sidebar views
   for (const k of Object.keys(PREF_DEF)) r.settings[k] = { ...PREF_DEF[k], ...(r.settings[k] && typeof r.settings[k] === 'object' ? r.settings[k] : {}) };
-  r.settings.ui = { sideW: 300, detailW: 380, side: true, detail: true, trayW: 236, tray: true, fold: {}, hidePages: [], pageOrder: [], scale: 1, schoolOpen: false, ...(r.settings.ui || {}) };
+  r.settings.ui = { sideW: 300, detailW: 380, side: true, detail: true, trayW: 236, tray: true, fold: {}, hidePages: [], pageOrder: [], scale: 1, schoolOpen: false, density: 'roomy', autoDetail: true, ...(r.settings.ui || {}) };
+  if (r.settings.ui.compact && !(r.settings.ui.densityV >= 1)) r.settings.ui.density = 'compact'; r.settings.ui.densityV = 1; // the old "compact" switch became the density choice
   if (!r.settings.bg || typeof r.settings.bg !== 'object') r.settings.bg = { on: !/Android/i.test(typeof navigator !== 'undefined' ? navigator.userAgent || '' : ''), animate: true, style: 'accent', shape: 'blobs', intensity: 60, speed: 100 };
   { const sc = r.settings.ui.scale == null || r.settings.ui.scale === '' ? NaN : Number(r.settings.ui.scale); r.settings.ui.scale = Number.isFinite(sc) ? Math.min(1.5, Math.max(0.8, Math.round(sc * 20) / 20)) : 1; }
   { const t0 = r.settings.tt || {}; // `auto` hides the quiet hours; anyone who had already narrowed the range keeps their own hours
@@ -304,15 +311,18 @@ function load() {
    Every record (task, list, habit) carries `u`, the time it last changed. Instead of touching every mutation site,
    save() compares each record with a snapshot (SEEN) and stamps the ones that differ. Records that disappeared get a
    tombstone in S.tomb so a deletion can be told apart from "this device has never seen it". */
-const COLL = ['tasks', 'lists', 'habits', 'tags', 'slots', 'notes', 'projects', 'school', 'templates'];
-const SEEN = { tasks: new Map(), lists: new Map(), habits: new Map(), tags: new Map(), slots: new Map(), notes: new Map(), projects: new Map(), school: new Map(), templates: new Map() };
-const hashOf = o => JSON.stringify(o, (k, v) => (k === 'u' ? undefined : v));
+// countdowns, zones (saved time zones) and boards (kanban boards) are synced collections like the rest; a task's place on a board is task.kb
+const COLL = ['tasks', 'lists', 'habits', 'tags', 'slots', 'notes', 'projects', 'school', 'templates', 'countdowns', 'zones', 'boards'];
+const SEEN = { tasks: new Map(), lists: new Map(), habits: new Map(), tags: new Map(), slots: new Map(), notes: new Map(), projects: new Map(), school: new Map(), templates: new Map(), countdowns: new Map(), zones: new Map(), boards: new Map() };
+// (due and time of a task planned in another zone are worked out per device from its anchor, so they are not part of what counts as an edit: zones.js)
+const hashOf = o => JSON.stringify(o, function (k, v) { return k === 'u' || ((k === 'due' || k === 'time') && this === o && o.tz && o.zd && o.zt) ? undefined : v; });
 // "edited just now" markers: which records this device changed in the last couple of minutes (never synced, never saved)
 const EDITED = new Map(), EDIT_SHOW = 120000;
 const editedCls = id => (EDITED.has(id) && Date.now() - EDITED.get(id) < EDIT_SHOW ? ' edited' : '');
 function initSeen() { for (const c of COLL) { SEEN[c].clear(); for (const o of S[c]) SEEN[c].set(o.id, hashOf(o)); } }
 function stamp() {
   const now = Date.now(); let changed = false; const seen = [];
+  if (typeof tzTaskSync === 'function') for (const t of S.tasks) if (t.tz || t.zd) { try { tzTaskSync(t); } catch (e) { /* a bad zone must never stop saving */ } }
   for (const c of COLL) {
     const live = new Set();
     for (const o of S[c]) {
@@ -331,11 +341,11 @@ function stamp() {
    built from those differences (nothing has to be remembered at each call site). Changes that arrive through sync are
    not logged. Quick successive edits of one record (typing a title) are folded into one entry. */
 const HIST_MAX = 2000, HIST_MERGE = 90000;
-const HIST_KIND = { tasks: 'task', lists: 'list', habits: 'habit', notes: 'note', slots: 'slot', projects: 'project', templates: 'template' };
+const HIST_KIND = { tasks: 'task', lists: 'list', habits: 'habit', notes: 'note', slots: 'slot', projects: 'project', templates: 'template', countdowns: 'countdown', zones: 'zone', boards: 'board' };
 const HIST_ACT = { add: 'Added', edit: 'Edited', done: 'Completed', reopen: 'Reopened', wontdo: "Won't do", delete: 'Deleted', restore: 'Restored', purge: 'Deleted forever', import: 'Imported' };
 const HIST_IGN = new Set(['u', 'id', 'order', 'updated', 'created', 'doneAt', 'logU', 'deleted', 'log', 'pinned']);
 const HIST_FLAG = new Set(['notes', 'body', 'subtasks', 'log', 'banner', 'exc', 'rems', 'vars']); // changes shown as "edited", without values
-const histName = (k, o) => String((k === 'task' ? o.title : k === 'list' || k === 'habit' || k === 'project' || k === 'template' ? o.name : k === 'note' ? noteTitle(o) : o.title) || '').trim().slice(0, 90) || 'Untitled';
+const histName = (k, o) => String((k === 'task' ? o.title : k === 'list' || k === 'habit' || k === 'project' || k === 'template' || k === 'countdown' || k === 'zone' || k === 'board' ? o.name : k === 'note' ? noteTitle(o) : o.title) || '').trim().slice(0, 90) || 'Untitled';
 function histChange(k, o, n) {
   if (k === 'task') {
     if (!o.deleted && n.deleted) return { a: 'delete' };
@@ -409,7 +419,7 @@ function save() { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 120); i
 const TOMB_TTL = 180 * 864e5;
 const canon = o => JSON.stringify(Object.keys(o || {}).sort().map(k => [k, o[k]]));
 const cyrb53 = s => { let a = 0xdeadbeef, b = 0x41c6ce57; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 2654435761); b = Math.imul(b ^ c, 1597334677); } a = Math.imul(a ^ (a >>> 16), 2246822507) ^ Math.imul(b ^ (b >>> 13), 3266489909); b = Math.imul(b ^ (b >>> 16), 2246822507) ^ Math.imul(a ^ (a >>> 13), 3266489909); return (4294967296 * (2097151 & b) + (a >>> 0)).toString(36); };
-const snapshot = () => ({ tasks: S.tasks, lists: S.lists, habits: S.habits, tags: S.tags, slots: S.slots, notes: S.notes, projects: S.projects, school: S.school, templates: S.templates, pomo: S.pomo, tomb: S.tomb });
+const snapshot = () => ({ tasks: S.tasks, lists: S.lists, habits: S.habits, tags: S.tags, slots: S.slots, notes: S.notes, projects: S.projects, school: S.school, templates: S.templates, countdowns: S.countdowns, zones: S.zones, boards: S.boards, pomo: S.pomo, tomb: S.tomb });
 function fingerprint(d) {
   const p = [];
   for (const c of COLL) for (const o of (d[c] || [])) p.push(c[0] + o.id + ':' + (o.u || 0));
@@ -458,8 +468,8 @@ function mergeData(L, R) {
   return out;
 }
 function applyMerged(m) {
-  S.tasks = m.tasks; S.lists = m.lists; S.habits = m.habits; S.tags = m.tags; S.slots = m.slots; S.notes = m.notes; S.projects = m.projects; S.school = m.school; S.templates = m.templates; S.pomo = m.pomo; S.tomb = m.tomb;
-  migrate(S); initSeen();
+  S.tasks = m.tasks; S.lists = m.lists; S.habits = m.habits; S.tags = m.tags; S.slots = m.slots; S.notes = m.notes; S.projects = m.projects; S.school = m.school; S.templates = m.templates; S.countdowns = m.countdowns; S.zones = m.zones; S.boards = m.boards; S.pomo = m.pomo; S.tomb = m.tomb;
+  migrate(S); if (typeof tzReflow === 'function') { try { tzReflow(); } catch (e) { /* later */ } } initSeen();
   persist(true); // if storage is full the copy in memory is still right
 }
 // Replace everything (import / undo) in a way that sync treats as a deliberate edit: gone records become tombstones, kept ones are re-stamped
@@ -541,6 +551,7 @@ function newTask(o = {}) {
   return { id: uid(), title: '', notes: '', listId: 'inbox', due: null, time: null, priority: 0, tags: [], subtasks: [], repeat: null, reminder: null, status: 'open', section: null, created: Date.now(), order: top, ...o };
 }
 function toggleDone(t) {
+  const wasOpen = t.status === 'open';
   if (t.status === 'open') {
     if (t.repeat && t.due) {
       const nx = nextOcc(t);
@@ -560,6 +571,7 @@ function toggleDone(t) {
     } else { t.status = 'done'; t.doneAt = Date.now(); sfx('done'); }
   } else { t.status = 'open'; delete t.doneAt; sfx('undo'); }
   save();
+  if (typeof brEvent === 'function') brEvent(wasOpen ? 'task.completed' : 'task.reopened', t); // other apps that are connected hear about it
 }
 
 /* ---------- standalone notes ---------- */

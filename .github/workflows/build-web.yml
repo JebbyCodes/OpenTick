@@ -1,17 +1,26 @@
 name: Build / Web
 
-# The app as two static websites (normal and e-ink), zipped for self-hosting. The same files go to GitHub Pages (see Deploy / Website).
+# =====================================================================================================================================
+#  Build / Web: the app as a static website, zipped for self-hosting
+# =====================================================================================================================================
+#  Makes two zips: the normal app and the e-ink edition. Unzip either one into any web server's folder (nginx, Apache, a Raspberry Pi,
+#  a NAS...) and open it. Nothing else is needed: the app keeps its data in the browser and syncs over WebDAV.
+#  The same files are what Deploy / Website puts on GitHub Pages, and what the Docker image serves.
+#
+#  Artifact: pkg-web.   Called by: Release.   By hand: Actions -> Build / Web -> Run workflow.
+# =====================================================================================================================================
+
 on:
   workflow_call:
     inputs:
       version:
-        description: Version being built (x.y.z)
+        description: Version being built (x.y.z); used in file names
         required: true
         type: string
   workflow_dispatch:
     inputs:
       version:
-        description: Version being built (x.y.z)
+        description: Version being built (x.y.z); used in file names
         required: true
         type: string
 
@@ -24,20 +33,28 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-node
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js and install npm packages
+        uses: ./.github/actions/setup-node
+
       - name: Build both editions and zip them
         shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
           node build-app.mjs --out site
           node build-app.mjs --eink --out site-eink
           for d in site site-eink; do test -s "$d/index.html"; done
           mkdir -p staged
-          (cd site && zip -qr "../staged/OpenTick_${{ inputs.version }}_web.zip" .)
-          (cd site-eink && zip -qr "../staged/OpenTick_${{ inputs.version }}_web-eink.zip" .)
+          (cd site && zip -qr "../staged/OpenTick_${VERSION}_web.zip" .)
+          (cd site-eink && zip -qr "../staged/OpenTick_${VERSION}_web-eink.zip" .)
           ls -l staged
-      - uses: actions/upload-artifact@v7
+
+      - name: Upload the files (artifact pkg-web)
+        uses: actions/upload-artifact@v7
         with:
           name: pkg-web
           path: staged/*.zip

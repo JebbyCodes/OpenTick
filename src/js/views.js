@@ -88,6 +88,7 @@ const IC = {
   user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
   users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
   tool: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+  hourglass: '<path d="M6 2h12M6 22h12"/><path d="M7 2v4a5 5 0 0 0 2 4l3 2-3 2a5 5 0 0 0-2 4v4M17 2v4a5 5 0 0 1-2 4l-3 2 3 2a5 5 0 0 1 2 4v4"/>',
   globe: '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
   send: '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
   bookmark: '<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>',
@@ -107,7 +108,12 @@ const LIST_ICONS = ['list', 'inbox', 'sun', 'calendar', 'star', 'flag', 'heart',
 const listIcon = (o, n = 18) => { const i = o && o.icon; return i && IC[i] ? ic(i, n) : i ? `<span class="emo" style="font-size:${Math.round(n * 0.9)}px">${esc(i)}</span>` : ic(o && o.listIds ? 'layers' : 'list', n); };
 const U = { projList: {}, tagSel: [], tagMode: 'all', hist: { acts: [], kinds: [], q: '', sort: 'new', shown: 150 },  page: 'tasks', nav: 'today', q: '', sel: null, calD: new Date(), fx: [], showDone: {}, drag: null, _rn: null, ttDate: null, ttTray: null, ttV: null };
 const SMART = [['inbox', 'Inbox', 'inbox'], ['today', 'Today', 'sun'], ['tomorrow', 'Tomorrow', 'sunrise'], ['week', 'Next 7 Days', 'calendar'], ['all', 'All', 'layers']];
-const PAGES = [['home', 'Projects', 'dashboard'], ['tasks', 'Tasks', 'check-circle'], ['notes', 'Notes', 'notes'], ['calendar', 'Calendar', 'calendar'], ['timetable', 'Timetable', 'table'], ['gantt', 'Gantt', 'gantt'], ['matrix', 'Matrix', 'grid'], ['habits', 'Habit', 'activity'], ['focus', 'Focus', 'clock'], ['templates', 'Templates', 'copy']];
+const PAGES = [['home', 'Projects', 'dashboard'], ['tasks', 'Tasks', 'check-circle'], ['notes', 'Notes', 'notes'], ['calendar', 'Calendar', 'calendar'], ['timetable', 'Timetable', 'table'], ['gantt', 'Gantt', 'gantt'], ['matrix', 'Matrix', 'grid'], ['habits', 'Habit', 'activity'], ['focus', 'Focus', 'clock'], ['templates', 'Templates', 'copy'], ['countdowns', 'Countdowns', 'hourglass'], ['zones', 'Time zones', 'globe'], ['kanban', 'Boards', 'columns']];
+// The sidebar and the phone tab bar show SECTIONS; each section groups related views (the pages above, whose ids are what everything else
+// uses: shortcuts, widgets, links, settings). A slim switcher under the page header moves between a section's views.
+const SECTIONS = [['home', 'Projects', 'dashboard', ['home']], ['tasks', 'Tasks', 'check-circle', ['tasks', 'kanban', 'matrix', 'gantt']], ['notes', 'Notes', 'notes', ['notes', 'templates']], ['calendar', 'Calendar', 'calendar', ['calendar', 'timetable', 'countdowns', 'zones']], ['habits', 'Habits', 'activity', ['habits', 'focus']]];
+// how a view is named inside its section: [label, icon]
+const VIEW_TAB = { home: ['Projects', 'dashboard'], tasks: ['List', 'list'], kanban: ['Board', 'columns'], matrix: ['Matrix', 'grid'], gantt: ['Timeline', 'gantt'], notes: ['Notes', 'notes'], templates: ['Templates', 'copy'], calendar: ['Month', 'calendar'], timetable: ['Timetable', 'table'], countdowns: ['Countdowns', 'hourglass'], zones: ['Time zones', 'globe'], habits: ['Habits', 'activity'], focus: ['Focus', 'clock'] };
 const FLAT = ['done', 'trash', 'wontdo', 'search'];
 // inline markdown in titles, never as links (rows are click targets)
 const FULLDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -119,6 +125,7 @@ function metaX(t) {
   const cd = t.kind === 'exam' && t.status === 'open' && t.due ? dayDiff(t.due, todayStr()) : null; // days to go, for an exam that is still ahead
   return (t.kind ? `<span class="kb ${t.kind}" title="${t.kind === 'exam' ? 'Exam' : 'Homework'}">${ic(t.kind === 'exam' ? 'exam' : 'homework', 12)}${t.kind === 'exam' ? ` ${cd != null && cd >= 0 && cd <= 30 ? (cd === 0 ? 'Today' : cd === 1 ? 'Tomorrow' : 'In ' + cd + ' days') : 'Exam'}` : ''}</span>` : '')
     + (sj ? `<span class="slb" style="--tc:${sj.color}" title="Class">${iconAny(sj.icon, 12)} ${esc(sj.name)}</span>` : '')
+    + (t.tz && typeof tzValid === 'function' && tzValid(t.tz) && t.time && t.due ? `<span class="tz-badge" title="Planned in ${esc(tzCity(t.tz))} time">${ic('globe', 12)} ${esc(tzFmt(tzToUtc(t.due, t.time, tzLocal()), t.tz))} ${esc(tzCity(t.tz))}</span>` : '')
     + (t.room ? `<span title="Room">${ic('pin', 12)} ${esc(t.room)}</span>` : '')
     + (t.dur ? `<span title="Duration">${ic('clock', 12)} ${fmtDur(t.dur)}</span>` : '') + (sl ? `<span class="slb" style="--tc:${sl.color}" title="Timetable slot">${ic('table', 12)} ${esc(sl.title)}</span>` : '');
 }
@@ -247,8 +254,16 @@ function groupTasks(a, gOverride) {
 const canDrag = () => S.settings.sort === 'manual' && sortDir() === 'asc' && S.settings.group === 'none' && U.page === 'tasks' && !U.q && !FLAT.includes(U.nav);
 
 /* ---------- shell ---------- */
-const topHtml = (title, tools = '') => `<header class="top"><button class="ib burger" data-act="burger" aria-label="Menu">${ic('menu', 22)}</button><h1>${title}</h1><div class="tools">${tools}</div><button class="ib pt pt-det" data-act="uitoggle" data-k="detail" title="Show / hide task details  ]" aria-label="Show or hide the task details">${ic('panel-right', 20)}</button></header>`;
+// the view switcher under a page's header: only for a section with more than one view showing
+function vtabsHtml() {
+  const sec = typeof secOf === 'function' ? secOf(U.page) : null; if (!sec) return '';
+  const vs = viewsOf(sec); if (vs.length < 2) return '';
+  return `<nav class="vtabs" role="tablist" aria-label="${esc(SECTIONS.find(s => s[0] === sec)[1])} views">${vs.map(k => `<button role="tab" class="${U.page === k ? 'on' : ''}" aria-selected="${U.page === k}" data-act="page" data-page="${k}">${ic(VIEW_TAB[k][1], 15)}<span>${esc(VIEW_TAB[k][0])}</span></button>`).join('')}</nav>`;
+}
+const topHtml = (title, tools = '') => vtabsHtml() ? topHead(title, tools) + vtabsHtml() : topHead(title, tools);
+const topHead = (title, tools = '') => `<header class="top"><button class="ib burger" data-act="burger" aria-label="Menu">${ic('menu', 22)}</button><h1>${title}</h1><div class="tools">${tools}</div><button class="ib pt pt-det" data-act="uitoggle" data-k="detail" title="Show / hide task details  ]" aria-label="Show or hide the task details">${ic('panel-right', 20)}</button></header>`;
 function render() {
+  { const s = typeof secOf === 'function' ? secOf(U.page) : null; if (s) (U.secLast = U.secLast || {})[s] = U.page; } // a section reopens on the view you last used in it
   document.body.classList.toggle('on-help', U.page === 'help'); // the print rules for the Help page are keyed on this
   if (typeof WIDGET !== 'undefined' && WIDGET) return renderWidget();
   if (U.gFull && U.page !== 'gantt') { U.gFull = false; document.body.classList.remove('gtfull'); try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) { /* not in full screen */ } }
@@ -259,12 +274,11 @@ function render() {
 // phone navigation: the first views as bottom tabs, "More" opens the full menu
 function renderTabbar() {
   const el = $('#tabbar'); if (!el) return;
-  const shown = pagesShown(), main = shown.slice(0, 4), cur = PAGES.find(p => p[0] === U.page);
-  const items = main.some(p => p[0] === U.page) || !cur ? main : [...main.slice(0, 3), cur];
-  el.innerHTML = items.map(([k, n, i]) => `<button class="${U.page === k ? 'on' : ''}" data-act="page" data-page="${k}">${ic(i, 22)}<small>${n}</small></button>`).join('') + `<button data-act="burger">${ic('menu', 22)}<small>More</small></button>`;
+  const items = sectionsShown();
+  el.innerHTML = items.map(([k, n, i]) => `<button class="${secOf(U.page) === k ? 'on' : ''}" data-act="page" data-page="${sectionTarget(k)}" data-sec="${k}">${ic(i, 22)}<small>${n}</small></button>`).join('') + `<button data-act="burger">${ic('menu', 22)}<small>More</small></button>`;
 }
 function renderTimetable() { schoolOn() ? renderSchool() : renderTimetablePlan(); }
-function renderMain() { if (typeof WIDGET !== 'undefined' && WIDGET) return renderWidget(); ({ home: renderHome, tasks: renderTasks, notes: renderNotes, templates: renderTemplates, calendar: renderCal, timetable: renderTimetable, gantt: renderGantt, matrix: renderMatrix, habits: renderHabits, help: renderHelp, focus: renderFocus, history: renderHistory })[U.page](); fxFlush(); if (typeof batchPaint === 'function') batchPaint(); }
+function renderMain() { if (typeof WIDGET !== 'undefined' && WIDGET) return renderWidget(); ({ home: renderHome, tasks: renderTasks, notes: renderNotes, templates: renderTemplates, calendar: renderCal, timetable: renderTimetable, gantt: renderGantt, matrix: renderMatrix, habits: renderHabits, help: renderHelp, focus: renderFocus, history: renderHistory, countdowns: renderCountdowns, zones: renderZones, kanban: renderKanbanPage })[U.page](); fxFlush(); if (typeof batchPaint === 'function') batchPaint(); }
 
 function renderSide() {
   const q = $('#q'), keep = q ? q.value : '';
@@ -292,7 +306,7 @@ function renderSide() {
   $('#side').innerHTML = `
 <div class="brand">${logoHtml(28)}<span class="bn"><b>OpenTick</b><small class="ver" title="Version ${esc(APP_VERSION)}">v${esc(APP_VERSION)}</small></span><button class="ib" data-act="uitoggle" data-k="side" title="${S.settings.ui.side ? 'Hide sidebar' : 'Dock sidebar'}">${ic('panel-left', 18)}</button><button class="ib" data-act="settings" title="Settings">${ic('sliders', 18)}</button></div>
 <div class="search">${ic('search', 16)}<input id="q" placeholder="Search" autocomplete="off"></div>
-<div class="pages">${pagesShown().map(([k, n, i]) => `<button class="pg${U.page === k ? ' on' : ''}" data-act="page" data-page="${k}" title="${n} — drag to reorder" draggable="true">${ic(i, 20)}<small>${n}</small></button>`).join('')}</div>
+<div class="pages">${pagesGrid().map(([k, n, i]) => `<button class="pg${secOf(U.page) === k ? ' on' : ''}" data-act="page" data-page="${sectionTarget(k)}" data-sec="${k}" title="${n} — drag to reorder" draggable="true">${ic(i, 20)}<small>${n}</small></button>`).join('')}${pagesMoreBtn()}</div>
 <div class="scroll">
 ${SMART.map(([k, n, i]) => item(k, n, i, null, openCount(k))).join('')}
 ${sec('lists', 'Lists', `<button class="ib sm" data-act="addlist" title="New list" aria-label="New list">${ic('plus', 14)}</button>`)}
@@ -392,7 +406,7 @@ function renderTasks() {
   const pl = proj ? projectListIds(proj) : [], pTarget = proj ? (pl.includes(U.projList[proj.id]) ? U.projList[proj.id] : (proj.listIds || []).find(id => S.lists.some(l => l.id === id))) : null;
   const tgt = isList ? list.name : proj && pTarget ? listLabel(pTarget) : 'Inbox';
   $('#main').innerHTML = (!U.q && isList ? bannerHtml('list', list) : !U.q && proj ? bannerHtml('project', proj) : '') + topHtml(U.q ? `Search “${esc(U.q)}”` : (eff.startsWith('tag:') && tagColor(eff.slice(4)) ? `<span style="color:${tagColor(eff.slice(4))}">${esc(navTitle(eff))}</span>` : esc(navTitle(eff))), tools)
-    + (proj ? projHead(proj, all) : '') + tagBar(eff) + tplStripHtml(eff)
+    + (proj ? projHead(proj, all) : '') + tagBar(eff) + tplStripHtml(eff) + cdStripHtml(eff)
     + (proj && !pTarget ? `<div class="quick"><p class="hint">Link at least one list to this project to add tasks here. <button class="btn sm" data-act="projmenu" data-pid="${esc(proj.id)}">Choose lists</button></p></div>` : flat || kan ? '' : `<div class="quick${proj ? ' withsel' : ''}">${proj && pl.length > 1 ? `<select data-sel="projlist" data-pid="${esc(proj.id)}" title="Add new tasks to…">${opts(pl.map(id => [id, listLabel(id)]), pTarget)}</select>` : ''}<input id="add" autocomplete="off" placeholder="+ Add task to “${esc(tgt)}” — try “Pay rent every month !high #bills”"></div>`)
     + `<div class="body${kan ? ' kb' : ''}">${body}</div>`;
   if (draft && $('#add')) $('#add').value = draft;
@@ -400,8 +414,8 @@ function renderTasks() {
 
 /* ---------- history page ---------- */
 const HIST_ICON = { add: 'plus', edit: 'notes', done: 'check-circle', reopen: 'refresh', wontdo: 'slash', delete: 'trash', restore: 'upload', purge: 'x', import: 'download' };
-const HIST_KIND_NAME = { task: 'Task', list: 'List', project: 'Project', habit: 'Habit', note: 'Note', template: 'Template', slot: 'Slot', app: '' };
-const HIST_FIELD = { title: 'Title', due: 'Due date', time: 'Time', dur: 'Duration', priority: 'Priority', tags: 'Tags', listId: 'List', section: 'Section', repeat: 'Repeat', reminder: 'Reminder', notes: 'Notes', subtasks: 'Subtasks', start: 'Plan start', astart: 'Actual start', slotId: 'Timetable slot', name: 'Name', color: 'Colour', icon: 'Icon', goal: 'Goal', sections: 'Sections', view: 'View', days: 'Days', end: 'End', loc: 'Location', body: 'Text', pinned: 'Pin', projectId: 'Project', banner: 'Banner' };
+const HIST_KIND_NAME = { task: 'Task', list: 'List', project: 'Project', habit: 'Habit', note: 'Note', template: 'Template', countdown: 'Countdown', zone: 'Time zone', board: 'Board', slot: 'Slot', app: '' };
+const HIST_FIELD = { title: 'Title', due: 'Due date', time: 'Time', dur: 'Duration', priority: 'Priority', tags: 'Tags', listId: 'List', section: 'Section', repeat: 'Repeat', reminder: 'Reminder', notes: 'Notes', subtasks: 'Subtasks', start: 'Plan start', astart: 'Actual start', slotId: 'Timetable slot', name: 'Name', color: 'Colour', icon: 'Icon', goal: 'Goal', sections: 'Sections', view: 'View', days: 'Days', end: 'End', loc: 'Location', body: 'Text', pinned: 'Pin', projectId: 'Project', banner: 'Banner', columns: 'Columns', scope: 'Scope', tz: 'Time zone', kb: 'Board column' };
 function histVal(k, v) {
   if (v == null || v === '') return 'none';
   if (k === 'due' || k === 'start' || k === 'astart') return fmtDate(v);
@@ -455,7 +469,7 @@ function histListHtml() {
 function renderHistory() {
   const h = U.hist, base = histFiltered(), cnt = a => base.filter(e => e.a === a).length;
   const acts = Object.keys(HIST_ACT).filter(a => S.history.some(e => e.a === a));
-  const kinds = ['task', 'list', 'project', 'habit', 'note', 'template', 'slot'].filter(k => S.history.some(e => e.k === k));
+  const kinds = ['task', 'list', 'project', 'habit', 'note', 'template', 'countdown', 'zone', 'board', 'slot'].filter(k => S.history.some(e => e.k === k));
   $('#main').innerHTML = topHtml('History', `<select data-hsel="sort" title="Order">${opts([['new', 'Newest first'], ['old', 'Oldest first'], ['action', 'By action'], ['name', 'By name']], h.sort)}</select>${S.history.length ? `<button class="btn" data-act="hclear">Clear</button>` : ''}`)
     + `<div class="hfilters"><div class="search hs">${ic('search', 16)}<input id="hq" placeholder="Search the history" autocomplete="off" value="${esc(h.q)}"></div><div class="hchips">${acts.map(a => `<button class="tfc hc a-${a}${h.acts.includes(a) ? ' on' : ''}" data-act="hact" data-a="${a}" aria-pressed="${h.acts.includes(a)}">${HIST_ACT[a]}<small>${cnt(a)}</small></button>`).join('')}${kinds.length > 1 ? '<span class="hsep"></span>' + kinds.map(k => `<button class="tfc${h.kinds.includes(k) ? ' on' : ''}" data-act="hkind" data-k="${k}" aria-pressed="${h.kinds.includes(k)}">${HIST_KIND_NAME[k]}s</button>`).join('') : ''}${h.acts.length || h.kinds.length || h.q ? '<button class="btn sm" data-act="hreset">Reset</button>' : ''}</div></div>`
     + `<div class="body hist" id="hlist">${histListHtml()}</div><p class="hint pad">Kept on this device only (last ${HIST_MAX}). Quick edits to one item are combined.</p>`;
@@ -651,7 +665,7 @@ function classRows(t) {
 function renderDetail() {
   const t = getT(U.sel), el = $('#detail');
   if (U._dsel !== U.sel) { U._dsel = U.sel; U.nMode = null; if (U.sel) fx('#detail > *', 'fade'); } // opening another task starts in the default mode
-  document.body.classList.toggle('dopen', !!t);
+  document.body.classList.toggle('dopen', !!t); document.body.classList.toggle('dauto', !!(S.settings.ui.autoDetail && !t));
   if (!t) { el.innerHTML = `<div class="empty">${ic('check-circle', 44)}<p>Select a task to see details</p></div>`; fxFlush(); return; }
   const rk = repeatKey(t.repeat), l = listOf(t.listId), secs = l.sections || [];
   const td = todayStr(), tm = ymd(addDays(new Date(), 1)), nw = ymd(addDays(new Date(), ((8 - new Date().getDay()) % 7) || 7));
@@ -661,7 +675,7 @@ function renderDetail() {
 <div class="dhead"><button class="chk p${t.priority}${t.status === 'done' ? ' on' : ''}" data-act="toggle" data-id="${t.id}" aria-label="Complete task">${t.status === 'done' ? ic('check', 13) : ''}</button><input class="dtitle" data-f="title" value="${esc(t.title)}" placeholder="Task title"><button class="ib mob" data-act="closedetail" aria-label="Close">${ic('x', 20)}</button></div>
 <div class="dstat"><span class="sv" data-sv aria-live="polite"></span><span id="d-ed">${editedText(t)}</span><span class="dc">Created ${esc(fmtDate(ymd(new Date(t.created || Date.now()))))}</span></div>
 <div class="dbody">
-<div class="dr"><span>${ic('calendar', 16)}</span><input type="date" data-f="due" value="${t.due || ''}"><input type="time" data-f="time" value="${t.time || ''}"${t.due ? '' : ' disabled'}></div>
+<div class="dr"><span>${ic('calendar', 16)}</span><input type="date" data-f="due" value="${t.due || ''}"><input type="time" data-f="time" value="${t.time || ''}"${t.due ? '' : ' disabled'}></div>${t.due && t.time && typeof tzTaskOptions === 'function' ? `<div class="dr" title="The zone this time was planned in. Your own time follows it when you travel."><span>${ic('globe', 16)}</span><select data-f="tz" aria-label="Planned in time zone">${opts(tzTaskOptions(t), t.tz || '')}</select></div>` : ''}
 <div class="chips"><button class="btn sm${t.due === td ? ' on' : ''}" data-act="qdate" data-w="today">Today</button><button class="btn sm${t.due === tm ? ' on' : ''}" data-act="qdate" data-w="tomorrow">Tomorrow</button><button class="btn sm${t.due === nw ? ' on' : ''}" data-act="qdate" data-w="next">Next week</button><button class="btn sm${!t.due ? ' on' : ''}" data-act="qdate" data-w="none">No date</button></div>
 <div class="dr top"><span>${ic('clock', 16)}</span>${durHtml('task', t.dur)}</div>${slots.length ? `<div class="dr"><span>${ic('table', 16)}</span><select data-f="slot" title="Timetable slot">${opts([['', 'No timetable slot'], ...slots.map(x => [x.id, `${x.title} · ${x.days.map(d => DAYS[d]).join('/')} ${fmtTime(x.start)}`])], t.slotId && slotById(t.slotId) ? t.slotId : '')}</select></div>` : ''}
 ${classRows(t)}<div class="dr"><span>${ic('flag', 16)}</span><div class="pri">${[3, 2, 1, 0].map(p => `<button class="pf p${p}${t.priority === p ? ' on' : ''}" data-act="prio" data-p="${p}">${PRIO[p]}</button>`).join('')}</div></div>
@@ -786,19 +800,23 @@ function renderTimetablePlan() {
   const head = `<div class="tt-row"><div class="tt-cor"></div>${data.map(x => `<button class="tt-dh${x.k === td ? ' today' : ''}" data-act="ttday" data-d="${x.k}" title="Open this day"><small>${DAYS[x.d.getDay()]}</small><b>${x.d.getDate()}</b></button>`).join('')}</div>`;
   const adOpen = tt.adOpen !== false, adN = data.reduce((n, x) => n + x.allday.length + (x.off ? 1 : 0), 0);
   const allday = `<div class="tt-row tt-adrow${adOpen ? '' : ' closed'}"><div class="tt-cor"><button class="adtog" data-act="ttad" aria-expanded="${adOpen}" title="${adOpen ? 'Hide' : 'Show'} all-day tasks"><span>all day</span>${adN ? `<b>${adN}</b>` : ''}${ic(adOpen ? 'up' : 'down', 12)}</button></div>${data.map(x => `<div class="tt-ad${x.off ? ' hasoff' : ''}" data-d="${x.k}">${x.off ? `<div class="chip offc" style="--hc:${holColor(x.off)}" title="${esc(scName())}: day off">${ic('sun', 12)}<span class="adt">${esc(holName(x.off))}</span></div>` : ''}${x.allday.map(t => `<div class="chip adc p${t.priority}${t.status !== 'open' ? ' fin' : ''}${U.sel === t.id ? ' sel' : ''}${editedCls(t.id)}" data-act="open" data-id="${t.id}"${dragAttr()}><button class="chk sm p${t.priority}${t.status === 'done' ? ' on' : ''}" data-act="toggle" data-id="${t.id}" aria-label="Complete task">${t.status === 'done' ? ic('check', 13) : ''}</button><span class="adt">${titleHtml(t)}</span></div>`).join('')}</div>`).join('')}</div>`;
-  const hours = Array.from({ length: (to - from) / 60 }, (_, i) => `<span style="top:${i * TT_HH}px">${fmtHour(from / 60 + i)}</span>`).join('');
+  // an optional second time zone beside the hours (Time zones page): the same grid line read on another clock
+  const tz2 = typeof tzValid === 'function' && tzValid(tt.tz2) && tt.tz2 !== tzLocal() ? tt.tz2 : '';
+  const hours = Array.from({ length: (to - from) / 60 }, (_, i) => `<span style="top:${i * TT_HH}px">${fmtHour(from / 60 + i)}</span>`).join('')
+    + (tz2 ? Array.from({ length: (to - from) / 60 }, (_, i) => { const ms = tzToUtc(days[0] ? ymd(days[0]) : todayStr(), pad((from / 60 + i) % 24) + ':00', tzLocal()), p = tzParts(ms, tz2), dd = dayDiff(`${p.y}-${pad(p.m)}-${pad(p.d)}`, tzDate(ms, tzLocal())); return `<span class="g2" style="top:${i * TT_HH}px" title="${esc(tzCity(tz2))}">${esc(p.mi ? fmtMin(p.h * 60 + p.mi) : fmtHour(p.h))}${dd ? `<sup>${dd > 0 ? '+' : '−'}${Math.abs(dd)}</sup>` : ''}</span>`; }).join('') : '');
   const cols = data.map(x => `<div class="tt-col${x.k === td ? ' today' : ''}${x.off ? ' off' : ''}" data-act="ttcell" data-d="${x.k}" data-from="${from}">${x.off ? `<div class="tt-hol" style="--hc:${holColor(x.off)}"><span class="mq">${ic('sun', 12)} ${esc(holName(x.off))}</span></div>` : ''}${x.items.map(it => block(it, x.d)).join('')}${x.k === td && nowM >= from && nowM <= to ? `<div class="tt-now" style="top:${(nowM - from) * ppm}px"></div>` : ''}</div>`).join('');
   const trayOn = ttTrayOn(), un = ttUnscheduled();
   const tray = trayOn ? `<aside class="tray"><div class="rs rs-l" data-rs="tray" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize · double-click to reset"></div><div class="trh"><b>Tasks</b><small>${un.length} without a time</small><button class="ib sm" data-act="tttray" title="Hide this panel">${ic('x', 14)}</button></div><input class="tradd" placeholder="+ New task  (try “Study 4pm for 90min”)" autocomplete="off"><div class="trl">${un.slice(0, 80).map(ttTrayItem).join('') || '<p class="hint">Nothing waiting — nice.</p>'}</div><p class="hint">Drag a task onto the grid, or press the clock to pick a time. Pull a block’s top or bottom edge to resize it.</p></aside>` : '';
   const seg = `<div class="seg">${[['day', 'Day'], ['3day', '3 days'], ['week', 'Week']].map(([v, n]) => `<button class="${view === v ? 'on' : ''}" data-act="ttview" data-v="${v}">${n}</button>`).join('')}</div>`;
-  const tools = `<button class="ib" data-act="ttprev" title="Previous">${ic('left')}</button><button class="btn" data-act="tttoday">Today</button><button class="ib" data-act="ttnext" title="Next">${ic('right')}</button>${seg}${ttModeSeg()}<button class="btn pri" data-act="ttadd" title="Add a task or a weekly slot">${ic('plus', 16)}<span class="hide-m"> Add</span></button><button class="ib${trayOn ? ' on' : ''}" data-act="tttray" title="Unscheduled tasks">${ic('list')}</button><button class="ib" data-act="holidays" title="Holidays" aria-label="Holidays">${ic('sun')}</button><button class="ib" data-act="ttset" title="Timetable settings">${ic('sliders')}</button>`;
+  const tools = `<button class="ib" data-act="ttprev" title="Previous">${ic('left')}</button><button class="btn" data-act="tttoday">Today</button><button class="ib" data-act="ttnext" title="Next">${ic('right')}</button>${seg}${ttModeSeg()}<button class="btn pri" data-act="ttadd" title="Add a task or a weekly slot">${ic('plus', 16)}<span class="hide-m"> Add</span></button><button class="ib${trayOn ? ' on' : ''}" data-act="tttray" title="Unscheduled tasks">${ic('list')}</button><button class="ib${tz2 ? ' on' : ''}" data-act="tt2" title="Second time zone" aria-label="Second time zone">${ic('globe')}</button><button class="ib" data-act="holidays" title="Holidays" aria-label="Holidays">${ic('sun')}</button><button class="ib" data-act="ttset" title="Timetable settings">${ic('sliders')}</button>`;
   const old = $('.tt-scroll'), keep = old && !U.ttRe ? old.scrollTop * (TT_HH / (prevHH || TT_HH)) : null;
   const draft = $('.tradd') ? $('.tradd').value : '';
-  const hint = S.slots.length ? '' : `<p class="hint pad">${phone ? 'Tap' : 'Click, or drag across'} the grid to add a task or a weekly slot (a class, shift or routine). Tasks with a time appear here too.</p>`;
-  const legend = phone ? '' : `<div class="tt-legend"><span><i class="lg slot"></i>Weekly slot</span><span><i class="lg task"></i>Task with a time</span>${S.settings.tt.classes !== false && scHas() ? `<span><i class="lg lsn"></i>${esc(scName())} lesson</span>` : ''}<span class="hint">Click or drag on the grid to add · drag a block to move it · pull its top or bottom edge to resize</span></div>`;
+  const hint = S.slots.length ? '' : `<p class="hint pad">${phone ? 'Tap' : 'Click or drag across'} the grid to add a task or a weekly slot.</p>`;
+  const legend = phone ? '' : `<div class="tt-legend"><span><i class="lg slot"></i>Weekly slot</span><span><i class="lg task"></i>Task with a time</span>${S.settings.tt.classes !== false && scHas() ? `<span><i class="lg lsn"></i>${esc(scName())} lesson</span>` : ''}<span class="hint tt-tip" tabindex="0" title="Click or drag on the grid to add · drag a block to move it · pull its top or bottom edge to resize">${ic('info', 13)} How to</span></div>`;
   const strip = view === 'week' ? '' : ttStrip(days[0]);
-  $('#main').innerHTML = topHtml(esc(ttRange(days)), tools) + strip + hint + legend
-    + `<div class="tt"><div class="tt-scroll"><div class="tt-inner" style="--n:${data.length};--cw:${view === 'week' ? (phone ? 92 : 104) : 0}px;--hh:${TT_HH}px"><div class="tt-top">${view === 'day' ? '' : head}${allday}</div><div class="tt-body" style="height:${(to - from) * ppm}px"><div class="tt-gut">${hours}</div>${cols}</div></div></div>${tray}</div>`
+  const zcap = tz2 ? `<p class="tt-tz2 hint pad">${ic('globe', 12)} Left: ${esc(tzCity(tzLocal()))} (your time) · Right: ${esc((S.zones.find(z => z.tz === tz2) || {}).name || tzCity(tz2))}, ${esc(tzOffLabel(Date.now(), tz2))}</p>` : '';
+  $('#main').innerHTML = topHtml(esc(ttRange(days)), tools) + strip + hint + zcap + legend
+    + `<div class="tt"><div class="tt-scroll"><div class="tt-inner" style="${tz2 ? '--gw:92px;' : ''}--n:${data.length};--cw:${view === 'week' ? (phone ? 92 : 104) : 0}px;--hh:${TT_HH}px"><div class="tt-top">${view === 'day' ? '' : head}${allday}</div><div class="tt-body" style="height:${(to - from) * ppm}px"><div class="tt-gut">${hours}</div>${cols}</div></div></div>${tray}</div>`
     + `<button class="fab" data-act="ttadd" aria-label="Add to the timetable">${ic('plus', 26)}</button>`;
   const sc = $('.tt-scroll');
   if (sc) sc.scrollTop = keep != null ? keep : Math.max(0, ((showsToday ? nowM - 60 : (firstA < 1440 ? firstA : 8 * 60) - 30) - from) * ppm);

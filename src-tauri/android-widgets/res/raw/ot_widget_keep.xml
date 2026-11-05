@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@layout/ot_widget_*,@id/ot_*,@drawable/ot_widget_*,@drawable/ic_stat_opentick,@xml/ot_widget_*,@string/ot_widget_*"
+    tools:shrinkMode="safe" />

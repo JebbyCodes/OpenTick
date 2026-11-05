@@ -1,12 +1,17 @@
 name: Set up Node.js and install packages
-description: Node.js with the npm cache, then `npm ci`. Every job that touches the app starts with this.
+description: >
+  Installs Node.js 24 with the npm download cache switched on, then runs `npm ci` so the packages match package-lock.json exactly.
+  Almost every job that touches the app starts with this one step instead of repeating the same three lines.
+
 runs:
   using: composite
   steps:
-    - uses: actions/setup-node@v7
+    - name: Install Node.js 24 (with the npm cache)
+      uses: actions/setup-node@v7
       with:
         node-version: '24'
         cache: npm
-    - name: Install npm packages
+
+    - name: Install npm packages (npm ci)
       shell: bash
       run: npm ci --no-audit --no-fund

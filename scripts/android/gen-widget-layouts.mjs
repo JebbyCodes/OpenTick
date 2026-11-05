@@ -7,7 +7,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const res = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'src-tauri', 'android-widgets', 'res');
-mkdirSync(join(res, 'layout'), { recursive: true }); mkdirSync(join(res, 'xml'), { recursive: true }); mkdirSync(join(res, 'drawable'), { recursive: true });
+mkdirSync(join(res, 'raw'), { recursive: true }); mkdirSync(join(res, 'layout'), { recursive: true }); mkdirSync(join(res, 'xml'), { recursive: true }); mkdirSync(join(res, 'drawable'), { recursive: true });
 const NS = 'xmlns:android="http://schemas.android.com/apk/res/android"';
 const w = (rel, text) => writeFileSync(join(res, rel), text);
 const A = o => Object.entries(o).map(([k, v]) => (k.startsWith('xmlns') ? `${k}="${v}"` : `android:${k}="${v}"`)).join(' ');
@@ -21,7 +21,9 @@ const root = (id, kids) => `<?xml version="1.0" encoding="utf-8"?>\n` + el('Fram
 // header: a bold title, a muted subtitle that takes the room, optional previous / next arrows and a round accent "+"
 const header = (k, o = {}) => lin({ layout_height: '44dp', orientation: 'horizontal', gravity: 'center_vertical', paddingStart: '10dp', paddingEnd: '2dp' },
   tv(k + '_title', { bold: true, size: 16, h: M, gravity: 'center_vertical', text: o.title || '' }) + tv(k + '_sub', { weight: 1, h: M, size: 12, gravity: 'center_vertical', x: { paddingStart: '8dp' } })
-  + (o.nav ? iv(k + '_prev', { w: '34dp', h: '34dp', x: { padding: '8dp' }, src: 'ot_widget_prev', desc: o.navPrev || 'Previous month' }) + iv(k + '_next', { w: '34dp', h: '34dp', x: { padding: '8dp' }, src: 'ot_widget_next', desc: o.navNext || 'Next month' }) : '')
+  + (o.weekNav ? iv(k + '_pw', { w: '30dp', h: '34dp', x: { padding: '6dp' }, src: 'ot_widget_prev_week', desc: 'Previous week' }) : '')
+  + (o.nav ? iv(k + '_prev', { w: o.weekNav ? '30dp' : '34dp', h: '34dp', x: { padding: o.weekNav ? '6dp' : '8dp' }, src: 'ot_widget_prev', desc: o.navPrev || 'Previous month' }) + iv(k + '_next', { w: o.weekNav ? '30dp' : '34dp', h: '34dp', x: { padding: o.weekNav ? '6dp' : '8dp' }, src: 'ot_widget_next', desc: o.navNext || 'Next month' }) : '')
+  + (o.weekNav ? iv(k + '_nw', { w: '30dp', h: '34dp', x: { padding: '6dp' }, src: 'ot_widget_next_week', desc: 'Next week' }) : '')
   + (o.add === false ? '' : frame({ layout_width: '40dp', layout_height: '40dp', id: '@+id/' + k + '_addf', clickable: 'false' }, iv(k + '_add', { w: M, h: M, x: { padding: '7dp' }, src: 'ot_widget_circle', desc: o.addDesc || 'Add' }) + iv(k + '_plus', { w: M, h: M, x: { padding: '12dp' }, src: 'ot_widget_plus' }))));
 const empty = k => tv(k + '_empty', { w: M, size: 13, gravity: 'center', multi: true, x: { paddingTop: '16dp', visibility: 'gone' } });
 const more = k => tv(k + '_more', { w: M, size: 11, x: { paddingStart: '14dp', paddingTop: '2dp', visibility: 'gone' } });
@@ -46,7 +48,7 @@ const tBody = lin({ layout_height: M, orientation: 'vertical', padding: '6dp' },
 w('layout/ot_widget_tasks.xml', `<?xml version="1.0" encoding="utf-8"?>\n` + el('FrameLayout', { 'xmlns:android': 'http://schemas.android.com/apk/res/android', layout_width: M, layout_height: M }, iv('ot_bg', { w: M, h: M, fit: true, src: 'ot_widget_bg' }) + tBody));
 w('xml/ot_widget_tasks_info.xml', info('tasks', 4, 3, 250, 110));
 
-function info(kind, cx, cy, minW, minH, extra = '') { return `<?xml version="1.0" encoding="utf-8"?>\n<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"\n    android:minWidth="${minW}dp"\n    android:minHeight="${minH}dp"\n    android:minResizeWidth="180dp"\n    android:minResizeHeight="110dp"\n    android:targetCellWidth="${cx}"\n    android:targetCellHeight="${cy}"\n    android:updatePeriodMillis="1800000"\n    android:initialLayout="@layout/ot_widget_${kind}"\n    android:resizeMode="horizontal|vertical"\n    android:widgetCategory="home_screen"${extra}\n    android:description="@string/ot_widget_${kind}_desc" />\n`; }
+function info(kind, cx, cy, minW, minH, extra = '') { const rw = Math.min(180, minW), rh = Math.min(110, minH); return `<?xml version="1.0" encoding="utf-8"?>\n<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"\n    android:minWidth="${minW}dp"\n    android:minHeight="${minH}dp"\n    android:minResizeWidth="${rw}dp"\n    android:minResizeHeight="${rh}dp"\n    android:targetCellWidth="${cx}"\n    android:targetCellHeight="${cy}"\n    android:updatePeriodMillis="1800000"\n    android:initialLayout="@layout/ot_widget_loading"\n    android:previewLayout="@layout/ot_widget_loading"\n    android:resizeMode="horizontal|vertical"\n    android:widgetCategory="home_screen"${extra}\n    android:description="@string/ot_widget_${kind}_desc" />\n`; }
 
 // lists
 w('layout/ot_widget_lists.xml', root('ot_ls', header('ot_ls', { title: 'Lists', addDesc: 'New task' }) + empty('ot_ls') + rows('ot_ls', 9, '38dp', n => hz({}, iv(`ot_ls_k${n}`, { w: '12dp', h: '12dp', src: 'ot_widget_dot' }) + tv(`ot_ls_n${n}`, { w: '0dp', weight: 1, size: 14, x: { layout_marginStart: '10dp' } }) + tv(`ot_ls_l${n}`, { size: 11, bold: true, x: { layout_marginEnd: '8dp' } }) + tv(`ot_ls_c${n}`, { size: 13 }))) + more('ot_ls')));
@@ -67,7 +69,7 @@ w('layout/ot_widget_calendar.xml', root('ot_cal', header('ot_cal', { title: '', 
   + tv('ot_cal_info', { w: M, size: 12, x: { paddingStart: '10dp', paddingTop: '4dp' } })));
 w('xml/ot_widget_calendar_info.xml', info('calendar', 4, 4, 250, 250));
 // timetable
-w('layout/ot_widget_timetable.xml', root('ot_tt', header('ot_tt', { title: 'Timetable', nav: true, navPrev: 'Previous day', navNext: 'Next day', addDesc: 'Open the timetable' }) + empty('ot_tt') + rows('ot_tt', 8, '54dp', n => hz({}, tv(`ot_tt_t${n}`, { w: '46dp', size: 11, multi: true, x: { lines: '2', gravity: 'end', layout_marginEnd: '6dp' } }) + iv(`ot_tt_k${n}`, { w: '4dp', h: '36dp', src: 'ot_widget_bar' }) + vt({ paddingStart: '10dp' }, tv(`ot_tt_n${n}`, { w: M, size: 14, bold: true }) + tv(`ot_tt_s${n}`, { w: M, size: 11, x: { ellipsize: 'marquee', marqueeRepeatLimit: 'marquee_forever', scrollHorizontally: 'true' } })))) + more('ot_tt')));
+w('layout/ot_widget_timetable.xml', root('ot_tt', header('ot_tt', { title: 'Timetable', nav: true, weekNav: true, add: false, navPrev: 'Previous day', navNext: 'Next day' }) + empty('ot_tt') + rows('ot_tt', 8, '54dp', n => hz({}, tv(`ot_tt_t${n}`, { w: '46dp', size: 11, multi: true, x: { lines: '2', gravity: 'end', layout_marginEnd: '6dp' } }) + iv(`ot_tt_k${n}`, { w: '4dp', h: '36dp', src: 'ot_widget_bar' }) + vt({ paddingStart: '10dp' }, tv(`ot_tt_n${n}`, { w: M, size: 14, bold: true }) + tv(`ot_tt_s${n}`, { w: M, size: 11, x: { ellipsize: 'marquee', marqueeRepeatLimit: 'marquee_forever', scrollHorizontally: 'true' } })))) + more('ot_tt')));
 w('xml/ot_widget_timetable_info.xml', info('timetable', 4, 3, 250, 180));
 // matrix
 const quad = i => frame({ id: `@+id/ot_mx_q${i}`, layout_width: '0dp', layout_height: M, layout_weight: '1', layout_margin: '3dp' },
@@ -78,11 +80,23 @@ w('xml/ot_widget_matrix_info.xml', info('matrix', 4, 4, 250, 250));
 // habits
 w('layout/ot_widget_habits.xml', root('ot_hb', header('ot_hb', { title: 'Habit', add: false }) + empty('ot_hb') + rows('ot_hb', 7, '46dp', n => hz({}, frame({ layout_width: '34dp', layout_height: '34dp' }, iv(`ot_hb_i${n}`, { w: M, h: M, src: 'ot_widget_circle' }) + tv(`ot_hb_e${n}`, { w: M, h: M, size: 15, gravity: 'center' })) + vt({ paddingStart: '10dp' }, tv(`ot_hb_n${n}`, { w: M, size: 14, bold: true }) + tv(`ot_hb_s${n}`, { w: M, size: 11 })) + iv(`ot_hb_c${n}`, { w: '36dp', h: '36dp', x: { padding: '4dp' }, src: 'ot_widget_check_off', desc: 'Check in' }))) + more('ot_hb')));
 w('xml/ot_widget_habits_info.xml', info('habits', 3, 3, 180, 180));
+// countdowns
+w('layout/ot_widget_countdowns.xml', root('ot_cd', header('ot_cd', { title: 'Countdowns', add: false }) + empty('ot_cd') + rows('ot_cd', 6, '50dp', n => hz({}, frame({ layout_width: '34dp', layout_height: '34dp' }, iv(`ot_cd_i${n}`, { w: M, h: M, src: 'ot_widget_circle' }) + tv(`ot_cd_e${n}`, { w: M, h: M, size: 15, gravity: 'center' })) + vt({ paddingStart: '10dp', layout_weight: '1', layout_width: '0dp' }, tv(`ot_cd_n${n}`, { w: M, size: 14, bold: true })) + vt({ layout_width: 'wrap_content', layout_weight: '0', gravity: 'end', paddingEnd: '6dp' }, tv(`ot_cd_v${n}`, { w: 'wrap_content', size: 18, bold: true }) + tv(`ot_cd_u${n}`, { w: 'wrap_content', size: 10 })))) + more('ot_cd')));
+w('xml/ot_widget_countdowns_info.xml', info('countdowns', 3, 3, 180, 180));
 // focus
 w('layout/ot_widget_focus.xml', root('ot_fc', header('ot_fc', { title: 'Focus', add: false })
   + frame({ layout_height: '0dp', layout_weight: '1' }, iv('ot_fc_ring', { w: M, h: M, x: { padding: '6dp' } }) + el('Chronometer', { id: '@+id/ot_fc_time', layout_width: M, layout_height: M, gravity: 'center', textSize: '28sp', textStyle: 'bold', visibility: 'gone' }) + tv('ot_fc_text', { w: M, h: M, size: 28, bold: true, gravity: 'center' }))
   + frame({ id: '@+id/ot_fc_btnf', layout_height: '40dp', layout_margin: '4dp' }, iv('ot_fc_btnbg', { w: M, h: M, fit: true, src: 'ot_widget_row' }) + tv('ot_fc_btn', { w: M, h: M, size: 14, bold: true, gravity: 'center' }))));
 w('xml/ot_widget_focus_info.xml', info('focus', 2, 3, 130, 180));
+
+// What a widget shows before the app has filled it in, and when filling it in failed: one small layout that cannot go wrong (a plain card and a
+// line of text), so a home screen never has to build a big layout just to show "loading". The text is set from Kotlin; the colours here are the
+// default theme so it looks right even if nothing could be read.
+w('layout/ot_widget_loading.xml', `<?xml version="1.0" encoding="utf-8"?>\n` + el('FrameLayout', { 'xmlns:android': 'http://schemas.android.com/apk/res/android', id: '@+id/ot_ld_root', layout_width: M, layout_height: M },
+  iv('ot_ld_bg', { w: M, h: M, fit: true, src: 'ot_widget_bg_loading' }) + tv('ot_ld_text', { w: M, h: M, size: 13, gravity: 'center', multi: true, x: { padding: '12dp', textColor: '#FFEBDBB2', text: 'OpenTick' } })));
+w('drawable/ot_widget_bg_loading.xml', `<?xml version="1.0" encoding="utf-8"?>\n<shape ${NS} android:shape="rectangle">\n    <solid android:color="#FF282828" />\n    <corners android:radius="22dp" />\n</shape>\n`);
+// keeps every widget view, layout and drawable by name when a release build shrinks or renames resources (Kotlin looks the repeated rows up by name)
+w('raw/ot_widget_keep.xml', `<?xml version="1.0" encoding="utf-8"?>\n<resources xmlns:tools="http://schemas.android.com/tools"\n    tools:keep="@layout/ot_widget_*,@id/ot_*,@drawable/ot_widget_*,@drawable/ic_stat_opentick,@xml/ot_widget_*,@string/ot_widget_*"\n    tools:shrinkMode="safe" />\n`);
 
 // the quick-add bar keeps its own small layout; drawables used above
 w('drawable/ot_widget_row.xml', `<?xml version="1.0" encoding="utf-8"?>\n<shape ${NS} android:shape="rectangle">\n    <solid android:color="#FFFFFFFF" />\n    <corners android:radius="12dp" />\n</shape>\n`);
@@ -92,10 +106,12 @@ w('drawable/ot_widget_bar.xml', `<?xml version="1.0" encoding="utf-8"?>\n<shape 
 const vec = d => `<?xml version="1.0" encoding="utf-8"?>\n<vector ${NS}\n    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">\n    <path android:fillColor="#FFFFFFFF" android:pathData="${d}" />\n</vector>\n`;
 w('drawable/ot_widget_prev.xml', vec('M15.41,7.41L14,6l-6,6 6,6 1.41,-1.41L10.83,12z'));
 w('drawable/ot_widget_next.xml', vec('M8.59,16.59L13.17,12 8.59,7.41 10,6l6,6 -6,6z'));
+w('drawable/ot_widget_prev_week.xml', vec('M18.41,7.41L17,6l-6,6 6,6 1.41,-1.41L13.83,12zM12.41,7.41L11,6l-6,6 6,6 1.41,-1.41L6.83,12z'));
+w('drawable/ot_widget_next_week.xml', vec('M5.59,16.59L10.17,12 5.59,7.41 7,6l6,6 -6,6zM11.59,16.59L16.17,12 11.59,7.41 13,6l6,6 -6,6z'));
 w('drawable/ot_widget_check_off.xml', `<?xml version="1.0" encoding="utf-8"?>\n<vector ${NS}\n    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">\n    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="2" android:pathData="M12,4a8,8 0 1,0 0.001,0z" />\n</vector>\n`);
 w('drawable/ot_widget_check_on.xml', `<?xml version="1.0" encoding="utf-8"?>\n<vector ${NS}\n    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">\n    <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd" android:pathData="M12,3a9,9 0 1,0 0.001,0zM10.2,15.6l-3.4,-3.4 1.2,-1.2 2.2,2.2 5.8,-5.8 1.2,1.2z" />\n</vector>\n`);
 
 // strings
-const kinds = [['tasks', 'Today', 'Today\\\'s and overdue tasks. Tick one to complete it.'], ['quick', 'Add a task', 'A quick "Add a task" bar.'], ['lists', 'Lists', 'Your lists and what is open in each.'], ['projects', 'Projects', 'Progress of each project.'], ['notes', 'Notes', 'Pinned and recent notes.'], ['calendar', 'Calendar', 'A month with the days that have tasks.'], ['timetable', 'Timetable', 'Today\\\'s classes, slots and timed tasks, with end times.'], ['matrix', 'Matrix', 'The four boxes of the Eisenhower matrix.'], ['habits', 'Habit', 'Check in today\\\'s habits.'], ['focus', 'Focus', 'Your focus timer and today\\\'s minutes.']];
+const kinds = [['tasks', 'Today', 'Today\\\'s and overdue tasks. Tick one to complete it.'], ['quick', 'Add a task', 'A quick "Add a task" bar.'], ['lists', 'Lists', 'Your lists and what is open in each.'], ['projects', 'Projects', 'Progress of each project.'], ['notes', 'Notes', 'Pinned and recent notes.'], ['calendar', 'Calendar', 'A month with the days that have tasks.'], ['timetable', 'Timetable', 'Classes, slots and timed tasks with end times. Arrows step a day, double arrows a week; tap the title for today.'], ['matrix', 'Matrix', 'The four boxes of the Eisenhower matrix.'], ['habits', 'Habit', 'Check in today\\\'s habits.'], ['countdowns', 'Countdowns', 'Days and hours left to what you count down to.'], ['focus', 'Focus', 'Your focus timer and today\\\'s minutes.']];
 w('values/ot_widget_strings.xml', `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n${kinds.map(([k, n, d]) => `    <string name="ot_widget_${k}_label">OpenTick · ${n.replace(/"/g, '\\"')}</string>\n    <string name="ot_widget_${k}_desc">${d.replace(/"/g, '\\"')}</string>`).join('\n')}\n</resources>\n`);
 console.log('widget layouts written to', res);

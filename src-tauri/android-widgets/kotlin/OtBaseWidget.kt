@@ -7,6 +7,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.RemoteViews
 import org.json.JSONObject
+import __PACKAGE__.R
 
 /**
  * What every OpenTick widget has in common: it reads the data file the app keeps (the theme and the numbers), draws itself into its layout,
@@ -18,19 +19,22 @@ abstract class OtBaseWidget : AppWidgetProvider() {
     abstract fun fill(context: Context, manager: AppWidgetManager, id: Int, rv: RemoteViews, data: JSONObject?, th: OtTheme)
 
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
-        for (id in ids) push(context, manager, id)
+        for (id in ids) { try { push(context, manager, id) } catch (e: Throwable) { /* one widget never stops the others */ } }
     }
 
     override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, id: Int, newOptions: Bundle) {
-        push(context, manager, id)
+        try { push(context, manager, id) } catch (e: Throwable) { /* the next update draws it */ }
     }
 
+    // A widget host shows "Can't load widget" when this receiver throws, so nothing in here is allowed to: a tap that goes wrong is dropped.
     override fun onReceive(context: Context, intent: Intent) {
-        super.onReceive(context, intent)
-        if (intent.action == OtUi.ACTION_ACT) {
-            onAction(context, intent)
-            OtUi.refreshAll(context)
-        }
+        try { super.onReceive(context, intent) } catch (e: Throwable) { /* the next update draws the widget again */ }
+        try {
+            if (intent.action == OtUi.ACTION_ACT) {
+                onAction(context, intent)
+                OtUi.refreshAll(context)
+            }
+        } catch (e: Throwable) { /* ignore: see above */ }
     }
 
     /** By default a tap that did not open the app (a task or habit ticked) is noted for the app to apply. */
@@ -39,13 +43,33 @@ abstract class OtBaseWidget : AppWidgetProvider() {
         OtData.queueAction(context, op, intent.getStringExtra("id"))
     }
 
+    /**
+     * Draws the widget. If filling it in fails half-way, what was filled is thrown away: a half-filled RemoteViews can hold an action the home
+     * screen cannot apply, and then the whole widget shows "Can't load widget". A small plain card says what happened instead (and a tap
+     * opens OpenTick), so a problem is visible and reportable rather than a blank error from the launcher.
+     */
     fun push(context: Context, manager: AppWidgetManager, id: Int) {
-        val rv = RemoteViews(context.packageName, layout)
+        var rv: RemoteViews
         try {
+            rv = RemoteViews(context.packageName, layout)
             val data = OtData.readData(context)
             fill(context, manager, id, rv, data, OtTheme.from(data?.optJSONObject("theme")))
-        } catch (e: Exception) { /* show the empty layout rather than nothing */ }
-        manager.updateAppWidget(id, rv)
+        } catch (e: Throwable) {
+            rv = fallback(context, id, "${e.javaClass.simpleName}${e.message?.let { ": " + it.take(60) } ?: ""}")
+        }
+        try { manager.updateAppWidget(id, rv) } catch (e: Throwable) {
+            try { manager.updateAppWidget(id, fallback(context, id, "${e.javaClass.simpleName}")) } catch (e2: Throwable) { /* nothing more can be done */ }
+        }
+    }
+
+    /** The plain card shown when a widget could not be drawn: it cannot fail, because it only sets one text and one tap. */
+    fun fallback(context: Context, id: Int, why: String): RemoteViews {
+        val rv = RemoteViews(context.packageName, R.layout.ot_widget_loading)
+        try {
+            rv.setTextViewText(R.id.ot_ld_text, if (why.isEmpty()) "OpenTick\nTap to open" else "OpenTick · tap to open\n$why")
+            rv.setOnClickPendingIntent(R.id.ot_ld_root, OtUi.appIntent(context, "open", "", id * 11 + 9))
+        } catch (e: Throwable) { /* the card still shows */ }
+        return rv
     }
 
     /** How many rows of this height fit under a header, from the widget's current size. */

@@ -7,7 +7,7 @@
    Nothing here runs for people who don't use widgets. */
 const WIDGET = /[?&]widget=1\b|#widget\b/.test(typeof location !== 'undefined' ? location.href : '');
 // which widget this window shows: index.html?widget=1&w=calendar (tasks when not given)
-const WG_KINDS = [['tasks', 'Tasks', 'check-circle', 'Today\'s tasks, with a box to add one'], ['lists', 'Lists', 'list', 'Every list and what is open in it'], ['projects', 'Projects', 'layers', 'Progress of each project'], ['notes', 'Notes', 'notes', 'Pinned and recent notes'], ['calendar', 'Calendar', 'calendar', 'A month, and the tasks on a day'], ['timetable', 'Timetable', 'table', 'Today\'s timetable: classes, slots and timed tasks'], ['matrix', 'Matrix', 'grid', 'The four boxes of the matrix'], ['habits', 'Habit', 'activity', 'Check in today\'s habits'], ['focus', 'Focus', 'clock', 'A focus timer']];
+const WG_KINDS = [['tasks', 'Tasks', 'check-circle', 'Today\'s tasks, with a box to add one'], ['lists', 'Lists', 'list', 'Every list and what is open in it'], ['projects', 'Projects', 'layers', 'Progress of each project'], ['notes', 'Notes', 'notes', 'Pinned and recent notes'], ['calendar', 'Calendar', 'calendar', 'A month, and the tasks on a day'], ['timetable', 'Timetable', 'table', 'Today\'s timetable: classes, slots and timed tasks'], ['matrix', 'Matrix', 'grid', 'The four boxes of the matrix'], ['habits', 'Habit', 'activity', 'Check in today\'s habits'], ['countdowns', 'Countdowns', 'hourglass', 'Time left to what you count down to'], ['focus', 'Focus', 'clock', 'A focus timer']];
 const WIDGET_KIND = (() => { const m = /[?&]w=([a-z]+)/.exec(typeof location !== 'undefined' ? location.href : ''); return m && WG_KINDS.some(k => k[0] === m[1]) ? m[1] : 'tasks'; })();
 const WG_DATA = 'opentick-widget.json', WG_ACT = 'opentick-widget-actions.json';
 const isAndroidApp = () => !!TAURI() && /Android/i.test(navigator.userAgent || '');
@@ -45,18 +45,27 @@ function wgTtDay(now) {
     : { a: fmtHM(it.a), b: fmtHM(it.b), n: it.k === 'slot' ? it.s.title : it.t.title, s: it.k === 'slot' ? it.s.loc || '' : '', r: it.k === 'slot' ? it.s.loc || '' : '', te: '', c: cssHex(it.k === 'slot' ? it.s.color : listOf(it.t.listId).color, '#4772fa'), x: it.k === 'slot' ? it.tasks.length : 0 });
   return { k: ymd(now), d: DAYS[now.getDay()], sub, off: d.off ? holName(d.off) : '', items };
 }
+// The Android widget cannot work a timetable out for itself, so it is handed the days it can step through: today and the next 27 (four weeks).
+// A day that fails to build is left as an empty day, so one odd record never takes the whole widget (or the steps after it) down.
+const WG_TT_DAYS = 28;
 function wgTt() {
-  const now = new Date(), t0 = wgTtDay(now), days = Array.from({ length: 5 }, (_, i) => wgTtDay(addDays(now, i)));
-  return { kind: 'plan', title: typeof scHas === 'function' && scHas() ? scName() : 'Timetable', sub: t0.sub, off: t0.off, items: t0.items, days };
+  const now = new Date(), t0 = wgTtDay(now), days = Array.from({ length: WG_TT_DAYS }, (_, i) => wgSafe(() => wgTtDay(addDays(now, i)), { k: ymd(addDays(now, i)), d: DAYS[addDays(now, i).getDay()], sub: '', off: '', items: [] }));
+  return { kind: 'plan', title: typeof scHas === 'function' && scHas() ? scName() : 'Timetable', sub: t0.sub, off: t0.off, items: t0.items, days, n: WG_TT_DAYS };
 }
 function wgMx() { const open = S.tasks.filter(t => !t.deleted && t.status === 'open'); return MQ.map((q, i) => { const ts = sortTasks(open.filter(t => mxOf(t) === i)); return { n: q.n, sub: q.sub, c: cssHex(q.c, '#888888'), k: ts.length, items: ts.slice(0, 3).map(t => ({ id: t.id, t: t.title })) }; }); }
 function wgHabits() { const tk = todayStr(); return S.habits.slice(0, 7).map(h => ({ id: h.id, n: h.name, c: cssHex(h.color, '#34b36b'), e: IC[h.icon] ? '' : (h.icon || ''), s: streak(h), u: habitGoal(h).per, d: !!(h.log && h.log[tk]) })); }
+// the next countdowns, for the Android widget (it works out days and hours itself from `at`, so the numbers stay right between refreshes)
+function wgCountdowns() {
+  const now = Date.now();
+  return S.countdowns.filter(c => !c.archived).map(c => ({ c, L: cdLeft(c, now) })).filter(x => !x.L.past || x.L.today).sort((a, b) => a.L.at - b.L.at).slice(0, 8)
+    .map(({ c, L }) => ({ id: c.id, n: c.name || 'Untitled', c: cssHex(c.color, /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : '#4772fa'), e: c.icon && !IC[c.icon] ? c.icon : '', at: L.at, w: !!L.whole, d: L.date, z: cdZone(c) }));
+}
 function wgFocus() { const td = todayStr(), mine = S.pomo.filter(p => ymd(new Date(p.ts)) === td); return { min: mine.reduce((a, p) => a + p.min, 0), n: mine.length, run: !!P.run, left: Math.round(P.left), tot: Math.round(P.total), at: Date.now(), mode: P.mode }; }
 // With encryption covering this device, the widgets (which cannot decrypt anything) get a snapshot with no data in it unless the person allowed a readable summary
 const widgetLocked = () => !!(Vault.cfg && Vault.cfg.scopes.local && !Vault.cfg.widgets) || !!Vault.locked;
 function widgetSnapshot() {
-  if (widgetLocked()) return { v: 2, at: Date.now(), today: todayStr(), locked: true, total: 0, tasks: [], theme: widgetTheme(), lists: [], projects: [], notes: [], cal: {}, tt: {}, mx: [], hb: [], fc: {} };
-  return { v: 2, at: Date.now(), today: todayStr(), total: widgetCount(), tasks: widgetTasks(), theme: widgetTheme(), lists: wgSafe(wgLists, []), projects: wgSafe(wgProjects, []), notes: wgSafe(wgNotes, []), cal: wgSafe(wgCal, {}), tt: wgSafe(wgTt, {}), mx: wgSafe(wgMx, []), hb: wgSafe(wgHabits, []), fc: wgSafe(wgFocus, {}) };
+  if (widgetLocked()) return { v: 2, at: Date.now(), today: todayStr(), locked: true, total: 0, tasks: [], theme: widgetTheme(), lists: [], projects: [], notes: [], cal: {}, tt: {}, mx: [], hb: [], cd: [], fc: {} };
+  return { v: 2, at: Date.now(), today: todayStr(), total: widgetCount(), tasks: widgetTasks(), theme: widgetTheme(), lists: wgSafe(wgLists, []), projects: wgSafe(wgProjects, []), notes: wgSafe(wgNotes, []), cal: wgSafe(wgCal, {}), tt: wgSafe(wgTt, {}), mx: wgSafe(wgMx, []), hb: wgSafe(wgHabits, []), cd: wgSafe(wgCountdowns, []), fc: wgSafe(wgFocus, {}) };
 }
 
 async function widgetPath(name) {
@@ -82,11 +91,12 @@ async function widgetPull() {
     try { list = JSON.parse(await TAURI().fs.readTextFile(p) || '[]'); } catch (e) { return; }
     if (!Array.isArray(list) || !list.length) return;
     await TAURI().fs.writeTextFile(p, '[]');
-    let done = 0, add = false, open = '', other = null;
+    let done = 0, add = false, open = '', other = null; const links = [];
     for (const a of list) {
       if (a.op === 'done') { const t = getT(a.id); if (t && t.status === 'open') { toggleDone(t); done++; } }
       else if (a.op === 'add') add = true; else if (a.op === 'open' && a.id && getT(a.id)) open = a.id;
       else if (a.op === 'habit') { const h = S.habits.find(x => x.id === a.id); if (h) { ACT.hday({ dataset: { id: h.id, d: todayStr() } }); done++; } }
+      else if (a.op === 'link' && a.id) links.push(a.id);
       else if (['nav', 'page', 'note', 'newnote', 'focus'].includes(a.op)) other = a;
     }
     if (other) wgRunCommand(JSON.stringify({ op: other.op, id: other.id, nav: other.id, page: other.id }));
@@ -94,6 +104,7 @@ async function widgetPull() {
     if (add) { U.page = 'tasks'; setNav('today'); setTimeout(() => { const a = $('#add'); if (a) a.focus(); }, 200); }
     else if (open) { U.page = 'tasks'; U.sel = open; render(); }
     else if (done) refresh();
+    for (const u of links) if (typeof bridgeHandleUrl === 'function') bridgeHandleUrl(u); // links from other apps (opentick://…), noted by the Android link activity
     widgetPush(true);
   } catch (e) { /* ignore */ }
 }
@@ -104,7 +115,7 @@ async function openMiniWidget(kind = 'tasks') {
   if (!WG_KINDS.some(k => k[0] === kind)) kind = 'tasks';
   const T = TAURI(), WW = T && T.webviewWindow && T.webviewWindow.WebviewWindow, meta = WG_KINDS.find(k => k[0] === kind), url = 'index.html?widget=1&w=' + kind;
   if (!WW) { window.open(location.pathname.replace(/[^/]*$/, '') + url, 'opentick-widget-' + kind, 'width=360,height=480'); return; }
-  const size = { calendar: [340, 470], matrix: [380, 460], focus: [300, 420], timetable: [340, 460] }[kind] || [330, 440];
+  const size = { calendar: [340, 470], matrix: [380, 460], countdowns: [320, 420], focus: [300, 420], timetable: [340, 460] }[kind] || [330, 440];
   try {
     const label = 'widget-' + kind, ex = await WW.getByLabel(label); if (ex) { await ex.setFocus(); return; }
     const w = new WW(label, { url, title: 'OpenTick ' + meta[1], width: size[0], height: size[1], minWidth: 250, minHeight: 200, decorations: false, dragDropEnabled: false, alwaysOnTop: true, resizable: true, skipTaskbar: true, focus: true });
@@ -135,6 +146,7 @@ function wgRunCommand(raw) {
 }
 const wgTasksToday = () => { const td = todayStr(); return S.tasks.filter(t => !t.deleted && !t.log && t.status === 'open' && t.due && t.due <= td).sort((a, b) => a.due.localeCompare(b.due) || (tmEff(a) || '99').localeCompare(tmEff(b) || '99') || (b.priority || 0) - (a.priority || 0)); };
 const W = { month: null, day: null, tt: null }; // the calendar widget's own state
+const WG_TT_LIMIT = 365 * 2; // the timetable widget steps up to two years either way
 function wgBody(kind) {
   const td = todayStr();
   if (kind === 'tasks') { const ts = wgTasksToday(); return { title: 'Today', sub: ts.length ? ts.length + ' to do' : '', html: `<div class="wg-l">${ts.map(t => rowHtml(t, true)).join('') || `<p class="wg-e">${ic('check-circle', 22)}<span>Nothing due today</span></p>`}</div>`, foot: `<form class="wg-a" id="wg-form"><input id="wg-add" placeholder="Add a task…" autocomplete="off" aria-label="Add a task"></form>` }; }
@@ -157,11 +169,15 @@ function wgBody(kind) {
     const card = (lab, it, note) => (it ? `<div class="sc-now" style="--c:${col(it)}"><span class="sc-nl">${lab}</span><b>${ico(it)}${esc(nm(it))}</b><span class="sc-nt">${fmtRange(fmtHM(it.a), fmtHM(it.b))}${room(it) ? ' · ' + esc(room(it)) : ''}${teach(it) ? ' · ' + esc(teach(it)) : ''}${note}</span></div>` : '');
     const rows = items.map(it => `<div class="wt-row${isToday && it.b <= nowM ? ' fin' : isToday && it.a <= nowM ? ' live' : ''}" style="--c:${col(it)}"><time><b>${fmtTime(fmtHM(it.a))}</b><span>${fmtTime(fmtHM(it.b))}</span></time><span class="wt-bar"></span><span class="wt-n">${ico(it)}${esc(nm(it))}${(it.tasks || []).length ? ` <i class="wt-k">${ic('check-circle', 12)} ${it.tasks.length}</i>` : ''}</span><small class="wt-w">${where(it) || '<span class="hint">No room</span>'}</small></div>`).join('');
     const none = d.off ? `<p class="wg-e">${ic('sun', 22)}<span>${esc(holName(d.off))}</span></p>` : `<p class="wg-e">${ic('table', 22)}<span>Nothing scheduled</span></p>`;
-    const lab = isToday ? 'Today' : fmtDate(ymd(day)), tools = `<button data-wt="-1" aria-label="Previous day">${ic('left', 14)}</button><button data-wt="0" aria-label="Today">${ic('calendar', 14)}</button><button data-wt="1" aria-label="Next day">${ic('right', 14)}</button>`;
+    const lab = isToday ? 'Today' : fmtDate(ymd(day)), tools = `<button data-wt="-7" aria-label="Previous week" title="Previous week">${ic('left', 14)}${ic('left', 14)}</button><button data-wt="-1" aria-label="Previous day" title="Previous day">${ic('left', 14)}</button><button data-wt="0" aria-label="Today" title="Today">${ic('calendar', 14)}</button><button data-wt="1" aria-label="Next day" title="Next day">${ic('right', 14)}</button><button data-wt="7" aria-label="Next week" title="Next week">${ic('right', 14)}${ic('right', 14)}</button>`;
     return { title: scHas() ? scName() : 'Timetable', sub: FULLDAYS[day.getDay()] + (isToday ? '' : ' ' + day.getDate() + ' ' + MONTHS[day.getMonth()].slice(0, 3)) + (wt ? ' · ' + scWeekName(wt) : ''), tools, html: `<div class="wg-l">${d.off ? holBand(d.off, 'big') : ''}${card('Now', cur, ` · ends in ${scSpan(cur ? cur.b - nowM : 0)}`)}${card(cur ? 'Next' : 'Next up', nxt, ` · in ${scSpan(nxt ? nxt.a - nowM : 0)}`)}<div class="wt-list">${rows || (d.off ? '' : none)}</div>${d.allday.length ? `<h4 class="wc-h">Any time</h4>${d.allday.map(t => rowHtml(t, true)).join('')}` : ''}</div>` };
   }
   if (kind === 'matrix') { const open = S.tasks.filter(t => !t.deleted && t.status === 'open'); return { title: 'Matrix', sub: '', html: `<div class="wg-l"><div class="matrix wmx">${MQ.map((q, i) => { const ts = sortTasks(open.filter(t => mxOf(t) === i)); return `<div class="quad" style="--c:${q.c}"><div class="qh"><b>${q.n}</b><small>${q.sub} · ${ts.length}</small></div><div class="qb">${ts.slice(0, 4).map(t => rowHtml(t, false)).join('') || '<p class="hint qempty">Empty</p>'}${ts.length > 4 ? `<p class="hint pad">+${ts.length - 4} more</p>` : ''}</div></div>`; }).join('')}</div></div>` }; }
   if (kind === 'habits') { const tk = td; return { title: 'Habit', sub: S.habits.length ? S.habits.filter(h => h.log && h.log[tk]).length + '/' + S.habits.length : '', html: `<div class="wg-l">${S.habits.map(h => { const g = habitGoal(h), sk = streak(h); return `<div class="habit wgh" style="--c:${h.color}"><div class="hh"><span class="hi">${iconAny(h.icon || '✓', 20)}</span><div class="hn"><b>${esc(h.name)}</b><small><span class="sk${sk >= FIRE_MIN ? ' hot' : ''}">${sk >= FIRE_MIN ? ic('flame', 12) : ''}${sk} ${g.per} streak</span></small></div><button class="hcheck${h.log && h.log[tk] ? ' on' : ''}" data-act="hday" data-id="${h.id}" data-d="${tk}" aria-pressed="${!!(h.log && h.log[tk])}" aria-label="Check in ${esc(h.name)}">${ic('check', 16)}</button></div></div>`; }).join('') || `<p class="wg-e">${ic('activity', 22)}<span>No habits yet</span></p>`}</div>` }; }
+  if (kind === 'countdowns') {
+    const now = Date.now(), l = S.countdowns.filter(c => !c.archived && (!cdLeft(c, now).past || cdLeft(c, now).today)).sort((a, b) => cdLeft(a, now).at - cdLeft(b, now).at);
+    return { title: 'Countdowns', sub: l.length ? l.length + '' : '', html: `<div class="wg-l">${l.map(c => { const b = cdBig(c, now); return `<button class="wgcd" style="--c:${esc(c.color)}" data-act="cdopen"><span class="cdi">${c.icon ? iconAny(c.icon, 20) : ic('hourglass', 20)}</span><span class="cdn"><b>${esc(c.name || 'Untitled')}</b><small>${esc(cdWhen(c, now))}</small></span><span class="cdbig${b.small ? ' sm' : ''}"><b>${esc(b.n)}</b><i>${esc(b.u)}</i></span></button>`; }).join('') || `<p class="wg-e">${ic('hourglass', 22)}<span>No countdowns yet</span></p>`}</div>` };
+  }
   // focus: a timer of its own in this window; finished sessions are saved with the rest of your data
   const C = 2 * Math.PI * 110, mins = S.pomo.filter(p => ymd(new Date(p.ts)) === td).reduce((a, p) => a + p.min, 0);
   return { title: 'Focus', sub: mins + ' min today', html: `<div class="wg-l body focus wfocus"><div class="modes">${[['focus', 'Focus'], ['short', 'Short'], ['long', 'Long']].map(([k, n]) => `<button class="${P.mode === k ? 'on' : ''}" data-act="pmode" data-m="${k}">${n}</button>`).join('')}</div><div class="ring"><svg viewBox="0 0 240 240"><circle cx="120" cy="120" r="110" class="bg"/><circle id="pring" cx="120" cy="120" r="110" class="fg" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - P.left / P.total)}" transform="rotate(-90 120 120)"/></svg><div id="pclock">${fmtClock(P.left)}</div></div><div class="pctl"><button class="btn pri" data-act="ptoggle">${P.run ? 'Pause' : P.left < P.total ? 'Resume' : 'Start'}</button><button class="btn" data-act="preset">Reset</button><button class="btn" data-act="pskip">Skip</button></div></div>` };
@@ -170,7 +186,11 @@ function renderWidget() {
   let root = $('#wgapp'); if (!root) { root = document.createElement('div'); root.id = 'wgapp'; document.body.appendChild(root); }
   document.documentElement.classList.add('wgmode'); root.dataset.kind = WIDGET_KIND;
   const keep = ['#wg-add', '#wg-nadd'].map(q => { const el = $(q); return el ? [q, el.value, document.activeElement === el] : null; }).filter(Boolean);
-  const scroll = $('.wg-l') ? $('.wg-l').scrollTop : 0, b = wgBody(WIDGET_KIND);
+  const scroll = $('.wg-l') ? $('.wg-l').scrollTop : 0;
+  let b; try { b = wgBody(WIDGET_KIND); } catch (e) { // never a blank window: say what happened, and let the person go back to today
+    W.tt = null; W.month = null; W.day = null;
+    b = { title: WG_KINDS.find(k => k[0] === WIDGET_KIND)[1], sub: '', html: `<div class="wg-l"><p class="wg-e">${ic('alert', 22)}<span>This widget could not be drawn.</span></p><p class="wg-e"><button class="btn" data-wm="0" data-wt="0">Back to today</button></p></div>` };
+  }
   root.innerHTML = `<header class="wg-h" data-tauri-drag-region><b data-tauri-drag-region>${esc(b.title)}</b><span data-tauri-drag-region>${esc(b.sub || '')}</span>${b.tools || ''}<button data-wg="main" title="Open OpenTick" aria-label="Open OpenTick">${ic('layers', 14)}</button>${desktopApp() ? `<button data-wg="close" title="Close" aria-label="Close">${ic('x', 14)}</button>` : ''}</header>${b.html}${b.foot || ''}`;
   for (const [q, v, f] of keep) { const el = $(q); if (el) { el.value = v; if (f) el.focus(); } }
   const l = $('.wg-l'); if (l) l.scrollTop = scroll;
@@ -182,7 +202,7 @@ function widgetWire() {
     const wg = e.target.closest('[data-wg]'), wm = e.target.closest('[data-wm]'), wtn = e.target.closest('[data-wt]'), wd = e.target.closest('[data-wd]'), act = e.target.closest('[data-act]');
     if (wg) { const a = wg.dataset.wg; if (a === 'main') focusMain(); else if (a === 'close') closeMiniWidget(); return; }
     if (wm) { const n = +wm.dataset.wm, m = W.month || new Date(); W.month = n ? new Date(m.getFullYear(), m.getMonth() + n, 1) : new Date(new Date().getFullYear(), new Date().getMonth(), 1); if (!n) W.day = todayStr(); renderWidget(); return; }
-    if (wtn) { const n = +wtn.dataset.wt, cur = W.tt ? pYmd(W.tt) : new Date(); W.tt = n ? ymd(addDays(cur, n)) : null; renderWidget(); return; }
+    if (wtn) { const n = +wtn.dataset.wt, cur = W.tt ? pYmd(W.tt) : new Date(), nx = addDays(cur, n); if (!n) W.tt = null; else if (Math.abs(dayDiff(ymd(nx), todayStr())) <= WG_TT_LIMIT) W.tt = ymd(nx) === todayStr() ? null : ymd(nx); renderWidget(); return; }
     if (wd) { W.day = wd.dataset.wd; renderWidget(); return; }
     if (!act) return; const a = act.dataset.act, id = act.dataset.id || (act.closest('[data-id]') || {}).dataset && act.closest('[data-id]').dataset.id;
     e.stopPropagation();
@@ -192,7 +212,7 @@ function widgetWire() {
     else if (a === 'open') wgCommand({ op: 'open', id });
     else if (a === 'nav') wgCommand({ op: 'nav', nav: act.dataset.nav });
     else if (a === 'noteopen') wgCommand({ op: 'note', id });
-    else wgCommand({ op: 'page', page: { timetable: 'timetable', matrix: 'matrix', habits: 'habits', focus: 'focus' }[WIDGET_KIND] || 'tasks' });
+    else wgCommand({ op: 'page', page: { timetable: 'timetable', matrix: 'matrix', habits: 'habits', countdowns: 'countdowns', focus: 'focus' }[WIDGET_KIND] || 'tasks' });
   }, true);
   document.addEventListener('submit', e => {
     if (!WIDGET) return; e.preventDefault();
@@ -200,4 +220,6 @@ function widgetWire() {
     else if (e.target.id === 'wg-nform') { const i = $('#wg-nadd'), v = i.value.trim(); if (!v) return; S.notes.push(newNote({ title: v })); i.value = ''; save(); flush(); sfx('add'); renderWidget(); }
   });
   if (WIDGET) setInterval(() => { if (!$('#wg-add:focus,#wg-nadd:focus') && WIDGET_KIND !== 'focus') renderWidget(); }, 60000);
+  // a countdown inside its last hour counts in seconds, so that widget redraws every second while one is
+  if (WIDGET && WIDGET_KIND === 'countdowns') setInterval(() => { const n = Date.now(); if (S.countdowns.some(c => { if (c.archived || !c.time) return false; const L = cdLeft(c, n); return !L.past && L.ms < 3600e3; })) renderWidget(); }, 1000);
 }

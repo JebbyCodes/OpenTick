@@ -1,7 +1,7 @@
 """0.3 in a real browser: mouse drag in the matrix (no HTML5 drag), full-screen notes, folding sections, the Projects home screen as the start
 screen, auto-scrolling names, embeds, the Classes timetable, and every widget view."""
 from lib import *
-KINDS = ['tasks', 'lists', 'projects', 'notes', 'calendar', 'timetable', 'matrix', 'habits', 'focus']
+KINDS = ['tasks', 'lists', 'projects', 'notes', 'calendar', 'timetable', 'matrix', 'habits', 'countdowns', 'focus']
 with sync_playwright() as p:
     # matrix: a plain mouse drag between boxes works, and rows are not natively draggable (desktop web views can swallow that)
     b, ctx, pg = launch(p, mobile=False, w=1280, h=800)

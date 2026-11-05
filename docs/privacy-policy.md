@@ -1,6 +1,6 @@
 # OpenTick Privacy Policy
 
-**Last updated:** 28 October 2026
+**Last updated:** 3 November 2026
 
 ## 1. Introduction
 
@@ -12,7 +12,7 @@ OpenTick is designed to work locally on your device without requiring an account
 
 OpenTick is designed not to collect or transmit your personal information to the developer. It has no analytics, advertising, crash reporting or telemetry.
 
-Information you enter into the application, such as tasks, notes, templates, projects, timetables, holidays, habits, attachments and other productivity data, is stored locally on your device.
+Information you enter into the application, such as tasks, notes, templates, countdowns, saved time zones, boards, projects, timetables, holidays, habits, attachments and other productivity data, is stored locally on your device.
 
 OpenTick does not require you to provide a name, email address, or other account details to use its core functionality.
 
@@ -34,6 +34,8 @@ Sync credentials (such as a password or token) are kept on your device only and 
 
 You can protect your data with a passphrase in Settings → Encryption. When enabled, the data stored on this device, in automatic backups, and in sync files is encrypted with AES-256-GCM using a key derived from your passphrase. Without the passphrase (or the recovery key you were shown) the data cannot be read, and the developer cannot recover it for you.
 
+Countdowns, saved time zones and board headings are part of the same data: they are stored, backed up and synced like your tasks, and are encrypted with them when encryption is on.
+
 When encryption is on, home-screen widgets, the tray menu and background notifications show only generic text, unless you choose to allow a readable summary for them.
 
 ## 6. Notifications and the background service
@@ -52,7 +54,9 @@ Depending on the platform, OpenTick may ask for:
 - **Foreground service (Android)** – only for the optional persistent timetable notification.
 - **File access** – only for files you choose to attach, import or export.
 
-OpenTick does not request access to your contacts, location, camera, microphone or accounts.
+OpenTick does not request access to your contacts, location, camera, microphone or accounts. Time zones are read from your device's own settings; your location is never used.
+
+**Connecting other apps (optional, off by default).** Settings → Integrations lets you allow other apps on your device to read or add tasks. Nothing is shared until you approve each app and choose what it may do; you can disconnect it at any time. Pairing records and their tokens stay on this device and are never part of sync files or backups. OpenTick sends nothing to any server for this: apps talk to OpenTick through links and messages on your own device, and replies go only to the address the other app supplied.
 
 ## 8. Network connections and third-party services
 

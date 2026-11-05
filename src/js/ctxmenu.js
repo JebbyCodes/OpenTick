@@ -34,6 +34,9 @@ function ctxTask(id) {
     { sep: true },
     { label: 'Move to a list…', icon: 'list', run: async () => { const ls = S.lists; const i = await askMenu('Move to', ls.map(l => ({ label: listLabel(l.id), color: l.color }))); if (i != null) { t.listId = ls[i].id; t.section = null; save(); refresh(); toast('Moved to “' + ls[i].name + '”'); } } },
     { label: 'Duplicate', icon: 'copy', run: () => { U.sel = id; ACT.dup(); } },
+    { label: 'Countdown to this task…', icon: 'hourglass', run: () => cdFromTask(t).then(c => { if (c && !c.deleted) toast('Countdown added'); }) },
+    ...(typeof brSendable === 'function' && brSendable() ? [{ label: 'Open in your other app', icon: 'link', run: () => BR_ACT.bropen({ dataset: { id } }) }] : []),
+    ...(U.page === 'kanban' && typeof kbCurrent === 'function' && kbCurrent() ? [{ label: 'Move to heading…', icon: 'columns', run: () => KB_ACT.knmove({ dataset: { id } }) }] : []),
     { label: 'Copy the title', icon: 'copy', run: () => tplCopy(t.title) },
     { sep: true },
     { label: 'Move to bin', icon: 'trash', danger: true, keys: 'Delete', run: () => { U.sel = id; ACT.del(); } },
@@ -42,7 +45,7 @@ function ctxTask(id) {
 function ctxItems(target) {
   const g = sel => target.closest(sel);
   let el;
-  if ((el = g('.task[data-id]:not(.virt),.card[data-id],.blk.tk[data-id],.chip[data-act=open][data-id],.tri[data-id],.bl[data-id]'))) { return ctxTask(el.dataset.id); }
+  if ((el = g('.task[data-id]:not(.virt),.card[data-id],.kncard[data-id],.blk.tk[data-id],.chip[data-act=open][data-id],.tri[data-id],.bl[data-id]'))) { return ctxTask(el.dataset.id); }
   if ((el = g('.virt[data-id]'))) return ctxTask(el.dataset.id);
   if ((el = g('.navrow[data-lid]'))) {
     const id = el.dataset.lid; if (id === 'inbox') return null;
@@ -50,7 +53,7 @@ function ctxItems(target) {
   }
   if ((el = g('.navrow.proj'))) { const b = el.querySelector('[data-nav^="project:"]'); const id = b ? b.dataset.nav.slice(8) : ''; if (id) return [{ label: 'Open', icon: 'layers', run: () => setNav('project:' + id) }, { label: 'Edit project…', icon: 'sliders', run: () => ACT.projmenu({ dataset: { pid: id } }) }, { label: 'Banner…', icon: 'image', run: () => openBannerDialog('project', id) }]; }
   if ((el = g('[data-act=nav][data-nav^="tag:"]'))) { const tag = el.dataset.nav.slice(4); return [{ label: 'Show this tag', icon: 'tag', run: () => setNav('tag:' + tag) }, { label: 'Colour and name…', icon: 'sliders', run: () => tagMenu(tag) }]; }
-  if ((el = g('.pages .pg[data-page]'))) { const pg = el.dataset.page; return [{ label: 'Open', icon: 'eye', run: () => ACT.page({ dataset: { page: pg } }) }, { label: 'Hide this view', icon: 'x', run: () => { const h = S.settings.ui.hidePages; if (!h.includes(pg)) h.push(pg); save(); if (U.page === pg) { U.page = 'tasks'; } render(); toast('Hidden. Settings → Layout brings it back.'); } }]; }
+  if ((el = g('.pages .pg[data-sec]'))) { const pg = el.dataset.page, sec = el.dataset.sec; return [{ label: 'Open', icon: 'eye', run: () => ACT.page({ dataset: { page: pg } }) }, { label: 'Hide this section', icon: 'x', run: () => { const h = S.settings.ui.hidePages; for (const k of SECTIONS.find(s => s[0] === sec)[3]) if (!h.includes(k)) h.push(k); save(); if (secOf(U.page) === sec) { U.page = sec === 'tasks' ? 'home' : 'tasks'; } render(); toast('Hidden. Settings → Layout brings it back.'); } }]; }
   if ((el = g('.nti[data-id]'))) {
     const id = el.dataset.id, n = noteById(id); if (!n) return null;
     const pick = k => () => { U.noteSel = id; renderMain(); NOTE_ACT.notemenu({ dataset: { pickk: k } }); };

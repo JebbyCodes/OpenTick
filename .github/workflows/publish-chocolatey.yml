@@ -1,22 +1,35 @@
 name: Publish / Chocolatey
 
-# Builds the Chocolatey package from the MSI in a GitHub Release, attaches it to the release and pushes it to community.chocolatey.org.
+# =====================================================================================================================================
+#  Publish / Chocolatey: `choco install opentick`
+# =====================================================================================================================================
+#  1. Downloads the 64-bit MSI from the GitHub Release and works out its SHA-256 checksum.
+#  2. Writes a small Chocolatey package that points at that MSI (the package holds no program, only the download address and checksum).
+#  3. Attaches the finished .nupkg to the GitHub Release, and
+#  4. pushes it to community.chocolatey.org (Chocolatey's moderators then review it).
+#
+#  Secret: CHOCOLATEY_API_KEY (from your chocolatey.org account). Without it steps 1-3 still run and step 4 is skipped with a warning.
+#
+#  Called by: Release (stable releases only).
+#  Retry by hand: Actions -> Publish / Chocolatey -> Run workflow -> tag (for example v0.5.3).
+# =====================================================================================================================================
+
 on:
   workflow_call:
     inputs:
       tag:
-        description: Stable release tag (for example v0.5.1)
+        description: Stable release tag (for example v0.5.3)
         required: true
         type: string
   workflow_dispatch:
     inputs:
       tag:
-        description: Stable release tag (for example v0.5.1)
+        description: Stable release tag (for example v0.5.3)
         required: true
         type: string
 
 permissions:
-  contents: write
+  contents: write   # needed to attach the .nupkg to the release
 
 concurrency:
   group: chocolatey-${{ inputs.tag }}
@@ -28,6 +41,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
+      # ---- 1. The tag ------------------------------------------------------------------------------------------------------------
       - name: Check the tag
         id: release
         shell: pwsh
@@ -39,6 +53,7 @@ jobs:
           "tag=$($env:TAG)" >> $env:GITHUB_OUTPUT
           "version=$($Matches[1])" >> $env:GITHUB_OUTPUT
 
+      # ---- 2. The installer the package will point at ---------------------------------------------------------------------------------
       - name: Download the MSI and calculate its SHA-256
         id: installer
         shell: pwsh
@@ -54,6 +69,7 @@ jobs:
           "url=$url" >> $env:GITHUB_OUTPUT
           "checksum=$((Get-FileHash $msi -Algorithm SHA256).Hash)" >> $env:GITHUB_OUTPUT
 
+      # ---- 3. The package files ------------------------------------------------------------------------------------------------------
       - name: Generate the package files
         shell: pwsh
         env:
@@ -66,6 +82,8 @@ jobs:
           $dir = Join-Path $env:RUNNER_TEMP 'opentick-chocolatey'
           $tools = Join-Path $dir 'tools'
           New-Item -ItemType Directory -Path $tools -Force | Out-Null
+
+          # opentick.nuspec: the package's name, version and description
           $nuspec = @"
           <?xml version="1.0" encoding="utf-8"?>
           <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
@@ -89,6 +107,8 @@ jobs:
           </package>
           "@
           Set-Content -Path (Join-Path $dir 'opentick.nuspec') -Value ($nuspec -replace '(?m)^          ', '') -Encoding utf8
+
+          # chocolateyinstall.ps1: what Chocolatey runs on the user's PC (download the MSI, check the checksum, install quietly)
           $install = @'
           $ErrorActionPreference = 'Stop'
           $packageArgs = @{
@@ -106,7 +126,7 @@ jobs:
           Set-Content -Path (Join-Path $tools 'chocolateyinstall.ps1') -Value $install -Encoding utf8
           "PACKAGE_DIR=$dir" >> $env:GITHUB_ENV
 
-      - name: Pack and check
+      - name: Pack it and check the result
         id: pack
         shell: pwsh
         env:
@@ -117,9 +137,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "choco pack failed ($LASTEXITCODE)" }
           $nupkg = Join-Path $env:PACKAGE_DIR "opentick.$($env:VERSION).nupkg"
           if (!(Test-Path $nupkg)) { throw "Expected package was not created: $nupkg" }
+          # a package that downloads its installer must not carry a VERIFICATION.txt (that is for packages that embed the installer)
           if ((& tar -tf $nupkg) -match '(^|/)VERIFICATION\.txt$') { throw 'Package unexpectedly contains VERIFICATION.txt.' }
           "nupkg=$nupkg" >> $env:GITHUB_OUTPUT
 
+      # ---- 4. Hand it out ---------------------------------------------------------------------------------------------------------
       - name: Attach the package to the GitHub Release
         shell: pwsh
         env:
@@ -138,6 +160,10 @@ jobs:
           NUPKG: ${{ steps.pack.outputs.nupkg }}
         run: |
           $ErrorActionPreference = 'Stop'
-          if ([string]::IsNullOrWhiteSpace($env:CHOCO_API_KEY)) { Write-Host '::warning title=Chocolatey skipped::Add the CHOCOLATEY_API_KEY secret.'; exit 0 }
+          if ([string]::IsNullOrWhiteSpace($env:CHOCO_API_KEY)) {
+            Write-Host '::warning title=Chocolatey push skipped::Add the CHOCOLATEY_API_KEY secret to publish to chocolatey.org.'
+            exit 0
+          }
+          # the single quotes inside the double quotes are intentional: Chocolatey's own documentation uses this form in PowerShell
           choco push "$env:NUPKG" --source="'https://push.chocolatey.org/'" --api-key="'$env:CHOCO_API_KEY'"
           if ($LASTEXITCODE -ne 0) { throw "choco push failed ($LASTEXITCODE)" }

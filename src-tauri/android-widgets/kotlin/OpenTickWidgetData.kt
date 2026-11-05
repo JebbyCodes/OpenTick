@@ -19,11 +19,18 @@ object OtData {
     const val ACTIONS = "opentick-widget-actions.json"
 
     // Tauri puts its app-data folder in a slightly different place from version to version, so look for the file instead of guessing.
+    // where each file was found last time: the folder walk below is slow, and every widget redraw asks for these files
+    private val seen = HashMap<String, File>()
+
     fun find(ctx: Context, name: String): File? {
+        val known = synchronized(seen) { seen[name] }
+        if (known != null && known.exists()) return known
         val hits = ArrayList<File>()
         val roots = listOfNotNull(ctx.filesDir, ctx.dataDir).distinct()
         for (r in roots) walk(r, 0, name, hits)
-        return hits.maxByOrNull { it.lastModified() }
+        val best = hits.maxByOrNull { it.lastModified() }
+        if (best != null) synchronized(seen) { seen[name] = best }
+        return best
     }
 
     private fun walk(dir: File, depth: Int, name: String, hits: MutableList<File>) {

@@ -1,17 +1,34 @@
 name: Build / Android
 
-# Signed APKs for every phone: universal, one per CPU (64-bit and 32-bit ARM, x86), an App Bundle, and an e-ink edition.
+# =====================================================================================================================================
+#  Build / Android: signed APKs for every kind of phone
+# =====================================================================================================================================
+#  Two jobs run side by side:
+#
+#    Standard   universal APK (works anywhere), one APK per CPU (arm64-v8a, armeabi-v7a, x86_64, x86) and an App Bundle (.aab)
+#    E-ink      the same app with e-ink mode switched on by default, for e-paper tablets and readers (universal APK only)
+#
+#  Every APK is signed with the release key and checked with `apksigner` before it is uploaded. The Android version number is checked
+#  against package.json so a phone can always update from one release to the next.
+#
+#  Secrets (all three are REQUIRED; the job fails clearly without them): ANDROID_KEY_BASE64, ANDROID_KEY_PASSWORD, ANDROID_KEY_ALIAS.
+#  See docs/RELEASING.md for how to make them.
+#
+#  Artifacts: pkg-android-standard and pkg-android-eink.
+#  Called by: Release (with the version). By hand: Actions -> Build / Android -> Run workflow.
+# =====================================================================================================================================
+
 on:
   workflow_call:
     inputs:
       version:
-        description: Version being built (x.y.z), used in file names
+        description: Version being built (x.y.z); used in file names
         required: true
         type: string
   workflow_dispatch:
     inputs:
       version:
-        description: Version being built (x.y.z), used in file names
+        description: Version being built (x.y.z); used in file names
         required: true
         type: string
 
@@ -27,46 +44,61 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: Standard (all CPUs + bundle), edition: '', require: 'universal,arm64,arm,x86_64,x86' }
-          - { name: E-ink edition, edition: eink, require: 'universal' }
+          # `require` lists the builds that must exist, or the job fails (so a half-built release can never be published)
+          - { name: Standard (all CPUs and the App Bundle), edition: '',     require: 'universal,arm64,arm,x86_64,x86' }
+          - { name: E-ink edition,                          edition: eink, require: 'universal' }
     steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-node
-      - uses: ./.github/actions/setup-android
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js and install npm packages
+        uses: ./.github/actions/setup-node
+
+      # Java, the Android SDK and NDK, Rust, the generated Android project and release signing (see the action for the details).
+      - name: Set up the Android build
+        uses: ./.github/actions/setup-android
         with:
           key-base64: ${{ secrets.ANDROID_KEY_BASE64 }}
           key-password: ${{ secrets.ANDROID_KEY_PASSWORD }}
           key-alias: ${{ secrets.ANDROID_KEY_ALIAS }}
 
-      # one Gradle run builds the universal APK and the App Bundle; a second packs one APK per CPU (the Rust code is already compiled, so it is quick)
-      - name: Build universal APK and App Bundle
+      # ---- Standard edition -------------------------------------------------------------------------------------------------------
+      # The first Gradle run makes the universal APK and the App Bundle. The second packs one APK per CPU; the Rust code is already
+      # compiled by then, so it is quick.
+      - name: Build the universal APK and the App Bundle
         if: matrix.edition == ''
         run: npx tauri android build --apk --aab
+
       - name: Build one APK per CPU (arm64-v8a, armeabi-v7a, x86_64, x86)
         if: matrix.edition == ''
         run: npx tauri android build --apk --split-per-abi
 
-      # the e-ink build is the same app with e-ink mode on by default (build-app.mjs reads OPENTICK_EINK); only the CPUs e-readers use
-      - name: Build e-ink APK
+      # ---- E-ink edition ----------------------------------------------------------------------------------------------------------
+      # The same app; build-app.mjs reads OPENTICK_EINK and turns e-ink mode on by default. Only the CPUs e-readers use are built.
+      - name: Build the e-ink APK
         if: matrix.edition == 'eink'
         env:
           OPENTICK_EINK: '1'
         run: npx tauri android build --apk --target aarch64 armv7
 
-      - name: Check the Android version matches package.json
+      # ---- Checks and naming ------------------------------------------------------------------------------------------------------
+      - name: Check that the Android version matches package.json
         run: node scripts/android/check-android-version.mjs --generated
 
-      - name: Name the files and verify the signatures
+      - name: Give the files their release names and verify the signatures
         shell: bash
         run: |
           set -euo pipefail
-          node scripts/android/stage-apks.mjs --version "${{ inputs.version }}" --out staged --edition "${{ matrix.edition }}" --require "${{ matrix.require }}"
+          node scripts/android/stage-apks.mjs \
+            --version "${{ inputs.version }}" --out staged \
+            --edition "${{ matrix.edition }}" --require "${{ matrix.require }}"
           for f in staged/*.apk; do
             "$ANDROID_BUILD_TOOLS/apksigner" verify --print-certs "$f" | head -3
           done
           ls -l staged
 
-      - uses: actions/upload-artifact@v7
+      - name: Upload the files (artifact pkg-android-${{ matrix.edition || 'standard' }})
+        uses: actions/upload-artifact@v7
         with:
           name: pkg-android-${{ matrix.edition || 'standard' }}
           path: staged/*

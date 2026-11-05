@@ -1,49 +1,84 @@
 name: Release
 
-# git tag v0.5.1 && git push origin v0.5.1   ← this is all it takes. Everything below then runs, in parallel where it can:
+# =====================================================================================================================================
+#  Release: the one workflow that turns a version tag into a published release
+# =====================================================================================================================================
 #
-#   check the tag  →  tests ┐
-#                           ├→ Windows / Linux / macOS / Android / iOS / web / Docker builds
-#                           └→ Snap and MSIX bundle (wrap the desktop builds)
-#                                  └→ ONE GitHub Release with every file, checksums, attestations and "what's new"
-#                                          └→ Snap Store · Microsoft Store · Chocolatey · Scoop · Winget
+#  HOW TO RELEASE
+#      npm run bump -- 0.6.0          sets the version everywhere and starts the CHANGELOG entry
+#      (write what is new in CHANGELOG.md, commit)
+#      git tag v0.6.0 && git push origin main v0.6.0
+#  That is all. Pushing the tag starts this workflow. See docs/RELEASING.md for the full guide, including the secrets.
 #
-# Run it by hand (Actions → Release → Run workflow) to try a full build without publishing: leave "publish" off and the files stay
-# in the run's artifacts. Tags with a dash (v0.6.0-beta.1) make a GitHub pre-release and skip the stores and the `latest` Docker tag.
+#  WHAT HAPPENS, IN ORDER
+#
+#    1. prepare ......... Is the tag sound? It must match package.json and CHANGELOG.md has to describe the release.
+#    2. tests ........... The CI workflow (unit tests, browser tests, Rust check). It runs at the same time as the builds to save time,
+#                         but step 4 refuses to make a release unless it passed.
+#    3. build ........... All of these run side by side, once the tag has been checked:
+#                           desktop (Windows, Linux, macOS)    android (APKs, App Bundle, e-ink)    ios (.ipa, needs Apple secrets)
+#                           web (website zips)                 docker (image files for every CPU + compose file)
+#                         then two that wrap the desktop builds:  snap, msix-bundle
+#    4. release ......... ONE GitHub Release holding every file, SHA256SUMS.txt, signed build attestations and a description that
+#                         starts with "what's new" followed by a downloads table (Windows, macOS, Linux, Android, iOS, Docker, Web).
+#    5. publish ......... Only after the release exists (see the note below), each of these runs on its own and skips itself with
+#                         a warning if its secret is missing:
+#                           Docker registry (ghcr.io)    Snap Store    Microsoft Store    Chocolatey    Scoop    Winget
+#
+#  DRY RUN: Actions -> Release -> Run workflow, leave "publish" OFF. Everything is built and tested but nothing is released or pushed;
+#  the files stay in the run's artifacts.
+#
+#  PRE-RELEASES: a tag with a dash (v0.6.0-beta.1) makes a GitHub "pre-release", goes to the Snap Store `beta` channel, gets only its own
+#  Docker tag (never `latest`), and is not sent to the Microsoft Store, Chocolatey, Scoop or Winget.
+#
+#  WHY THE PUBLISHERS ARE CALLED FROM HERE: a release created with the built-in GITHUB_TOKEN does not trigger other workflows, so a
+#  publisher that waited for "release published" would simply never start. Calling them from this file is what makes them run.
+#
+#  This is the ONLY workflow that starts from a tag. (An older "Build OpenTick" workflow also started from every v* tag and published its
+#  own, partial, release at the same time. It has been removed.)
+# =====================================================================================================================================
+
 on:
   push:
     tags: ['v[0-9]+.[0-9]+.[0-9]+*']
   workflow_dispatch:
     inputs:
       publish:
-        description: Create the GitHub Release and publish to the stores (off = build only)
+        description: Create the GitHub Release and publish to the stores (leave off for a dry run that only builds)
         type: boolean
         default: false
 
 permissions:
   contents: read
 
+# Never run two releases for the same tag at once, and never cancel one halfway through.
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  # ---------------------------------------------------------------- 1. is this a release we can make?
+  # ===============================================================================================================================
+  # 1. PREPARE: is this a release we can make?
+  # ===============================================================================================================================
   prepare:
     name: Check the tag
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      version: ${{ steps.v.outputs.version }}
-      tag: ${{ steps.v.outputs.tag }}
-      publish: ${{ steps.v.outputs.publish }}
-      stable: ${{ steps.v.outputs.stable }}
+      version: ${{ steps.v.outputs.version }}   # 0.5.3
+      tag: ${{ steps.v.outputs.tag }}           # v0.5.3
+      publish: ${{ steps.v.outputs.publish }}   # true = really release, false = dry run
+      stable: ${{ steps.v.outputs.stable }}     # false for tags with a dash, such as v0.6.0-beta.1
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
-      - name: Tag, version and release notes agree
+
+      - name: Make sure the tag, the code and the release notes agree
         id: v
         shell: bash
         env:
@@ -53,23 +88,46 @@ jobs:
         run: |
           set -euo pipefail
           pkg="$(node -p "require('./package.json').version")"
-          if [ "$EVENT" = "push" ]; then tag="$REF_NAME"; publish=true; else tag="v$pkg"; publish="${PUBLISH_INPUT:-false}"; fi
+
+          # A pushed tag is always a real release. A manual run uses the version in package.json and publishes only if asked to.
+          if [ "$EVENT" = "push" ]; then
+            tag="$REF_NAME"; publish=true
+          else
+            tag="v$pkg";     publish="${PUBLISH_INPUT:-false}"
+          fi
           version="${tag#v}"
+
+          # 1. the tag must match package.json
           if [ "$version" != "$pkg" ]; then
-            echo "::error title=Tag does not match the code::Tag $tag, but package.json says $pkg. Run: npm run bump -- ${version}   then commit and move the tag."
+            echo "::error title=Tag does not match the code::The tag is $tag but package.json says $pkg. Run: npm run bump -- ${version}   then commit and move the tag."
             exit 1
           fi
-          npm run --silent version:check
-          node scripts/release/release-notes.mjs --tag "$tag" --check
-          stable=true; case "$version" in *-*) stable=false;; esac
-          { echo "version=$version"; echo "tag=$tag"; echo "publish=$publish"; echo "stable=$stable"; } >> "$GITHUB_OUTPUT"
-          echo "Releasing $tag (publish=$publish, stable=$stable)"
 
-  # ---------------------------------------------------------------- 2. test and build (all at once)
+          # 2. every other file that carries the version must agree too
+          npm run --silent version:check
+
+          # 3. CHANGELOG.md must have a finished section for this version (it is the start of the release description)
+          node scripts/release/release-notes.mjs --tag "$tag" --check
+
+          stable=true
+          case "$version" in *-*) stable=false ;; esac
+
+          { echo "version=$version"; echo "tag=$tag"; echo "publish=$publish"; echo "stable=$stable"; } >> "$GITHUB_OUTPUT"
+          echo "Releasing $tag  (publish=$publish, stable=$stable)"
+
+  # ===============================================================================================================================
+  # 2. TESTS: the release is only made if these pass
+  # ===============================================================================================================================
   tests:
     name: Tests
     needs: prepare
     uses: ./.github/workflows/ci.yml
+
+  # ===============================================================================================================================
+  # 3. BUILD: everything at once
+  # ===============================================================================================================================
+  # The tests are NOT waited for here on purpose: building takes much longer than testing, so the two run together to save time.
+  # The release in step 4 still requires the tests to have passed.
 
   desktop:
     name: Desktop
@@ -105,17 +163,11 @@ jobs:
   docker:
     name: Docker
     needs: prepare
-    permissions:
-      contents: read
-      packages: write
     uses: ./.github/workflows/build-docker.yml
     with:
       version: ${{ needs.prepare.outputs.version }}
-      push: ${{ needs.prepare.outputs.publish == 'true' }}
-      prerelease: ${{ needs.prepare.outputs.stable != 'true' }}
-    secrets: inherit
 
-  # these two wrap what the desktop build made
+  # These two wrap the desktop builds, so they wait for them.
   snap:
     name: Snap
     needs: [prepare, desktop]
@@ -132,15 +184,22 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v8
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Download the Windows packages made by the desktop builds
+        uses: actions/download-artifact@v8
         with:
           pattern: pkg-desktop-win-*
           path: msix-in
+
+      # One .msixbundle holds the .msix for every CPU; the .msixupload is the same thing wrapped the way the Store wants it.
       - name: Make the .msixbundle and .msixupload
         shell: pwsh
         run: ./packaging/msix/bundle-msix.ps1 -Dir msix-in -Version ${{ needs.prepare.outputs.version }} -Out staged
-      - uses: actions/upload-artifact@v7
+
+      - name: Upload the files (artifact pkg-msix-bundle)
+        uses: actions/upload-artifact@v7
         with:
           name: pkg-msix-bundle
           path: |
@@ -149,48 +208,58 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  # ---------------------------------------------------------------- 3. one release with everything
+  # ===============================================================================================================================
+  # 4. RELEASE: one GitHub Release with everything
+  # ===============================================================================================================================
   release:
     name: GitHub Release
-    needs: [prepare, tests, desktop, android, web, snap, msix-bundle, ios, docker]
-    # the iOS and Docker jobs may fail without stopping the release; everything else must have worked
+    needs: [prepare, tests, desktop, android, web, docker, snap, msix-bundle, ios]
+    # Skipped on a dry run. Everything except iOS must have worked. iOS is optional: it needs Apple secrets and may be skipped or fail
+    # without stopping the release. (`!cancelled()` is what lets this job still run when the optional iOS job did not succeed.)
     if: >-
-      ${{ !cancelled() && needs.prepare.outputs.publish == 'true' && needs.tests.result == 'success' && needs.desktop.result == 'success'
-      && needs.android.result == 'success' && needs.web.result == 'success' && needs.snap.result == 'success' && needs.msix-bundle.result == 'success' }}
+      ${{ !cancelled() && needs.prepare.outputs.publish == 'true'
+      && needs.tests.result == 'success' && needs.desktop.result == 'success' && needs.android.result == 'success'
+      && needs.web.result == 'success' && needs.docker.result == 'success' && needs.snap.result == 'success'
+      && needs.msix-bundle.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
-      contents: write
-      id-token: write
-      attestations: write
+      contents: write       # create the release and upload files to it
+      id-token: write       # sign the build attestations
+      attestations: write   # store the build attestations
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
 
-      - uses: actions/download-artifact@v8
+      - name: Download everything the build jobs made
+        uses: actions/download-artifact@v8
         with:
           pattern: pkg-*
           path: release-assets
 
-      - name: Collect the files and write checksums
+      # Puts every file in one flat folder, writes SHA256SUMS.txt, and FAILS if a required file is missing (optional ones only warn).
+      - name: Collect the files and write the checksums
         run: node scripts/release/collect-assets.mjs --from release-assets --to release-files --version "${{ needs.prepare.outputs.version }}"
 
-      - name: Write the release description (what's new + downloads)
+      - name: Write the release description (what's new and a downloads table)
         run: node scripts/release/release-notes.mjs --tag "${{ needs.prepare.outputs.tag }}" --dir release-files --out release-notes.md
-        env:
-          GITHUB_REPOSITORY: ${{ github.repository }}
 
-      - name: Attest build provenance
+      - name: Sign build-provenance attestations for every file
         uses: actions/attest-build-provenance@v4
         with:
           subject-path: 'release-files/*'
 
+      # generate_release_notes adds GitHub's own "What's Changed" list (commits and pull requests) underneath our description.
       - name: Publish the GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           name: OpenTick ${{ needs.prepare.outputs.version }}
           body_path: release-notes.md
           generate_release_notes: true
@@ -199,7 +268,27 @@ jobs:
           fail_on_unmatched_files: true
           overwrite_files: true
 
-  # ---------------------------------------------------------------- 4. the stores (a release made with GITHUB_TOKEN does not trigger other workflows, so they are called from here)
+      - name: Show the release description on the run page
+        run: cat release-notes.md >> "$GITHUB_STEP_SUMMARY"
+
+  # ===============================================================================================================================
+  # 5. PUBLISH: send the release to the registries and stores
+  # ===============================================================================================================================
+  # Each of these runs only if the GitHub Release was created, and each one stands alone: if the Microsoft Store is down, Docker and
+  # the Snap Store still go out. A missing secret makes a publisher skip itself with a warning rather than fail.
+
+  publish-docker:
+    name: Docker registry
+    needs: [prepare, release]
+    if: ${{ !cancelled() && needs.release.result == 'success' }}
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/publish-docker.yml
+    with:
+      tag: ${{ needs.prepare.outputs.tag }}
+    secrets: inherit
+
   publish-snap:
     name: Snap Store
     needs: [prepare, release]
@@ -210,6 +299,7 @@ jobs:
       channel: ${{ needs.prepare.outputs.stable == 'true' && 'candidate' || 'beta' }}
     secrets: inherit
 
+  # Stable releases only from here on.
   publish-microsoft-store:
     name: Microsoft Store
     needs: [prepare, release]

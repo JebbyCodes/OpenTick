@@ -106,6 +106,6 @@ assert.match(app.homeProjectCard(S.projects[0]), /Launch/);
   assert.ok(snap.cal.days && typeof snap.cal.ws === 'number'); assert.equal(snap.tt.kind, 'plan'); assert.ok(Array.isArray(snap.tt.items));
   assert.equal(typeof snap.fc.tot, 'number'); assert.ok(snap.notes.every(n => typeof n.t === 'string'));
   assert.ok(JSON.stringify(snap).length < 40000, 'small enough to read quickly');
-  assert.equal(app.WG_KINDS.length, 9);
+  assert.equal(app.WG_KINDS.length, 10);
 }
 console.log('0.3 feature tests passed');

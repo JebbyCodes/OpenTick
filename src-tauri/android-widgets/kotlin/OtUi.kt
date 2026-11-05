@@ -96,7 +96,7 @@ object OtUi {
         val all: Array<Class<*>> = arrayOf(
             OpenTickTasksWidget::class.java, OpenTickQuickWidget::class.java, OpenTickListsWidget::class.java, OpenTickProjectsWidget::class.java,
             OpenTickNotesWidget::class.java, OpenTickCalendarWidget::class.java, OpenTickTimetableWidget::class.java, OpenTickMatrixWidget::class.java,
-            OpenTickHabitsWidget::class.java, OpenTickFocusWidget::class.java
+            OpenTickHabitsWidget::class.java, OpenTickCountdownWidget::class.java, OpenTickFocusWidget::class.java
         )
         for (cls in all) {
             val ids = manager.getAppWidgetIds(ComponentName(context, cls))

@@ -1,18 +1,39 @@
 name: Build / Desktop
 
-# Windows (64-bit, 32-bit, ARM64), Linux (64-bit, ARM64) and macOS (Apple Silicon + Intel in one app).
-# Windows also gets portable zips and Microsoft Store .msix packages. 32-bit Linux does not exist: Tauri's web view has no 32-bit Linux support.
+# =====================================================================================================================================
+#  Build / Desktop: Windows, Linux and macOS apps
+# =====================================================================================================================================
+#  One job per row of the matrix below, all running at once:
+#
+#    Windows 64-bit   installer (.exe), MSI, portable .zip, Microsoft Store package (.msix)
+#    Windows 32-bit   installer, portable .zip, .msix                            (optional)
+#    Windows ARM64    installer, portable .zip, .msix                            (optional)
+#    Linux 64-bit     AppImage, .deb, .rpm
+#    Linux ARM64      AppImage, .deb, .rpm                                       (optional)
+#    macOS universal  one .dmg that runs on Apple Silicon and Intel
+#
+#  "Optional" rows may fail without stopping a release (the release job lists whatever is missing as a warning). The others must pass.
+#  There is no 32-bit Linux build: Tauri's web view (WebKitGTK) does not support it. Those machines can use the Docker image instead.
+#
+#  Each job uploads one artifact called  pkg-desktop-<id>  (for example pkg-desktop-win-x64). The Snap and MSIX-bundle steps in the
+#  Release workflow pick those up by name, so do not rename them without changing those too.
+#
+#  Called by: Release (with the version). By hand: Actions -> Build / Desktop -> Run workflow (the files stay in the run's artifacts).
+#  Optional secrets (macOS signing): APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID.
+#  Without them the .dmg is simply unsigned.
+# =====================================================================================================================================
+
 on:
   workflow_call:
     inputs:
       version:
-        description: Version being built (x.y.z)
+        description: Version being built (x.y.z); used in file names
         required: true
         type: string
   workflow_dispatch:
     inputs:
       version:
-        description: Version being built (x.y.z)
+        description: Version being built (x.y.z); used in file names
         required: true
         type: string
 
@@ -24,40 +45,51 @@ jobs:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
-    # the less common targets must not stop a release; the release job lists anything that is missing
+    # A failing optional target must not stop a release.
     continue-on-error: ${{ matrix.optional }}
     strategy:
-      fail-fast: false
+      fail-fast: false   # one failing platform must not cancel the others
       matrix:
         include:
-          - { id: win-x64, name: Windows 64-bit, os: windows-latest, arch: x64, target: x86_64-pc-windows-msvc, bundles: 'nsis,msi', optional: false }
-          - { id: win-x86, name: Windows 32-bit, os: windows-latest, arch: x86, target: i686-pc-windows-msvc, bundles: nsis, optional: true }
-          - { id: win-arm64, name: Windows ARM64, os: windows-latest, arch: arm64, target: aarch64-pc-windows-msvc, bundles: nsis, optional: true }
-          - { id: linux-x64, name: Linux 64-bit, os: ubuntu-22.04, arch: x64, target: x86_64-unknown-linux-gnu, bundles: 'deb,rpm,appimage', optional: false }
-          - { id: linux-arm64, name: Linux ARM64, os: ubuntu-22.04-arm, arch: arm64, target: aarch64-unknown-linux-gnu, bundles: 'deb,rpm,appimage', optional: true }
-          - { id: macos, name: macOS universal, os: macos-latest, arch: universal, target: universal-apple-darwin, bundles: dmg, optional: false }
+          - { id: win-x64,     name: Windows 64-bit,   os: windows-latest,   arch: x64,       target: x86_64-pc-windows-msvc,    bundles: 'nsis,msi',         optional: false }
+          - { id: win-x86,     name: Windows 32-bit,   os: windows-latest,   arch: x86,       target: i686-pc-windows-msvc,      bundles: nsis,              optional: true }
+          - { id: win-arm64,   name: Windows ARM64,    os: windows-latest,   arch: arm64,     target: aarch64-pc-windows-msvc,   bundles: nsis,              optional: true }
+          - { id: linux-x64,   name: Linux 64-bit,     os: ubuntu-22.04,     arch: x64,       target: x86_64-unknown-linux-gnu,  bundles: 'deb,rpm,appimage', optional: false }
+          - { id: linux-arm64, name: Linux ARM64,      os: ubuntu-22.04-arm, arch: arm64,     target: aarch64-unknown-linux-gnu, bundles: 'deb,rpm,appimage', optional: true }
+          - { id: macos,       name: macOS universal,  os: macos-latest,     arch: universal, target: universal-apple-darwin,    bundles: dmg,               optional: false }
     steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-node
+      # ---- Set-up -----------------------------------------------------------------------------------------------------------------
+      - name: Check out the repository
+        uses: actions/checkout@v7
 
-      - name: Install Linux libraries
+      - name: Set up Node.js and install npm packages
+        uses: ./.github/actions/setup-node
+
+      - name: Install the Linux libraries Tauri needs
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends build-essential curl wget file patchelf libxdo-dev libssl-dev \
-            libayatana-appindicator3-dev librsvg2-dev libgtk-3-dev libwebkit2gtk-4.1-dev
+          sudo apt-get install -y --no-install-recommends \
+            build-essential curl wget file patchelf \
+            libxdo-dev libssl-dev libgtk-3-dev librsvg2-dev \
+            libayatana-appindicator3-dev libwebkit2gtk-4.1-dev
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          # macOS universal needs both Mac targets; the others need their own
+          # A macOS universal app is built from both Mac targets; every other row needs only its own.
           targets: ${{ matrix.arch == 'universal' && 'aarch64-apple-darwin,x86_64-apple-darwin' || matrix.target }}
-      - uses: swatinem/rust-cache@v2
+
+      - name: Cache the Rust build
+        uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
           key: ${{ matrix.id }}
 
-      # signing and notarisation only when the Apple secrets exist; without them the .dmg is simply unsigned
-      - name: Apple signing (optional)
+      # ---- macOS signing (optional) -----------------------------------------------------------------------------------------------
+      # Tauri signs and notarises automatically when these environment variables exist, so this step only copies the secrets into the
+      # environment, and only when they are all there. Otherwise the build carries on unsigned.
+      - name: Apple signing (only if the secrets are set)
         if: runner.os == 'macOS'
         shell: bash
         env:
@@ -74,39 +106,45 @@ jobs:
             done
             echo "Signing the app with the Apple secrets."
           else
-            echo "::notice::No Apple signing secrets: the .dmg will be unsigned (right-click → Open the first time)."
+            echo "::notice::No Apple signing secrets: the .dmg will be unsigned (right-click -> Open the first time)."
           fi
 
-      - name: Build installers
+      # ---- The build itself -------------------------------------------------------------------------------------------------------
+      - name: Build the installers (${{ matrix.bundles }})
         shell: bash
         env:
-          APPIMAGE_EXTRACT_AND_RUN: '1'
+          APPIMAGE_EXTRACT_AND_RUN: '1'   # lets the AppImage tool run on a runner that has no FUSE
         run: npx tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
 
-      # ---- Windows extras: portable zip and Microsoft Store package, from the exe that was just built ----
-      - name: Windows portable zip and Store package
+      # ---- Windows extras: made from the .exe that was just built -----------------------------------------------------------------
+      - name: Windows portable .zip and Microsoft Store package (.msix)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $exe = "src-tauri/target/${{ matrix.target }}/release/opentick.exe"
           New-Item -ItemType Directory -Force -Path staged | Out-Null
+          # the portable zip holds just the program (it keeps its settings in the user's profile)
           Copy-Item $exe staged/OpenTick.exe
           Compress-Archive -Path staged/OpenTick.exe -DestinationPath "staged/OpenTick_${{ inputs.version }}_${{ matrix.arch }}-portable.zip" -Force
           Remove-Item staged/OpenTick.exe
+          # the unsigned .msix: the Store signs it itself after submission
           ./packaging/msix/build-msix.ps1 -Exe $exe -Arch ${{ matrix.arch }} -Version ${{ inputs.version }} -Out staged
 
-      - name: Collect files
+      # ---- Gather the files into one folder ---------------------------------------------------------------------------------------
+      - name: Collect the finished files
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p staged
-          find src-tauri/target -path '*/release/bundle/*' -type f \( -name '*.exe' -o -name '*.msi' -o -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' -o -name '*.dmg' \) \
+          find src-tauri/target -path '*/release/bundle/*' -type f \
+            \( -name '*.exe' -o -name '*.msi' -o -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' -o -name '*.dmg' \) \
             -exec cp -v {} staged/ \;
           ls -l staged
           [ -n "$(ls -A staged)" ] || { echo "::error::Nothing was built"; exit 1; }
 
-      - uses: actions/upload-artifact@v7
+      - name: Upload the files (artifact pkg-desktop-${{ matrix.id }})
+        uses: actions/upload-artifact@v7
         with:
           name: pkg-desktop-${{ matrix.id }}
           path: staged/*

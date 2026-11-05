@@ -57,7 +57,7 @@ fn flag(plan: &Value, k: &str, default: bool) -> bool {
     plan.get("cfg").and_then(|c| c.get(k)).and_then(|x| x.as_bool()).unwrap_or(default)
 }
 
-fn show_main(app: &AppHandle) {
+pub fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
         let _ = w.unminimize();
@@ -332,7 +332,10 @@ pub fn on_window_event(window: &tauri::Window, event: &tauri::WindowEvent) {
 
 /// Runs once at start-up: hide the window when started with --background, and keep a single copy running.
 pub fn setup(app: &AppHandle) {
-    if std::env::args().any(|a| a == "--background") {
+    if let Some(p) = app.try_state::<crate::link::Pending>() {
+        crate::link::from_args(app, &p); // a link this copy was started with (it is kept until the page asks)
+    }
+    if std::env::args().any(|a| a == "--background") && !std::env::args().any(|a| crate::link::accept(&a)) {
         if let Some(w) = app.get_webview_window("main") {
             let _ = w.hide();
         }
@@ -347,11 +350,31 @@ fn singleton(app: AppHandle) {
                 for stream in listener.incoming().flatten() {
                     let mut s = stream;
                     let _ = s.set_read_timeout(Some(Duration::from_millis(500)));
-                    let mut buf = [0u8; 32];
-                    let n = s.read(&mut buf).unwrap_or(0);
-                    if &buf[..n] == b"opentick-show\n" {
+                    // one line: "opentick-show" or "opentick-link <url>"
+                    let mut buf = vec![0u8; crate::link::MAX_LEN + 64];
+                    let mut n = 0;
+                    while n < buf.len() {
+                        match s.read(&mut buf[n..]) {
+                            Ok(0) | Err(_) => break,
+                            Ok(k) => {
+                                n += k;
+                                if buf[..n].contains(&b'\n') {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    let line = String::from_utf8_lossy(&buf[..n]).trim_end_matches('\n').to_string();
+                    if line == "opentick-show" {
                         let _ = s.write_all(b"opentick-ok\n");
                         show_main(&app);
+                    } else if let Some(url) = line.strip_prefix("opentick-link ") {
+                        if crate::link::accept(url) {
+                            let _ = s.write_all(b"opentick-ok\n");
+                            if let Some(p) = app.try_state::<crate::link::Pending>() {
+                                crate::link::push(&app, &p, url);
+                            }
+                        }
                     }
                 }
             });
@@ -360,7 +383,12 @@ fn singleton(app: AppHandle) {
             // the port is taken: ask whoever has it to show its window. If it answers like OpenTick, this copy is not needed.
             if let Ok(mut s) = TcpStream::connect_timeout(&std::net::SocketAddr::from(([127, 0, 0, 1], SINGLETON_PORT)), Duration::from_millis(400)) {
                 let _ = s.set_read_timeout(Some(Duration::from_millis(600)));
-                if s.write_all(b"opentick-show\n").is_ok() {
+                // started with a link (opentick://…)? pass it on; otherwise just ask the running copy to show itself
+                let msg = match std::env::args().skip(1).find(|a| crate::link::accept(a)) {
+                    Some(u) => format!("opentick-link {}\n", u.trim()),
+                    None => "opentick-show\n".to_string(),
+                };
+                if s.write_all(msg.as_bytes()).is_ok() {
                     let mut buf = [0u8; 16];
                     let n = s.read(&mut buf).unwrap_or(0);
                     if &buf[..n] == b"opentick-ok\n" {
@@ -440,4 +468,88 @@ fn set_autostart(on: bool) -> Result<(), String> {
 #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
 fn set_autostart(_on: bool) -> Result<(), String> {
     Ok(())
+}
+
+/* ---------------- opentick:// links (the OpenTick Bridge) ---------------- */
+
+/// What a desktop entry that opens opentick:// links looks like (Linux). `%` and `"` in the path are escaped as the format requires.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn link_desktop_entry(exe: &str) -> String {
+    let q = exe.replace('\\', "\\\\").replace('"', "\\\"").replace('%', "%%").replace('$', "\\$").replace('`', "\\`");
+    format!("[Desktop Entry]\nType=Application\nName=OpenTick links\nExec=\"{}\" %u\nTerminal=false\nNoDisplay=true\nMimeType=x-scheme-handler/opentick;\n", q)
+}
+
+/// The `reg` calls that register (or remove) the opentick: scheme for the current Windows user.
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+fn link_reg_calls(exe: &str, on: bool) -> Vec<Vec<String>> {
+    let root = r"HKCU\Software\Classes\opentick".to_string();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<String>>();
+    if !on {
+        return vec![s(&["delete", root.as_str(), "/f"])];
+    }
+    let cmd = format!("\"{}\" \"%1\"", exe);
+    vec![
+        s(&["add", root.as_str(), "/ve", "/d", "URL:OpenTick", "/f"]),
+        s(&["add", root.as_str(), "/v", "URL Protocol", "/d", "", "/f"]),
+        vec!["add".to_string(), format!("{}\\shell\\open\\command", root), "/ve".to_string(), "/d".to_string(), cmd, "/f".to_string()],
+    ]
+}
+
+/// Registers (or removes) opentick:// for this user, so a link from another app starts OpenTick. The page calls it when integrations
+/// are switched on or off. (macOS and iOS declare the scheme in Info.plist; Android in its manifest; a .deb in its desktop entry.)
+#[tauri::command]
+pub fn link_scheme(on: bool) -> Result<(), String> {
+    set_link_scheme(on)
+}
+
+#[cfg(target_os = "linux")]
+fn set_link_scheme(on: bool) -> Result<(), String> {
+    let base = match std::env::var("XDG_DATA_HOME") {
+        Ok(x) if !x.is_empty() => std::path::PathBuf::from(x),
+        _ => std::path::PathBuf::from(std::env::var("HOME").map_err(|e| e.to_string())?).join(".local").join("share"),
+    };
+    let dir = base.join("applications");
+    let file = dir.join("opentick-link.desktop");
+    if on {
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        std::fs::write(&file, link_desktop_entry(&exe_path()?)).map_err(|e| e.to_string())?;
+        let _ = std::process::Command::new("xdg-mime").args(["default", "opentick-link.desktop", "x-scheme-handler/opentick"]).output();
+    } else {
+        let _ = std::fs::remove_file(&file);
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn set_link_scheme(on: bool) -> Result<(), String> {
+    use std::os::windows::process::CommandExt;
+    const NO_WINDOW: u32 = 0x0800_0000;
+    for args in link_reg_calls(&exe_path()?, on) {
+        std::process::Command::new("reg").args(&args).creation_flags(NO_WINDOW).output().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "windows")))]
+fn set_link_scheme(_on: bool) -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(test)]
+mod link_tests {
+    use super::*;
+    #[test]
+    fn desktop_entry_escapes_the_path() {
+        let e = link_desktop_entry("/opt/Open Tick/100%/ot\"x");
+        assert!(e.contains("Exec=\"/opt/Open Tick/100%%/ot\\\"x\" %u"), "{}", e);
+        assert!(e.contains("MimeType=x-scheme-handler/opentick;"));
+    }
+    #[test]
+    fn windows_calls_add_and_remove() {
+        let on = link_reg_calls(r"C:\Apps\OpenTick\opentick.exe", true);
+        assert_eq!(on.len(), 3);
+        assert!(on[2][1].ends_with(r"opentick\shell\open\command"));
+        assert_eq!(on[2][4], "\"C:\\Apps\\OpenTick\\opentick.exe\" \"%1\"");
+        assert_eq!(link_reg_calls("x", false), vec![vec!["delete".to_string(), r"HKCU\Software\Classes\opentick".to_string(), "/f".to_string()]]);
+    }
 }

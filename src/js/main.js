@@ -268,7 +268,7 @@ async function loadSnaps(m) {
   box.innerHTML = (list.length ? list.map(x => `<div class="snap"><span><b>${esc(fmt(x.at))}</b><small>${x.tag ? 'Before deleting everything · ' : ''}${x.tasks < 0 ? 'Encrypted' : `${x.tasks} task${x.tasks === 1 ? '' : 's'}${x.sealed ? ' · encrypted' : ''}`}</small></span><button data-snaprs="${esc(x.key)}">Restore</button><button class="ib" data-snapdl="${esc(x.key)}" title="Download this backup" aria-label="Download this backup">${ic('download', 15)}</button></div>`).join('') : '<p class="hint">The first automatic backup is made a few seconds after you open the app.</p>')
     + `<div class="snapfoot"><button data-m="snapnow">${ic('refresh', 14)} Back up now</button><span class="hint">One copy a day, the last ${SNAP_KEEP} kept, on this device only.</span></div>`;
 }
-const SET_TABS = [['general', 'General', 'sliders'], ['appearance', 'Appearance', 'sparkles'], ['notifications', 'Notifications', 'bell'], ['access', 'Accessibility', 'eye'], ['sound', 'Sound & focus', 'volume'], ['keys', 'Keyboard', 'code'], ['data', 'Data & sync', 'cloud'], ['widgets', 'Widgets', 'layers'], ['about', 'About & privacy', 'info']];
+const SET_TABS = [['general', 'General', 'sliders'], ['appearance', 'Appearance', 'sparkles'], ['notifications', 'Notifications', 'bell'], ['access', 'Accessibility', 'eye'], ['sound', 'Sound & focus', 'volume'], ['keys', 'Keyboard', 'code'], ['data', 'Data & sync', 'cloud'], ['widgets', 'Widgets', 'layers'], ['integrations', 'Integrations', 'link'], ['about', 'About & privacy', 'info']];
 function openSettings(tab) {
   const s = S.settings; if (typeof tab === 'string') U.setTab = tab; if (!SET_TABS.some(t => t[0] === U.setTab)) U.setTab = 'general';
   const sec = (id, html) => `<section class="stab" data-tab="${id}" role="tabpanel"${U.setTab === id ? '' : ' hidden'}>${html}</section>`;
@@ -280,7 +280,7 @@ ${tasksSettingsHtml()}
 
 <details class="gtd" style="margin-top:12px"><summary>Sidebar views</summary><div id="sbv">${uiSidebarSettings()}</div></details>
 `)
-  + sec('appearance', `<div id="thsec">${themeSectionHtml()}</div>${scaleSetting()}${typeof einkSettingsHtml === 'function' ? einkSettingsHtml() : ''}<div class="dgrid" style="margin-top:10px"><button data-m="bgfx">${ic('sparkles', 18)}<span><b>Background effects</b><small>${bgNorm(s.bg).on ? 'On · ' + (BG_STYLES.find(x => x[0] === bgNorm(s.bg).style) || [])[1] : 'Off'} — soft moving shapes behind the app</small></span></button></div><div class="form" style="margin-top:10px"><label>Animations<select data-sx="motion">${opts([['normal', 'Normal'], ['calm', 'Calm (subtle)'], ['off', 'Off']], s.motion || 'normal')}</select></label></div>`)
+  + sec('appearance', `<div id="thsec">${themeSectionHtml()}</div>${scaleSetting()}${densitySetting()}${typeof einkSettingsHtml === 'function' ? einkSettingsHtml() : ''}<div class="dgrid" style="margin-top:10px"><button data-m="bgfx">${ic('sparkles', 18)}<span><b>Background effects</b><small>${bgNorm(s.bg).on ? 'On · ' + (BG_STYLES.find(x => x[0] === bgNorm(s.bg).style) || [])[1] : 'Off'} — soft moving shapes behind the app</small></span></button></div><div class="form" style="margin-top:10px"><label>Animations<select data-sx="motion">${opts([['normal', 'Normal'], ['calm', 'Calm (subtle)'], ['off', 'Off']], s.motion || 'normal')}</select></label></div>`)
   + sec('notifications', notifSettingsHtml())
   + sec('access', a11ySettingsHtml())
   + sec('sound', `<h4 class="mh">Sound</h4><div class="snd"><div class="mrow tight"><label class="chkl"><input type="checkbox" data-snd="on"${s.sound.on !== false ? ' checked' : ''}> Sound effects</label><label class="chkl"><input type="checkbox" data-snd="haptic"${s.sound.haptic !== false ? ' checked' : ''}> Vibrate on phones</label></div><label class="vol">${ic('volume', 16)}<input type="range" min="0" max="1" step="0.05" data-snd="vol" value="${s.sound.vol}" aria-label="Volume"></label><div class="mrow tight">${Object.entries(SOUNDS).map(([k, v]) => `<button class="sbtn" data-play="${k}" title="Play this sound"><span class="pi">${ic('play', 13)}</span>${esc(v.label)}</button>`).join('')}</div></div>
@@ -299,6 +299,7 @@ ${tasksSettingsHtml()}
 `)
   + sec('widgets', `${isAndroidApp() ? `<div class="dgrid"><button data-m="widget">${ic('layers', 18)}<span><b>Home-screen widgets</b><small>Long-press the home screen → Widgets → OpenTick. There is one for tasks, lists, projects, notes, calendar, timetable, matrix, habits and focus.</small></span></button></div>` : `<div class="dgrid">${WG_KINDS.map(k => `<button data-m="widget" data-w="${k[0]}">${ic(k[2], 18)}<span><b>${k[1]}</b><small>${esc(k[3])}</small></span></button>`).join('')}</div><p class="hint">Small windows that stay on top and look like the app. They update as you work.</p>`}
 `)
+  + sec('integrations', bridgeSettingsHtml())
   + sec('about', `<h4 class="mh">Help &amp; about</h4><div class="dgrid"><button data-m="help">${ic('book-open', 18)}<span><b>Help &amp; user guide</b><small>How everything works · printable</small></span></button><button data-m="aboutdlg">${ic('info', 18)}<span><b>About OpenTick</b><small>v${esc(APP_VERSION)} · source, licences &amp; credits</small></span></button></div>
 <div class="about">${logoHtml(40)}<div><b>OpenTick</b> <span class="ver">v${esc(APP_VERSION)}</span><br><span class="hint">${OTMETA.built ? 'Built ' + esc(OTMETA.built) + ' · ' : ''}Your data lives on this device. Turn on Sync to share it between devices, or export a JSON backup. Theme, sound and view settings stay per device.</span></div></div>
 ${privacySettingsHtml()}`)
@@ -320,6 +321,8 @@ ${privacySettingsHtml()}`)
       const rs = e.target.closest('[data-snaprs]'), sd = e.target.closest('[data-snapdl]');
       if (rs) { if (await askConfirm('Restore this backup? Your current data is backed up first, so you can come back.', 'Restore')) { try { await snapRestore(rs.dataset.snaprs); closeModal(); U.nav = 'today'; render(); toast('Backup restored'); } catch (err) { toast(err.message); } } return; }
       if (sd) { snapDownload(sd.dataset.snapdl); return; }
+      const smv = e.target.closest('[data-secmv]');
+      if (smv) { uiMoveSection(smv.dataset.secmv, +smv.dataset.d); const b = $('#sbv', m); if (b) b.innerHTML = uiSidebarSettings(); return; }
       const mvb = e.target.closest('[data-pgmv]');
       if (mvb) { uiMovePage(mvb.dataset.pgmv, +mvb.dataset.d); const b = $('#sbv', m); if (b) b.innerHTML = uiSidebarSettings(); return; }
       const th = e.target.closest('[data-th]');
@@ -446,9 +449,10 @@ ${isNew ? '<p class="hint">Save the slot first, then you can attach tasks to it.
 }
 function openTTSettings() {
   const tt = S.settings.tt, hrs = n => Array.from({ length: n }, (_, i) => [i, fmtMin(i * 60)]);
-  openModal(`<h3>Timetable settings</h3><div class="form"><label class="inl"><input type="checkbox" data-t="auto"${tt.auto ? ' checked' : ''}> Hide the quiet hours (shows 6:00–22:00 and anything scheduled outside them)</label><label>Day starts at<select data-t="from"${tt.auto ? ' disabled' : ''}>${opts(hrs(23), tt.from)}</select></label><label>Day ends at<select data-t="to"${tt.auto ? ' disabled' : ''}>${opts(hrs(25).slice(1), tt.to)}</select></label><label class="inl"><input type="checkbox" data-t="fit"${tt.fit !== false ? ' checked' : ''}> Fit the day to the screen (more of the day without scrolling)</label><label class="inl"><input type="checkbox" data-t="weekends"${tt.weekends ? ' checked' : ''}> Show weekends</label></div><p class="hint">The grid grows by itself if something is scheduled outside the shown hours. Times follow the 12 / 24-hour choice in Settings → Clock.</p><div class="mact"><button class="pri" data-m="ok">Done</button></div>`, m => {
+  openModal(`<h3>Timetable settings</h3><div class="form"><label class="inl"><input type="checkbox" data-t="auto"${tt.auto ? ' checked' : ''}> Hide the quiet hours (shows 6:00–22:00 and anything scheduled outside them)</label><label>Second time zone beside the hours<select data-t="tz2">${opts([['', 'None'], ...S.zones.filter(z => tzValid(z.tz)).map(z => [z.tz, `${tzLabel(z)} (${tzCity(z.tz)})`])], tt.tz2 || '')}</select></label><label>Day starts at<select data-t="from"${tt.auto ? ' disabled' : ''}>${opts(hrs(23), tt.from)}</select></label><label>Day ends at<select data-t="to"${tt.auto ? ' disabled' : ''}>${opts(hrs(25).slice(1), tt.to)}</select></label><label class="inl"><input type="checkbox" data-t="fit"${tt.fit !== false ? ' checked' : ''}> Fit the day to the screen (more of the day without scrolling)</label><label class="inl"><input type="checkbox" data-t="weekends"${tt.weekends ? ' checked' : ''}> Show weekends</label></div><p class="hint">The grid grows by itself if something is scheduled outside the shown hours. Times follow the 12 / 24-hour choice in Settings → Clock.</p><div class="mact"><button class="pri" data-m="ok">Done</button></div>`, m => {
     m.onchange = e => {
       const k = e.target.dataset.t; if (!k) return;
+      if (k === 'tz2') { tt.tz2 = e.target.value; save(); return; }
       if (k === 'weekends' || k === 'fit' || k === 'auto') tt[k] = e.target.checked; else tt[k] = +e.target.value;
       if (k === 'auto' || k === 'fit') { U.ttAvail = null; save(); closeModal(); openTTSettings(); return; }
       let fix = false;
@@ -730,7 +734,7 @@ const ACT = {
   tagtoggle: el => { const g = el.dataset.tag; U.tagSel = U.tagSel.includes(g) ? U.tagSel.filter(x => x !== g) : [...U.tagSel, g]; sfx('tick'); renderSide(); renderMain(); },
   tagmode: el => { U.tagMode = el.dataset.v; renderMain(); },
   tagclear: () => { U.tagSel = []; renderSide(); renderMain(); },
-  page: el => { if (U.bsel) { U.bsel = null; document.body.classList.remove('batch'); } U.page = el.dataset.page; U.sel = null; document.body.classList.remove('drawer'); fx('#main > *:not(.top)', 'fade'); render(); },
+  page: el => { if (U.bsel) { U.bsel = null; document.body.classList.remove('batch'); } U.page = el.dataset.page; U.sel = null; document.body.classList.remove('drawer'); fx('#main > *:not(.top):not(.vtabs)', 'fade'); render(); },
   burger: () => document.body.classList.add('drawer'),
   scrim: () => { document.body.classList.remove('drawer'); closeDetail(); },
   open: el => { U.sel = el.dataset.id; $$('.sel').forEach(x => x.classList.remove('sel')); $$(`[data-act="open"][data-id="${U.sel}"]`).forEach(x => x.classList.add('sel')); renderDetail(); },
@@ -829,6 +833,10 @@ const ACT = {
   ...NOTE_ACT,
   ...RECUR_ACT,
   ...TPL_ACT,
+  ...BR_ACT,
+  ...CD_ACT,
+  ...TZ_ACT,
+  ...KB_ACT,
   ...HOL_ACT,
   ...SC_ACT,
   ...BATCH_ACT,
@@ -979,6 +987,7 @@ document.addEventListener('change', async e => {
   const v = el.value;
   if (f === 'due') { t.due = v || null; if (!v) { t.time = null; t.repeat = null; delete t.until; delete t.exc; } else if (t.start && v < t.start) t.start = v; }
   else if (f === 'time') t.time = v || null;
+  else if (f === 'tz') { if (v === '__more') { tzPickTask(t).then(z => { if (z) { t.tz = z; save(); } refresh(); }); return; } if (v) t.tz = v; else { delete t.tz; delete t.zd; delete t.zt; } }
   else if (f === 'list') { t.listId = v; t.section = null; }
   else if (f === 'section') t.section = v || null;
   else if (f === 'endmode') { if (v === 'never') delete t.until; else t.until = t.until || ymd(addDays(pYmd(t.due || todayStr()), 90)); }
@@ -1259,6 +1268,7 @@ function appStart() {
   setInterval(() => { if (!Vault.locked && U.page === 'timetable' && !U.drag && !$('#modal.on') && !/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '')) renderMain(); }, 60000);
   if (S.settings.pomo.faceDown) { try { if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission !== 'function') fdEnable(); else if (typeof DeviceOrientationEvent !== 'undefined') { window.addEventListener('deviceorientation', fdHandler); FD.on = true; } } catch (e) { /* no sensor */ } }
   startSync();
+  if (!WIDGET) setTimeout(() => { try { tzWatch(); } catch (e) { /* later */ } }, 600); // did the device change zone while OpenTick was closed?
   if (!WIDGET) { setTimeout(widgetPull, 900); window.addEventListener('focus', widgetPull); widgetPush(); bgStart(); }
 }
 // the data is open again (unlocked after a lock, or switched to another vault): show it, and bring the reminders and sync back

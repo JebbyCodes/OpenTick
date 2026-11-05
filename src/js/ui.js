@@ -16,7 +16,7 @@ function uiApply() {
   if (st && st.setProperty) {
     st.setProperty('--sw-u', u.sideW + 'px'); st.setProperty('--dw-u', u.detailW + 'px'); st.setProperty('--trw', u.trayW + 'px'); st.setProperty('--gtw', g.trayW + 'px');
   }
-  b.toggle('shide', !u.side); b.toggle('dhide', !u.detail); b.toggle('compact', !!u.compact);
+  b.toggle('shide', !u.side); b.toggle('dhide', !u.detail); b.toggle('compact', u.density === 'compact'); b.toggle('roomy', u.density === 'roomy'); b.toggle('dauto', !!(u.autoDetail && !U.sel));
 }
 function uiInit() {
   const app = $('#app'); if (!app || !app.appendChild) return; // (the test harness has no real DOM)
@@ -26,7 +26,7 @@ function uiInit() {
     d.setAttribute('role', 'separator'); d.setAttribute('aria-orientation', 'vertical'); d.setAttribute('aria-label', 'Resize ' + label);
     app.appendChild(d);
   }
-  const dk = document.createElement('div'); dk.id = 'dock'; dk.innerHTML = '<div id="clock" aria-hidden="true"></div><div id="dsync"></div>'; document.body.appendChild(dk);
+  const dk = document.createElement('div'); dk.id = 'dock'; dk.innerHTML = '<div id="clock" role="button" tabindex="0" data-act="page" data-page="zones"></div><div id="dsync"></div>'; document.body.appendChild(dk);
   uiApply(); clockPaint(); paintDock();
 }
 
@@ -77,13 +77,16 @@ function paintDock() {
 function clockParts(d = new Date()) {
   const c = S.settings.clock, h = d.getHours();
   const time = (c.h24 ? pad(h) : String(h % 12 || 12)) + ':' + pad(d.getMinutes()) + (c.sec ? ':' + pad(d.getSeconds()) : '');
-  return { time, ap: c.h24 ? '' : h < 12 ? 'AM' : 'PM', date: `${FULLDAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}` };
+  return { time, ap: c.h24 ? '' : h < 12 ? 'AM' : 'PM', date: `${FULLDAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`, short: `${FULLDAYS[d.getDay()].slice(0, 3)} ${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)}` };
 }
 function clockPaint() {
   const el = document.getElementById ? document.getElementById('clock') : null; if (!el) return;
   const on = S.settings.clock.on !== false; el.hidden = !on; if (!on) return;
-  const p = clockParts(), html = `<b>${p.time}${p.ap ? `<span>${p.ap}</span>` : ''}</b><small>${p.date}</small>`;
+  const p = clockParts(), html = `<b>${p.time}${p.ap ? `<span>${p.ap}</span>` : ''}</b><small class="cd-l">${p.date}</small><small class="cd-s">${p.short}</small>`;
   if (el._h !== html) { el._h = html; el.innerHTML = html; }
+  // the clock is the way in to Time zones: its tip lists the saved places and what time it is there
+  let tip = 'Time zones'; try { const z = (S.zones || []).filter(x => tzValid(x.tz)).slice(0, 5); if (z.length) tip += ': ' + z.map(x => `${tzLabel(x)} ${tzFmt(Date.now(), x.tz)}`).join(' · '); } catch (e) { /* the plain tip */ }
+  if (el._t !== tip) { el._t = tip; el.title = tip; el.setAttribute('aria-label', tip + '. ' + p.time + (p.ap || '') + ', ' + p.date); }
 }
 
 /* ---------- hide / show ---------- */
@@ -152,9 +155,37 @@ function pagesShown() {
   const u = S.settings.ui, order = pageOrder();
   return order.map(k => PAGES.find(p => p[0] === k)).filter(p => !u.hidePages.includes(p[0]) || p[0] === U.page);
 }
+/* Sections: the groups the sidebar and tab bar show. A view is hidden with its checkbox in Settings → Layout; a section shows while any of its
+   views does (and always while you are in it). Their order comes from the saved page order, so older saved layouts still apply. */
+const secOf = page => { const s = SECTIONS.find(x => x[3].includes(page)); return s ? s[0] : null; };
+function sectionsAll() {
+  const order = pageOrder(), at = s => Math.min(...s[3].map(k => order.indexOf(k)));
+  return SECTIONS.slice().sort((a, b) => at(a) - at(b));
+}
+const viewsOf = sec => { const s = SECTIONS.find(x => x[0] === sec); return s ? s[3].filter(k => !S.settings.ui.hidePages.includes(k) || k === U.page) : []; };
+const sectionsShown = () => sectionsAll().filter(s => viewsOf(s[0]).length);
+// the view a section opens on: the one you used last in it, else its first
+function sectionTarget(sec) {
+  const vs = viewsOf(sec), last = (U.secLast || {})[sec];
+  return vs.includes(last) ? last : vs[0] || (SECTIONS.find(x => x[0] === sec) || [, , , ['tasks']])[3][0];
+}
+function uiMoveSection(sec, d) {
+  const all = sectionsAll().map(s => s[0]), i = all.indexOf(sec), j = i + d; if (i < 0 || j < 0 || j >= all.length) return;
+  [all[i], all[j]] = [all[j], all[i]]; S.settings.ui.pageOrder = all.flatMap(k => SECTIONS.find(s => s[0] === k)[3]); save();
+}
+// Settings → Appearance: how much space the interface leaves around things, and whether the details panel waits for a task
+function densitySetting() {
+  const u = S.settings.ui;
+  return `<div class="a11y-r"><span><b>Spacing</b><small>Roomy gives lists, menus and panels more air. Compact fits more on screen.</small></span><select data-pf="ui.density">${opts([['roomy', 'Roomy'], ['standard', 'Standard'], ['compact', 'Compact']], u.density)}</select></div>`
+    + `<label class="a11y-r tg"><span><b>Show the details panel only when a task is picked</b><small>Gives the main view the full width the rest of the time.</small></span><input type="checkbox" data-pf="ui.autoDetail"${u.autoDetail ? ' checked' : ''}></label>`;
+}
+// the page grid shows two rows of four; the rest sit behind "More" (the page you are on is always shown)
+const PG_MAX = 8;
+function pagesGrid() { return sectionsShown().map(([k, n, i]) => [k, n, i]); }
+const pagesMoreBtn = () => '';
 function uiSidebarSettings() {
-  const u = S.settings.ui, order = pageOrder();
-  return `<div class="vlist">${order.map((k, i) => { const p = PAGES.find(x => x[0] === k); return `<div class="vrow"><label><input type="checkbox" data-pg="${k}"${u.hidePages.includes(k) ? '' : ' checked'}> ${ic(p[2], 16)} ${esc(p[1])}</label><span><button class="ib sm" data-pgmv="${k}" data-d="-1"${i ? '' : ' disabled'} title="Move up">${ic('up', 14)}</button><button class="ib sm" data-pgmv="${k}" data-d="1"${i < order.length - 1 ? '' : ' disabled'} title="Move down">${ic('down', 14)}</button></span></div>`; }).join('')}</div><p class="hint">Hide the views you do not use. You can also drag the tabs in the sidebar to reorder them.</p>`;
+  const u = S.settings.ui, secs = sectionsAll();
+  return `<div class="vlist">${secs.map((s, i) => `<div class="vsec"><div class="vrow vsh"><b>${ic(s[2], 16)} ${esc(s[1])}</b><span><button class="ib sm" data-secmv="${s[0]}" data-d="-1"${i ? '' : ' disabled'} title="Move up" aria-label="Move ${esc(s[1])} up">${ic('up', 14)}</button><button class="ib sm" data-secmv="${s[0]}" data-d="1"${i < secs.length - 1 ? '' : ' disabled'} title="Move down" aria-label="Move ${esc(s[1])} down">${ic('down', 14)}</button></span></div>${s[3].length > 1 || s[3][0] !== s[0] ? s[3].map(k => `<div class="vrow vsub"><label><input type="checkbox" data-pg="${k}"${u.hidePages.includes(k) ? '' : ' checked'}> ${ic(VIEW_TAB[k][1], 15)} ${esc(VIEW_TAB[k][0])}</label></div>`).join('') : `<div class="vrow vsub"><label><input type="checkbox" data-pg="${s[3][0]}"${u.hidePages.includes(s[3][0]) ? '' : ' checked'}> Show in the sidebar</label></div>`}</div>`).join('')}</div><p class="hint">Related views share one place: Tasks holds the list, board, matrix and timeline; Calendar holds the month, timetable, countdowns and time zones. Untick a view to hide its tab. Drag the section buttons in the sidebar to reorder them.</p>`;
 }
 function uiMovePage(k, d) {
   const u = S.settings.ui, order = pageOrder();
@@ -166,16 +197,16 @@ function uiMovePage(k, d) {
 document.addEventListener('dragstart', e => {
   const l = e.target.closest && e.target.closest('.navrow[data-lid]');
   if (l) { U.ldrag = l.dataset.lid; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'list:' + U.ldrag); l.classList.add('drag'); return; }
-  const p = e.target.closest && e.target.closest('.pg[data-page]');
-  if (p) { U.pdrag = p.dataset.page; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'page:' + U.pdrag); p.classList.add('drag'); }
+  const p = e.target.closest && e.target.closest('.pg[data-sec]');
+  if (p) { U.pdrag = p.dataset.sec; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'section:' + U.pdrag); p.classList.add('drag'); }
 });
 document.addEventListener('dragover', e => {
-  const t = e.target.closest && e.target.closest('.navrow[data-lid],.pg[data-page],.sech[data-k="lists"]');
+  const t = e.target.closest && e.target.closest('.navrow[data-lid],.pg[data-sec],.sech[data-k="lists"]');
   if (U.ldrag && t && (t.dataset.lid || t.dataset.k)) { // a list over a list: top / bottom edge = reorder next to it, middle = move inside it
     const bad = new Set([U.ldrag, ...listDescendants(U.ldrag)]); if (t.dataset.lid && bad.has(t.dataset.lid)) return;
     e.preventDefault(); $$('.over,.dz-b,.dz-a,.dz-in').forEach(x => x.classList.remove('over', 'dz-b', 'dz-a', 'dz-in'));
     if (t.dataset.lid) { const r = t.getBoundingClientRect(), y = (zc(e.clientY) - r.top) / r.height; t.classList.add(y < 0.28 ? 'dz-b' : y > 0.72 ? 'dz-a' : 'dz-in'); } else t.classList.add('over');
-  } else if (t && U.pdrag && t.dataset.page) { e.preventDefault(); $$('.over').forEach(x => x.classList.remove('over')); t.classList.add('over'); }
+  } else if (t && U.pdrag && t.dataset.sec) { e.preventDefault(); $$('.over').forEach(x => x.classList.remove('over')); t.classList.add('over'); }
 });
 document.addEventListener('drop', e => {
   if (U.ldrag) {
@@ -193,11 +224,11 @@ document.addEventListener('drop', e => {
       save(); renderSide();
     }
   } else if (U.pdrag) {
-    const t = e.target.closest('.pg[data-page]');
-    if (t && t.dataset.page !== U.pdrag) {
+    const t = e.target.closest('.pg[data-sec]');
+    if (t && t.dataset.sec !== U.pdrag) {
       e.preventDefault();
-      const u = S.settings.ui, order = pageOrder();
-      const to = order.indexOf(t.dataset.page); order.splice(order.indexOf(U.pdrag), 1); order.splice(to, 0, U.pdrag); u.pageOrder = order; save(); renderSide();
+      const all = sectionsAll().map(x => x[0]), to = all.indexOf(t.dataset.sec); all.splice(all.indexOf(U.pdrag), 1); all.splice(to, 0, U.pdrag);
+      S.settings.ui.pageOrder = all.flatMap(k => SECTIONS.find(x => x[0] === k)[3]); save(); renderSide();
     }
   }
 });
@@ -218,7 +249,7 @@ function uiNavDrop(el) {
 }
 
 /* ---------- command palette (Ctrl+Shift+P), shortcut help (?), compact density, print ---------- */
-function uiCompact(on) { const u = S.settings.ui; u.compact = on == null ? !u.compact : on; save(); document.body.classList.toggle('compact', !!u.compact); }
+function uiCompact(on) { const u = S.settings.ui; u.density = (on == null ? u.density !== 'compact' : on) ? 'compact' : 'roomy'; u.compact = u.density === 'compact'; save(); uiApply(); }
 function paletteItems(q) {
   const go = (label, hint, run) => ({ label, hint, run });
   const out = [
@@ -269,3 +300,6 @@ document.addEventListener('keydown', e => {
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target || {}).tagName || '');
   if (e.key === '?' && !typing && !$('#modal.on')) { e.preventDefault(); openShortcuts(); }
 });
+
+// the clock is a button: Enter or Space opens Time zones from the keyboard
+document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target && e.target.id === 'clock') { e.preventDefault(); e.target.click(); } });

@@ -144,7 +144,7 @@ object OtBg {
 
     private fun smallIconRes(ctx: Context): Int {
         val id = ctx.resources.getIdentifier("ic_stat_opentick", "drawable", ctx.packageName)
-        return if (id != 0) id else ctx.applicationInfo.icon
+        return if (id != 0) id else if (ctx.applicationInfo.icon != 0) ctx.applicationInfo.icon else ctx.resources.getIdentifier("ic_dialog_info", "drawable", "android") // never 0: Android refuses a notification with no small icon
     }
 
     private fun launchPi(ctx: Context): PendingIntent? {
@@ -228,6 +228,15 @@ object OtBg {
         while (p.measureText(t) > s - 6 && size > 20f) { size -= 4f; p.textSize = size }
         c.drawText(t, s / 2f, s / 2f - (p.descent() + p.ascent()) / 2f, p)
         return Icon.createWithBitmap(bmp)
+    }
+
+    /** A notification that needs nothing from the plan file: used when the full one could not be built. */
+    fun plainNotification(ctx: Context): Notification {
+        ensureChannels(ctx)
+        val b = builder(ctx, CH_TT).setOngoing(true).setOnlyAlertOnce(true).setShowWhen(false).setSmallIcon(smallIconRes(ctx))
+            .setContentTitle("OpenTick is running").setContentText("Your reminders are on")
+        launchPi(ctx)?.let { b.setContentIntent(it) }
+        return b.build()
     }
 
     fun timetableNotification(ctx: Context, now: Long = System.currentTimeMillis()): Notification {
@@ -319,7 +328,7 @@ object OtBg {
             } else {
                 ctx.stopService(Intent(ctx, OpenTickTimetableService::class.java)); svcRunning = false
             }
-        } catch (e: Exception) { /* Android may refuse to start it from the background; the next time the app opens it will start */ }
+        } catch (e: Throwable) { /* Android may refuse to start it from the background; the next time the app opens it will start */ }
     }
 }
 
@@ -329,7 +338,7 @@ class OpenTickBgReceiver : BroadcastReceiver() {
         Thread {
             try {
                 if (intent?.action == OtBg.ACTION_ALARM) OtBg.onAlarm(context) else OtBg.apply(context)
-            } catch (e: Exception) { /* ignore */ } finally { pending.finish() }
+            } catch (e: Throwable) { /* ignore */ } finally { pending.finish() }
         }.start()
     }
 }
@@ -337,14 +346,20 @@ class OpenTickBgReceiver : BroadcastReceiver() {
 class OpenTickTimetableService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val n = OtBg.timetableNotification(this)
+        // Android gives a service started with startForegroundService a few seconds to call startForeground, and kills the whole app if it does not.
+        // So a plain notification goes up first, and only then the full one is worked out: nothing below may throw out of here.
         try {
-            if (Build.VERSION.SDK_INT >= 34) startForeground(7, n, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-            else startForeground(7, n)
-        } catch (e: Exception) { OtBg.svcRunning = false; stopSelf(); return START_NOT_STICKY }
-        OtBg.svcRunning = true
-        if (!OtBg.wantsService(this)) { stopForeground(true); OtBg.svcRunning = false; stopSelf(); return START_NOT_STICKY }
-        OtBg.scheduleTimetable(this)
+            val first = try { OtBg.timetableNotification(this) } catch (e: Throwable) { OtBg.plainNotification(this) }
+            try {
+                if (Build.VERSION.SDK_INT >= 34) startForeground(7, first, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+                else startForeground(7, first)
+            } catch (e: Throwable) {
+                try { startForeground(7, OtBg.plainNotification(this)) } catch (e2: Throwable) { OtBg.svcRunning = false; stopSelf(); return START_NOT_STICKY }
+            }
+            OtBg.svcRunning = true
+            if (!OtBg.wantsService(this)) { stopForeground(true); OtBg.svcRunning = false; stopSelf(); return START_NOT_STICKY }
+            try { OtBg.scheduleTimetable(this) } catch (e: Throwable) { /* the notification still shows */ }
+        } catch (e: Throwable) { OtBg.svcRunning = false; stopSelf(); return START_NOT_STICKY }
         return START_STICKY
     }
     override fun onTaskRemoved(rootIntent: Intent?) { OtBg.scheduleRestart(this); super.onTaskRemoved(rootIntent) }

@@ -1,36 +1,47 @@
+name: Publish / Snap Store
 
-name: Publish OpenTick to Snap Store
+# =====================================================================================================================================
+#  Publish / Snap Store: upload the Snap packages from a GitHub Release to the Snap Store
+# =====================================================================================================================================
+#  Downloads every  *.snap  file attached to the release (64-bit and, when it was built, ARM64), uploads each one to the Store and
+#  releases it to a channel:
+#
+#      stable release (v0.5.3)        -> `candidate`   (promote it to `stable` yourself when you are happy: snapcraft.io -> Releases)
+#      pre-release (v0.6.0-beta.1)    -> `beta`
+#
+#  Earlier versions of this workflow insisted on exactly ONE .snap file and rejected pre-release tags, so it failed whenever the ARM64
+#  Snap existed or a beta was tagged. Both are handled now.
+#
+#  Secret: SNAPCRAFT_STORE_CREDENTIALS. Without it this workflow skips itself with a warning. How to make it:
+#      snapcraft export-login --snaps opentick --channels edge,beta,candidate,stable --acls package_access,package_push,package_release -
+#
+#  Called by: Release (after the GitHub Release exists).
+#  Retry by hand: Actions -> Publish / Snap Store -> Run workflow -> tag and channel.
+# =====================================================================================================================================
 
 on:
   workflow_call:
     inputs:
       tag:
-        description: GitHub release tag containing the Snap package
+        description: Release tag that holds the Snap files (for example v0.5.3)
         required: true
         type: string
-
       channel:
-        description: Snap Store channel
+        description: Snap Store channel to release to
         required: false
         type: string
         default: candidate
-
   workflow_dispatch:
     inputs:
       tag:
-        description: GitHub release tag (for example v0.5.1)
+        description: Release tag that holds the Snap files (for example v0.5.3)
         required: true
         type: string
-
       channel:
-        description: Snap Store channel
+        description: Snap Store channel to release to
         required: true
         type: choice
-        options:
-          - edge
-          - beta
-          - candidate
-          - stable
+        options: [edge, beta, candidate, stable]
         default: candidate
 
 permissions:
@@ -42,28 +53,25 @@ concurrency:
 
 jobs:
   publish:
-    name: Upload and release Snap
+    name: Upload and release the Snaps
     runs-on: ubuntu-latest
     timeout-minutes: 20
-
     steps:
-      - name: Check credentials
+      # ---- 1. Are we set up to do this? ------------------------------------------------------------------------------------------
+      - name: Check for the Snap Store credentials
         id: credentials
         shell: bash
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
         run: |
-          set -euo pipefail
-
-          if [[ -n "${SNAPCRAFT_STORE_CREDENTIALS:-}" ]]; then
+          if [ -n "${SNAPCRAFT_STORE_CREDENTIALS:-}" ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
-
-            echo "::warning title=Snap Store skipped::Missing SNAPCRAFT_STORE_CREDENTIALS repository secret."
+            echo "::warning title=Snap Store skipped::Add the SNAPCRAFT_STORE_CREDENTIALS repository secret to publish to the Snap Store."
           fi
 
-      - name: Validate inputs
+      - name: Check the tag and channel
         if: steps.credentials.outputs.ready == 'true'
         shell: bash
         env:
@@ -71,22 +79,17 @@ jobs:
           CHANNEL: ${{ inputs.channel }}
         run: |
           set -euo pipefail
-
-          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::Invalid release tag: $TAG"
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::'$TAG' is not a release tag like v1.2.3 or v1.2.3-beta.1"
             exit 1
           fi
-
           case "$CHANNEL" in
-            edge|beta|candidate|stable)
-              ;;
-            *)
-              echo "::error::Unsupported Snap Store channel: $CHANNEL"
-              exit 1
-              ;;
+            edge|beta|candidate|stable) ;;
+            *) echo "::error::'$CHANNEL' is not a Snap Store channel (edge, beta, candidate or stable)"; exit 1 ;;
           esac
 
-      - name: Download Snap from GitHub Release
+      # ---- 2. Get the files ------------------------------------------------------------------------------------------------------
+      - name: Download the Snaps from the GitHub Release
         if: steps.credentials.outputs.ready == 'true'
         shell: bash
         env:
@@ -94,61 +97,42 @@ jobs:
           TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
-
           mkdir -p snaps
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern '*.snap' --dir snaps
+          echo "Downloaded:"
+          ls -l snaps
+          [ -n "$(ls -A snaps)" ] || { echo "::error::Release $TAG has no .snap files"; exit 1; }
 
-          gh release download "$TAG" \
-            --repo "$GITHUB_REPOSITORY" \
-            --pattern '*.snap' \
-            --dir snaps
-
-          mapfile -d '' SNAP_FILES < <(
-            find snaps -maxdepth 1 -type f -name '*.snap' -print0
-          )
-
-          if [[ "${#SNAP_FILES[@]}" -ne 1 ]]; then
-            echo "::error::Expected exactly one .snap file in release $TAG."
-            find snaps -maxdepth 1 -type f -print
-            exit 1
-          fi
-
-          echo "Downloaded: ${SNAP_FILES[0]}"
-
+      # ---- 3. Get snapcraft ready --------------------------------------------------------------------------------------------------
       - name: Install Snapcraft
         if: steps.credentials.outputs.ready == 'true'
         shell: bash
         run: |
           set -euo pipefail
-
-          export PATH="/snap/bin:$PATH"
-
           if ! command -v snap >/dev/null 2>&1; then
             sudo apt-get update
             sudo apt-get install --yes snapd
           fi
-
           sudo systemctl enable --now snapd.socket
-
           if ! sudo snap list snapcraft >/dev/null 2>&1; then
             sudo snap install snapcraft --classic --channel=stable
           fi
-
           export PATH="/snap/bin:$PATH"
           snapcraft --version
 
-      - name: Authenticate with Snap Store
+      - name: Check that the credentials work
         if: steps.credentials.outputs.ready == 'true'
         shell: bash
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
         run: |
           set -euo pipefail
-
           export PATH="/snap/bin:$PATH"
-
           snapcraft whoami
 
-      - name: Upload and publish Snap
+      # ---- 4. Upload every Snap and release it to the channel -----------------------------------------------------------------------
+      # The Store keeps one revision per CPU, so uploading the amd64 and the arm64 file to the same channel is correct.
+      - name: Upload and release each Snap
         if: steps.credentials.outputs.ready == 'true'
         shell: bash
         env:
@@ -156,22 +140,10 @@ jobs:
           CHANNEL: ${{ inputs.channel }}
         run: |
           set -euo pipefail
-
           export PATH="/snap/bin:$PATH"
-
-          mapfile -d '' SNAP_FILES < <(
-            find snaps -maxdepth 1 -type f -name '*.snap' -print0
-          )
-
-          if [[ "${#SNAP_FILES[@]}" -ne 1 ]]; then
-            echo "::error::Expected exactly one Snap package."
-            exit 1
-          fi
-
-          SNAP_FILE="${SNAP_FILES[0]}"
-
-          echo "Publishing $SNAP_FILE to $CHANNEL."
-
-          snapcraft upload "$SNAP_FILE" --release="$CHANNEL"
-
-          echo "Snap upload and release command completed."
+          for snap_file in snaps/*.snap; do
+            echo "::group::Uploading $snap_file to the $CHANNEL channel"
+            snapcraft upload "$snap_file" --release="$CHANNEL"
+            echo "::endgroup::"
+          done
+          echo "All Snaps were uploaded and released to $CHANNEL."

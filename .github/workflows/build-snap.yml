@@ -1,8 +1,19 @@
 name: Build / Snap
 
-# Wraps the .deb that Build / Desktop made into a Snap for 64-bit and ARM64 (no second Rust build).
-# The old Snap Store failure was `chmod: Operation not permitted`: snapcraft runs as root, so the .snap it writes belongs to root and the
-# runner user cannot chmod it. Here the file is chown'ed back to the runner user instead.
+# =====================================================================================================================================
+#  Build / Snap: the Linux Snap package (64-bit and ARM64)
+# =====================================================================================================================================
+#  This does NOT compile the app again. It takes the .deb that Build / Desktop already made (artifacts pkg-desktop-linux-x64 and
+#  pkg-desktop-linux-arm64) and wraps it into a Snap, so it needs only a couple of minutes instead of a second 30-minute Rust build.
+#  That is why the Release workflow runs it after Build / Desktop.
+#
+#  A note on a past failure: snapcraft runs as root (sudo), so the .snap it writes belongs to root and the normal runner user was not
+#  allowed to `chmod` it ("Operation not permitted"). The file is now handed back with `chown` before anything else touches it.
+#
+#  Artifacts: pkg-snap-amd64 and pkg-snap-arm64 (the ARM64 one is optional).
+#  Called by: Release.   By hand: Actions -> Build / Snap -> Run workflow (give the run ID that holds the desktop artifacts).
+# =====================================================================================================================================
+
 on:
   workflow_call:
     inputs:
@@ -17,13 +28,13 @@ on:
         required: true
         type: string
       run_id:
-        description: Run that holds the pkg-desktop-linux-* artifacts (blank = this run)
+        description: ID of the run that holds the pkg-desktop-linux-* artifacts (leave blank to use this run)
         required: false
         type: string
 
 permissions:
   contents: read
-  actions: read
+  actions: read   # needed to download artifacts from another run
 
 jobs:
   snap:
@@ -35,12 +46,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { arch: amd64, os: ubuntu-22.04, artifact: pkg-desktop-linux-x64, optional: false }
+          - { arch: amd64, os: ubuntu-22.04,     artifact: pkg-desktop-linux-x64,   optional: false }
           - { arch: arm64, os: ubuntu-22.04-arm, artifact: pkg-desktop-linux-arm64, optional: true }
     steps:
-      - uses: actions/checkout@v7
+      - name: Check out the repository
+        uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v8
+      - name: Download the .deb made by Build / Desktop
+        uses: actions/download-artifact@v8
         with:
           name: ${{ matrix.artifact }}
           path: desktop
@@ -49,12 +62,14 @@ jobs:
 
       - name: Lay out the Snap project
         shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
           deb="$(find desktop -name '*.deb' -print -quit)"
           [ -n "$deb" ] || { echo "::error::No .deb in the ${{ matrix.artifact }} artifact"; exit 1; }
           mkdir -p snapbuild/snap
-          sed "s/@VERSION@/${{ inputs.version }}/" snap/ci/snapcraft.yaml > snapbuild/snap/snapcraft.yaml
+          sed "s/@VERSION@/${VERSION}/" snap/ci/snapcraft.yaml > snapbuild/snap/snapcraft.yaml
           cp "$deb" snapbuild/opentick.deb
           cp snap/local/assemble.sh snapbuild/assemble.sh
           cp src-tauri/icons/128x128@2x.png snapbuild/icon.png
@@ -63,7 +78,6 @@ jobs:
         run: sudo snap install snapcraft --classic
 
       - name: Pack the Snap
-        id: pack
         working-directory: snapbuild
         shell: bash
         run: |
@@ -71,13 +85,14 @@ jobs:
           sudo snapcraft pack --destructive-mode --verbosity=brief
           f="$(ls -1 ./*.snap | head -n1)"
           [ -n "$f" ] || { echo "::error::snapcraft produced no .snap"; exit 1; }
-          # snapcraft ran as root, so the file is root's: hand it back (this is what fixes "chmod: Operation not permitted")
+          # snapcraft ran as root, so the file is root's: hand it back to the runner user (this is what fixes "Operation not permitted")
           sudo chown "$(id -u):$(id -g)" "$f"
           chmod a+r "$f"
           mkdir -p ../staged && mv "$f" ../staged/
           ls -l ../staged
 
-      - uses: actions/upload-artifact@v7
+      - name: Upload the file (artifact pkg-snap-${{ matrix.arch }})
+        uses: actions/upload-artifact@v7
         with:
           name: pkg-snap-${{ matrix.arch }}
           path: staged/*.snap

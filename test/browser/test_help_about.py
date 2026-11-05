@@ -10,10 +10,10 @@ with sync_playwright() as p:
     pg.click('[data-m="help"]'); pg.wait_for_selector('#help-doc')
     assert pg.evaluate("U.page") == 'help' and pg.evaluate("document.body.classList.contains('on-help')")
     heads = pg.evaluate("[...document.querySelectorAll('.help-s h2')].map(h=>h.textContent)")
-    assert len(heads) == 26, heads
+    assert len(heads) == 30, heads
     need = ['Getting started', 'Navigating', 'Timetable', 'matrix', 'Selecting several', 'Attachments', 'Habits', 'history graph', 'Time, dates', 'Reminders', 'Appearance', 'animated background', 'Keyboard, mouse', 'backups and sync', 'Common problems', 'About, source']
     for n in need: assert any(n.lower() in h.lower() for h in heads), n
-    assert pg.evaluate("document.querySelectorAll('.help-toc a').length") == 26
+    assert pg.evaluate("document.querySelectorAll('.help-toc a').length") == 30
     # contents link scrolls to the section and moves focus there
     pg.click('.help-toc a[data-t="h-habits"]'); pg.wait_for_timeout(1200)
     assert pg.evaluate("document.activeElement.closest('section')?.id") == 'h-habits' and pg.evaluate("document.getElementById('h-habits').getBoundingClientRect().top") < 300
@@ -38,7 +38,7 @@ with sync_playwright() as p:
     pages = int(re.search(r'Pages:\s+(\d+)', info).group(1)); assert 3 <= pages <= 16, f'{pages} pages'
     ptxt = subprocess.run(['pdftotext', '-layout', str(out), '-'], capture_output=True, text=True).stdout
     per_page = [len(x.strip()) for x in ptxt.split('\f') if x is not None][:pages]
-    assert all(n > 150 for n in per_page), f'a nearly blank page: {per_page}'
+    assert all(n > 150 for n in per_page[:-1]) and per_page[-1] > 20, f'a nearly blank page: {per_page}'  # the last page may be a short tail
     norm = lambda s: re.sub(r'\W+', ' ', s).lower()
     pdf_words, dom_words = set(norm(ptxt).split()), norm(pg.evaluate("document.querySelector('#help-doc').innerText")).split()
     missing = sorted({w for w in dom_words if w not in pdf_words and len(w) > 2})
