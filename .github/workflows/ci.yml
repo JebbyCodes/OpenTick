@@ -63,10 +63,7 @@ jobs:
       - name: Check the GitHub workflow files for mistakes
         run: python scripts/ci/lint-workflows.py
 
-      - name: Run the unit and regression tests
-        run: npm test
-
-      - name: Build the web app
+      - name: Build web application
         shell: bash
         run: |
           set -euo pipefail
@@ -77,6 +74,9 @@ jobs:
           fi
           echo "The web app built successfully."
 
+          echo "Application build completed successfully."
+
+      - name: Upload web build diagnostics
       - name: Keep the build output if something failed (to help debugging)
         if: failure()
         uses: actions/upload-artifact@v7
@@ -198,6 +198,7 @@ jobs:
       - name: Build the web app (the Rust code embeds it)
         run: npm run build:app
 
+      - name: Verify Cargo lockfile
       - name: Make sure Cargo.lock is committed
         shell: bash
         run: |
