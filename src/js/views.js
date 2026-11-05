@@ -109,6 +109,11 @@ const listIcon = (o, n = 18) => { const i = o && o.icon; return i && IC[i] ? ic(
 const U = { projList: {}, tagSel: [], tagMode: 'all', hist: { acts: [], kinds: [], q: '', sort: 'new', shown: 150 },  page: 'tasks', nav: 'today', q: '', sel: null, calD: new Date(), fx: [], showDone: {}, drag: null, _rn: null, ttDate: null, ttTray: null, ttV: null };
 const SMART = [['inbox', 'Inbox', 'inbox'], ['today', 'Today', 'sun'], ['tomorrow', 'Tomorrow', 'sunrise'], ['week', 'Next 7 Days', 'calendar'], ['all', 'All', 'layers']];
 const PAGES = [['home', 'Projects', 'dashboard'], ['tasks', 'Tasks', 'check-circle'], ['notes', 'Notes', 'notes'], ['calendar', 'Calendar', 'calendar'], ['timetable', 'Timetable', 'table'], ['gantt', 'Gantt', 'gantt'], ['matrix', 'Matrix', 'grid'], ['habits', 'Habit', 'activity'], ['focus', 'Focus', 'clock'], ['templates', 'Templates', 'copy'], ['countdowns', 'Countdowns', 'hourglass'], ['zones', 'Time zones', 'globe'], ['kanban', 'Boards', 'columns']];
+// The sidebar and the phone tab bar show SECTIONS; each section groups related views (the pages above, whose ids are what everything else
+// uses: shortcuts, widgets, links, settings). A slim switcher under the page header moves between a section's views.
+const SECTIONS = [['home', 'Projects', 'dashboard', ['home']], ['tasks', 'Tasks', 'check-circle', ['tasks', 'kanban', 'matrix', 'gantt']], ['notes', 'Notes', 'notes', ['notes', 'templates']], ['calendar', 'Calendar', 'calendar', ['calendar', 'timetable', 'countdowns', 'zones']], ['habits', 'Habits', 'activity', ['habits', 'focus']]];
+// how a view is named inside its section: [label, icon]
+const VIEW_TAB = { home: ['Projects', 'dashboard'], tasks: ['List', 'list'], kanban: ['Board', 'columns'], matrix: ['Matrix', 'grid'], gantt: ['Timeline', 'gantt'], notes: ['Notes', 'notes'], templates: ['Templates', 'copy'], calendar: ['Month', 'calendar'], timetable: ['Timetable', 'table'], countdowns: ['Countdowns', 'hourglass'], zones: ['Time zones', 'globe'], habits: ['Habits', 'activity'], focus: ['Focus', 'clock'] };
 const FLAT = ['done', 'trash', 'wontdo', 'search'];
 // inline markdown in titles, never as links (rows are click targets)
 const FULLDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -249,8 +254,16 @@ function groupTasks(a, gOverride) {
 const canDrag = () => S.settings.sort === 'manual' && sortDir() === 'asc' && S.settings.group === 'none' && U.page === 'tasks' && !U.q && !FLAT.includes(U.nav);
 
 /* ---------- shell ---------- */
-const topHtml = (title, tools = '') => `<header class="top"><button class="ib burger" data-act="burger" aria-label="Menu">${ic('menu', 22)}</button><h1>${title}</h1><div class="tools">${tools}</div><button class="ib pt pt-det" data-act="uitoggle" data-k="detail" title="Show / hide task details  ]" aria-label="Show or hide the task details">${ic('panel-right', 20)}</button></header>`;
+// the view switcher under a page's header: only for a section with more than one view showing
+function vtabsHtml() {
+  const sec = typeof secOf === 'function' ? secOf(U.page) : null; if (!sec) return '';
+  const vs = viewsOf(sec); if (vs.length < 2) return '';
+  return `<nav class="vtabs" role="tablist" aria-label="${esc(SECTIONS.find(s => s[0] === sec)[1])} views">${vs.map(k => `<button role="tab" class="${U.page === k ? 'on' : ''}" aria-selected="${U.page === k}" data-act="page" data-page="${k}">${ic(VIEW_TAB[k][1], 15)}<span>${esc(VIEW_TAB[k][0])}</span></button>`).join('')}</nav>`;
+}
+const topHtml = (title, tools = '') => vtabsHtml() ? topHead(title, tools) + vtabsHtml() : topHead(title, tools);
+const topHead = (title, tools = '') => `<header class="top"><button class="ib burger" data-act="burger" aria-label="Menu">${ic('menu', 22)}</button><h1>${title}</h1><div class="tools">${tools}</div><button class="ib pt pt-det" data-act="uitoggle" data-k="detail" title="Show / hide task details  ]" aria-label="Show or hide the task details">${ic('panel-right', 20)}</button></header>`;
 function render() {
+  { const s = typeof secOf === 'function' ? secOf(U.page) : null; if (s) (U.secLast = U.secLast || {})[s] = U.page; } // a section reopens on the view you last used in it
   document.body.classList.toggle('on-help', U.page === 'help'); // the print rules for the Help page are keyed on this
   if (typeof WIDGET !== 'undefined' && WIDGET) return renderWidget();
   if (U.gFull && U.page !== 'gantt') { U.gFull = false; document.body.classList.remove('gtfull'); try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) { /* not in full screen */ } }
@@ -261,9 +274,8 @@ function render() {
 // phone navigation: the first views as bottom tabs, "More" opens the full menu
 function renderTabbar() {
   const el = $('#tabbar'); if (!el) return;
-  const shown = pagesShown(), main = shown.slice(0, 4), cur = PAGES.find(p => p[0] === U.page);
-  const items = main.some(p => p[0] === U.page) || !cur ? main : [...main.slice(0, 3), cur];
-  el.innerHTML = items.map(([k, n, i]) => `<button class="${U.page === k ? 'on' : ''}" data-act="page" data-page="${k}">${ic(i, 22)}<small>${n}</small></button>`).join('') + `<button data-act="burger">${ic('menu', 22)}<small>More</small></button>`;
+  const items = sectionsShown();
+  el.innerHTML = items.map(([k, n, i]) => `<button class="${secOf(U.page) === k ? 'on' : ''}" data-act="page" data-page="${sectionTarget(k)}" data-sec="${k}">${ic(i, 22)}<small>${n}</small></button>`).join('') + `<button data-act="burger">${ic('menu', 22)}<small>More</small></button>`;
 }
 function renderTimetable() { schoolOn() ? renderSchool() : renderTimetablePlan(); }
 function renderMain() { if (typeof WIDGET !== 'undefined' && WIDGET) return renderWidget(); ({ home: renderHome, tasks: renderTasks, notes: renderNotes, templates: renderTemplates, calendar: renderCal, timetable: renderTimetable, gantt: renderGantt, matrix: renderMatrix, habits: renderHabits, help: renderHelp, focus: renderFocus, history: renderHistory, countdowns: renderCountdowns, zones: renderZones, kanban: renderKanbanPage })[U.page](); fxFlush(); if (typeof batchPaint === 'function') batchPaint(); }
@@ -294,7 +306,7 @@ function renderSide() {
   $('#side').innerHTML = `
 <div class="brand">${logoHtml(28)}<span class="bn"><b>OpenTick</b><small class="ver" title="Version ${esc(APP_VERSION)}">v${esc(APP_VERSION)}</small></span><button class="ib" data-act="uitoggle" data-k="side" title="${S.settings.ui.side ? 'Hide sidebar' : 'Dock sidebar'}">${ic('panel-left', 18)}</button><button class="ib" data-act="settings" title="Settings">${ic('sliders', 18)}</button></div>
 <div class="search">${ic('search', 16)}<input id="q" placeholder="Search" autocomplete="off"></div>
-<div class="pages">${pagesGrid().map(([k, n, i]) => `<button class="pg${U.page === k ? ' on' : ''}" data-act="page" data-page="${k}" title="${n} — drag to reorder" draggable="true">${ic(i, 20)}<small>${n}</small></button>`).join('')}${pagesMoreBtn()}</div>
+<div class="pages">${pagesGrid().map(([k, n, i]) => `<button class="pg${secOf(U.page) === k ? ' on' : ''}" data-act="page" data-page="${sectionTarget(k)}" data-sec="${k}" title="${n} — drag to reorder" draggable="true">${ic(i, 20)}<small>${n}</small></button>`).join('')}${pagesMoreBtn()}</div>
 <div class="scroll">
 ${SMART.map(([k, n, i]) => item(k, n, i, null, openCount(k))).join('')}
 ${sec('lists', 'Lists', `<button class="ib sm" data-act="addlist" title="New list" aria-label="New list">${ic('plus', 14)}</button>`)}

@@ -7,7 +7,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const res = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'src-tauri', 'android-widgets', 'res');
-mkdirSync(join(res, 'layout'), { recursive: true }); mkdirSync(join(res, 'xml'), { recursive: true }); mkdirSync(join(res, 'drawable'), { recursive: true });
+mkdirSync(join(res, 'raw'), { recursive: true }); mkdirSync(join(res, 'layout'), { recursive: true }); mkdirSync(join(res, 'xml'), { recursive: true }); mkdirSync(join(res, 'drawable'), { recursive: true });
 const NS = 'xmlns:android="http://schemas.android.com/apk/res/android"';
 const w = (rel, text) => writeFileSync(join(res, rel), text);
 const A = o => Object.entries(o).map(([k, v]) => (k.startsWith('xmlns') ? `${k}="${v}"` : `android:${k}="${v}"`)).join(' ');
@@ -48,7 +48,7 @@ const tBody = lin({ layout_height: M, orientation: 'vertical', padding: '6dp' },
 w('layout/ot_widget_tasks.xml', `<?xml version="1.0" encoding="utf-8"?>\n` + el('FrameLayout', { 'xmlns:android': 'http://schemas.android.com/apk/res/android', layout_width: M, layout_height: M }, iv('ot_bg', { w: M, h: M, fit: true, src: 'ot_widget_bg' }) + tBody));
 w('xml/ot_widget_tasks_info.xml', info('tasks', 4, 3, 250, 110));
 
-function info(kind, cx, cy, minW, minH, extra = '') { return `<?xml version="1.0" encoding="utf-8"?>\n<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"\n    android:minWidth="${minW}dp"\n    android:minHeight="${minH}dp"\n    android:minResizeWidth="180dp"\n    android:minResizeHeight="110dp"\n    android:targetCellWidth="${cx}"\n    android:targetCellHeight="${cy}"\n    android:updatePeriodMillis="1800000"\n    android:initialLayout="@layout/ot_widget_${kind}"\n    android:resizeMode="horizontal|vertical"\n    android:widgetCategory="home_screen"${extra}\n    android:description="@string/ot_widget_${kind}_desc" />\n`; }
+function info(kind, cx, cy, minW, minH, extra = '') { const rw = Math.min(180, minW), rh = Math.min(110, minH); return `<?xml version="1.0" encoding="utf-8"?>\n<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"\n    android:minWidth="${minW}dp"\n    android:minHeight="${minH}dp"\n    android:minResizeWidth="${rw}dp"\n    android:minResizeHeight="${rh}dp"\n    android:targetCellWidth="${cx}"\n    android:targetCellHeight="${cy}"\n    android:updatePeriodMillis="1800000"\n    android:initialLayout="@layout/ot_widget_loading"\n    android:previewLayout="@layout/ot_widget_loading"\n    android:resizeMode="horizontal|vertical"\n    android:widgetCategory="home_screen"${extra}\n    android:description="@string/ot_widget_${kind}_desc" />\n`; }
 
 // lists
 w('layout/ot_widget_lists.xml', root('ot_ls', header('ot_ls', { title: 'Lists', addDesc: 'New task' }) + empty('ot_ls') + rows('ot_ls', 9, '38dp', n => hz({}, iv(`ot_ls_k${n}`, { w: '12dp', h: '12dp', src: 'ot_widget_dot' }) + tv(`ot_ls_n${n}`, { w: '0dp', weight: 1, size: 14, x: { layout_marginStart: '10dp' } }) + tv(`ot_ls_l${n}`, { size: 11, bold: true, x: { layout_marginEnd: '8dp' } }) + tv(`ot_ls_c${n}`, { size: 13 }))) + more('ot_ls')));
@@ -88,6 +88,15 @@ w('layout/ot_widget_focus.xml', root('ot_fc', header('ot_fc', { title: 'Focus', 
   + frame({ layout_height: '0dp', layout_weight: '1' }, iv('ot_fc_ring', { w: M, h: M, x: { padding: '6dp' } }) + el('Chronometer', { id: '@+id/ot_fc_time', layout_width: M, layout_height: M, gravity: 'center', textSize: '28sp', textStyle: 'bold', visibility: 'gone' }) + tv('ot_fc_text', { w: M, h: M, size: 28, bold: true, gravity: 'center' }))
   + frame({ id: '@+id/ot_fc_btnf', layout_height: '40dp', layout_margin: '4dp' }, iv('ot_fc_btnbg', { w: M, h: M, fit: true, src: 'ot_widget_row' }) + tv('ot_fc_btn', { w: M, h: M, size: 14, bold: true, gravity: 'center' }))));
 w('xml/ot_widget_focus_info.xml', info('focus', 2, 3, 130, 180));
+
+// What a widget shows before the app has filled it in, and when filling it in failed: one small layout that cannot go wrong (a plain card and a
+// line of text), so a home screen never has to build a big layout just to show "loading". The text is set from Kotlin; the colours here are the
+// default theme so it looks right even if nothing could be read.
+w('layout/ot_widget_loading.xml', `<?xml version="1.0" encoding="utf-8"?>\n` + el('FrameLayout', { 'xmlns:android': 'http://schemas.android.com/apk/res/android', id: '@+id/ot_ld_root', layout_width: M, layout_height: M },
+  iv('ot_ld_bg', { w: M, h: M, fit: true, src: 'ot_widget_bg_loading' }) + tv('ot_ld_text', { w: M, h: M, size: 13, gravity: 'center', multi: true, x: { padding: '12dp', textColor: '#FFEBDBB2', text: 'OpenTick' } })));
+w('drawable/ot_widget_bg_loading.xml', `<?xml version="1.0" encoding="utf-8"?>\n<shape ${NS} android:shape="rectangle">\n    <solid android:color="#FF282828" />\n    <corners android:radius="22dp" />\n</shape>\n`);
+// keeps every widget view, layout and drawable by name when a release build shrinks or renames resources (Kotlin looks the repeated rows up by name)
+w('raw/ot_widget_keep.xml', `<?xml version="1.0" encoding="utf-8"?>\n<resources xmlns:tools="http://schemas.android.com/tools"\n    tools:keep="@layout/ot_widget_*,@id/ot_*,@drawable/ot_widget_*,@drawable/ic_stat_opentick,@xml/ot_widget_*,@string/ot_widget_*"\n    tools:shrinkMode="safe" />\n`);
 
 // the quick-add bar keeps its own small layout; drawables used above
 w('drawable/ot_widget_row.xml', `<?xml version="1.0" encoding="utf-8"?>\n<shape ${NS} android:shape="rectangle">\n    <solid android:color="#FFFFFFFF" />\n    <corners android:radius="12dp" />\n</shape>\n`);

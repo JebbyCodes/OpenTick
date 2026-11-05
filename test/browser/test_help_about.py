@@ -38,7 +38,7 @@ with sync_playwright() as p:
     pages = int(re.search(r'Pages:\s+(\d+)', info).group(1)); assert 3 <= pages <= 16, f'{pages} pages'
     ptxt = subprocess.run(['pdftotext', '-layout', str(out), '-'], capture_output=True, text=True).stdout
     per_page = [len(x.strip()) for x in ptxt.split('\f') if x is not None][:pages]
-    assert all(n > 150 for n in per_page), f'a nearly blank page: {per_page}'
+    assert all(n > 150 for n in per_page[:-1]) and per_page[-1] > 20, f'a nearly blank page: {per_page}'  # the last page may be a short tail
     norm = lambda s: re.sub(r'\W+', ' ', s).lower()
     pdf_words, dom_words = set(norm(ptxt).split()), norm(pg.evaluate("document.querySelector('#help-doc').innerText")).split()
     missing = sorted({w for w in dom_words if w not in pdf_words and len(w) > 2})

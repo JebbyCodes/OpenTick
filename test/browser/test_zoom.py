@@ -4,7 +4,7 @@ from lib import *
 HITS = """(()=>{const bad=[];for(const b of document.querySelectorAll('#app [data-act], #app button, #app input, #app select')){const r=b.getBoundingClientRect();
   if(r.width<4||r.height<4||r.bottom<0||r.top>innerHeight||r.right<0||r.left>innerWidth||getComputedStyle(b).visibility==='hidden')continue;
   const x=Math.min(innerWidth-1,Math.max(0,r.left+r.width/2)),y=Math.min(innerHeight-1,Math.max(0,r.top+r.height/2));let clipped=false;for(let a=b.parentElement;a&&a!==document.body;a=a.parentElement){const cs=getComputedStyle(a);if(cs.overflowX!=='visible'||cs.overflowY!=='visible'){const q=a.getBoundingClientRect();if(x<q.left||x>q.right||y<q.top||y>q.bottom){clipped=true;break}}}if(clipped)continue;const e=document.elementFromPoint(x,y);
-  if(e&&!(b===e||b.contains(e)||e.contains(b)||(e.closest&&e.closest('label')&&e.closest('label').contains(b))))bad.push(b.outerHTML.slice(0,70))}return bad.slice(0,5)})()"""
+  if(e&&!(b===e||b.contains(e)||e.contains(b)||(e.closest&&e.closest('label')&&e.closest('label').contains(b))))bad.push(b.outerHTML.slice(0,70))}return bad})()"""
 with sync_playwright() as p:
     for name, mobile, w, h in (('desktop', False, 1280, 800), ('phone', True, 390, 780), ('small phone', True, 320, 640)):
         for z in (0.8, 1.5):
@@ -21,7 +21,7 @@ with sync_playwright() as p:
                 ref_over = ref.evaluate("document.documentElement.scrollWidth") > round(w / z) + 1  # a real window this narrow overflows too: not a zoom problem
                 assert ref_over or pg.evaluate("document.documentElement.scrollWidth") <= w + 1, f'{name} {z} {page}: sideways overflow that a real {round(w/z)}px window does not have'
                 if ref_over: print(f'  note: {page} also overflows sideways in a real {round(w/z)}px-wide window (effective width of {name} at {int(z*100)}%)')
-                bad = [x for x in pg.evaluate(HITS) if x not in base]; assert not bad, f'{name} {z} {page}: controls under other pixels, but not in a real {round(w/z)}px window: {bad}'
+                bad = [x for x in pg.evaluate(HITS) if x not in base]; assert not bad, f'{name} {z} {page}: controls under other pixels, but not in a real {round(w/z)}px window: {bad[:5]}'
                 # same pane layout as the real window (main area width in layout px)
                 a1, a2 = pg.evaluate("document.querySelector('#main').getBoundingClientRect().width / Z.z"), ref.evaluate("document.querySelector('#main').getBoundingClientRect().width")
                 assert abs(a1 - a2) <= 2, f'{name} {z} {page}: main area is {a1:.0f}px layout, a real window gives {a2:.0f}'
@@ -58,7 +58,7 @@ with sync_playwright() as p:
         assert pg.evaluate("getT('t1').dur") == 90, f'zoom {z}: dragged one hour, duration is {pg.evaluate("getT(\'t1\').dur")} (expected 90)'
         assert not pg.errs, pg.errs; b.close()
     # matrix touch drag at 150% on a phone
-    b, ctx, pg = launch(p, mobile=True); pg.evaluate("S.settings.ui.scale=1.5; applyScale(); U.page='matrix'; render()"); pg.wait_for_selector('.matrix .task'); cdp = ctx.new_cdp_session(pg)
+    b, ctx, pg = launch(p, mobile=True, w=390, h=860); pg.evaluate("S.settings.ui.scale=1.5; applyScale(); U.page='matrix'; render()"); pg.wait_for_selector('.matrix .task'); cdp = ctx.new_cdp_session(pg)
     tid = pg.locator('.quad[data-qi="0"] .task').first.get_attribute('data-id'); pg.evaluate("document.querySelector('.matrix').scrollTop=0")
     q1 = pg.locator('.quad[data-qi="1"] .qb').bounding_box(); x, y = center(pg, f'.task[data-id="{tid}"]')
     touch(cdp, 'touchStart', x, y); pg.wait_for_timeout(650)

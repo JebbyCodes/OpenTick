@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.6.1
+
+**App**
+- Fixed: **the time was missing on phones.** One style rule hid the clock on every screen narrower than 820 px, so only the sync cloud was left. The date and time show again beside the cloud (as "Wed 4 Nov" on a phone), and tapping the clock opens Time zones; its tip lists the time in each of your saved places.
+- Fixed: the **Shift + L** key hint on the "+" beside Lists was drawn inside a button too small for it and sliced off by the sidebar. Small icon buttons no longer carry key caps (the tooltip names the shortcut instead), and a test checks that no hint leaves the window or the sidebar.
+- Fixed: **no more sideways wobble.** Lists and panels that scroll up and down no longer move left and right (or stretch at the edge), and strips that scroll sideways (view switcher, boards, tabs, the time-zone grid) no longer drag the page up and down.
+- Changed: **less clutter, one place for each job.** The 13 views are grouped into five sections. **Tasks** holds the List, Board, Matrix and Timeline; **Notes** holds Notes and Templates; **Calendar** holds the Month, Timetable, Countdowns and Time zones; **Habits** holds Habits and Focus; Projects stays on its own. A slim switcher under each page's header moves between its views, a section reopens on the view you used last, and the phone tab bar now shows all five sections instead of four plus "More". Nothing was removed: every view keeps its shortcuts, links, widgets and saved data.
+- Changed: keys **1–5** go to the sections, **V** / **Shift + V** step through the views of the section you are in, and the command palette still lists every view by name. Settings → Layout lists the sections, lets you hide single views and reorder sections (drag the section buttons too).
+- Time zones are now part of the clock and the Calendar: open them from the clock, from Calendar → Time zones, or from the timetable's second-zone button.
+
+**Android widgets**
+- Fixed (hardened): widgets showing "Can't load widget". This could not be reproduced without a device, so every way a home screen can refuse a widget was closed: a widget that cannot be drawn now shows a small plain card with the reason and opens OpenTick when tapped (before it fell back to a layout of unfilled white shapes); the widgets start from one small initial and preview layout that cannot fail; the Focus widget's resize limit was larger than its width; widget views and layouts are kept by name in release builds; the background service always puts up a notification in time and can no longer take the app (and its widgets) down; and a test now checks every widget call reaches a view of the right type.
+
+**Sync and encryption**
+- Nothing about the sync file or encryption changed (still schema 6); layout choices stay on the device. A new test goes through every kind of data you can make (including countdowns, time zones, boards and templates), syncs it between two devices with encryption on, and checks nothing is readable in the file.
+
 ## 0.6.0 (unreleased)
 
 **App**

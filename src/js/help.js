@@ -12,8 +12,8 @@ const HELP = [
 <li>Look at the same work in other ways with the view buttons: Calendar, Timetable, Gantt, Matrix.</li></ol>
 <p>Everything is saved as you type. Settings (the sliders icon, or <b>More</b> on a phone) holds appearance, clock, notifications, backups and sync.</p>`],
   ['nav', 'Navigating the app', `
-<p><b>Desktop and tablets:</b> the sidebar lists the smart views (Inbox, Today, Tomorrow, Next 7 Days, All), your lists and projects, and Completed, Won’t Do, Trash and History. The row of view buttons above it switches between Tasks, Notes, Calendar, Timetable, Gantt, Matrix, Habit and Focus.</p>
-<p><b>Phones:</b> a bar along the bottom has Tasks, Notes, Calendar, Timetable and <b>More</b> (the rest of the views). The ☰ button at the top opens the sidebar. Narrow windows hide the details panel; opening a task shows it full screen.</p>
+<p><b>Desktop and tablets:</b> the sidebar lists the smart views (Inbox, Today, Tomorrow, Next 7 Days, All), your lists and projects, and Completed, Won’t Do, Trash and History. The row above it has five sections: <b>Projects</b>, <b>Tasks</b> (List, Board, Matrix, Timeline), <b>Notes</b> (Notes, Templates), <b>Calendar</b> (Month, Timetable, Countdowns, Time zones) and <b>Habits</b> (Habits, Focus). A section with more than one view shows small tabs under its title to switch between them; the section remembers the view you used last. ${kbd('1')}–${kbd('5')} open the sections, and ${kbd('V')} / ${kbd('Shift')}+${kbd('V')} step through the views of the current one.</p>
+<p><b>Phones:</b> a bar along the bottom has the sections (Tasks, Notes, Calendar and so on) and <b>More</b>. The tabs under the title switch views within a section. The ☰ button at the top opens the sidebar. Narrow windows hide the details panel; opening a task shows it full screen.</p>
 <p>Search with the box in the sidebar, or press ${kbd('/')} or ${kbd('Ctrl')}+${kbd('K')}. ${kbd('Ctrl')}+${kbd('Shift')}+${kbd('P')} opens the command palette, which runs most actions by name, including opening this Help.</p>`],
   ['timetable', 'Timetable', `
 <p>The timetable shows your weekly <b>slots</b> (repeating blocks such as lessons or shifts) and any <b>task that has a time</b> on one grid. Choose <b>Day</b>, <b>3 days</b> or <b>Week</b> at the top; the arrows and <b>Today</b> move through time.</p>
@@ -101,7 +101,7 @@ const HELP = [
 <li>Right-click a task and choose <b>Countdown to this task</b>.</li>
 <li>Countdowns sync and are encrypted with the rest of your data.</li></ul>`],
   ['timezones', 'Time zones', `
-<p>The <b>Time zones</b> page lays one day out as a row of hours for each place you saved. Hours inside working hours (Settings are on the page) are shaded, and hours when <i>everyone</i> is working are marked. Click an hour to choose it, press the clock on a row to read the day from that place's clock, then <b>Make a task</b>, <b>Make a countdown</b> or <b>Copy</b> the times for a message.</p>
+<p>Open <b>Time zones</b> from the <b>Calendar</b> section (its Time zones tab), by pressing the <b>clock</b> at the top, or from the timetable’s second-zone button. The page lays one day out as a row of hours for each place you saved. Hours inside working hours (Settings are on the page) are shaded, and hours when <i>everyone</i> is working are marked. Click an hour to choose it, press the clock on a row to read the day from that place's clock, then <b>Make a task</b>, <b>Make a countdown</b> or <b>Copy</b> the times for a message.</p>
 <ul><li>The timetable can show a second zone beside the hours (the globe button, or Timetable settings).</li>
 <li>A task planned in a zone (the <b>Planned in</b> row in its details) keeps that moment. If you travel, its date and time on this device shift with you, while the planned time stays put; reminders follow it. Repeats keep the zone's own wall time across daylight-saving changes.</li>
 <li>Daylight-saving changes come from your device's own time zone data, so they are right without any download.</li></ul>`],
@@ -124,6 +124,7 @@ const HELP = [
 <tr><td>Command palette</td><td>${kbd('Ctrl')}+${kbd('Shift')}+${kbd('P')}</td><td>–</td><td>–</td></tr>
 <tr><td>New task</td><td>${kbd('N')}</td><td>Add box</td><td>Add box</td></tr>
 <tr><td>Hide / show sidebar, details</td><td>${kbd('[')} and ${kbd(']')}</td><td>Panel buttons</td><td>☰ button</td></tr>
+<tr><td>Sections / views</td><td>${kbd('1')}–${kbd('5')}, ${kbd('V')} / ${kbd('Shift')}+${kbd('V')}</td><td>Section buttons and tabs</td><td>Bottom bar and tabs</td></tr>
 <tr><td>Focus mode</td><td>${kbd('\\')}</td><td>Focus view</td><td>Focus view</td></tr>
 <tr><td>All shortcuts</td><td>${kbd('?')}</td><td>–</td><td>–</td></tr>
 <tr><td>Select several tasks</td><td>Button, then ${kbd('Esc')} to leave</td><td>Check-square button</td><td>Press and hold, or the button</td></tr>

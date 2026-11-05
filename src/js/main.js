@@ -321,6 +321,8 @@ ${privacySettingsHtml()}`)
       const rs = e.target.closest('[data-snaprs]'), sd = e.target.closest('[data-snapdl]');
       if (rs) { if (await askConfirm('Restore this backup? Your current data is backed up first, so you can come back.', 'Restore')) { try { await snapRestore(rs.dataset.snaprs); closeModal(); U.nav = 'today'; render(); toast('Backup restored'); } catch (err) { toast(err.message); } } return; }
       if (sd) { snapDownload(sd.dataset.snapdl); return; }
+      const smv = e.target.closest('[data-secmv]');
+      if (smv) { uiMoveSection(smv.dataset.secmv, +smv.dataset.d); const b = $('#sbv', m); if (b) b.innerHTML = uiSidebarSettings(); return; }
       const mvb = e.target.closest('[data-pgmv]');
       if (mvb) { uiMovePage(mvb.dataset.pgmv, +mvb.dataset.d); const b = $('#sbv', m); if (b) b.innerHTML = uiSidebarSettings(); return; }
       const th = e.target.closest('[data-th]');
@@ -732,7 +734,7 @@ const ACT = {
   tagtoggle: el => { const g = el.dataset.tag; U.tagSel = U.tagSel.includes(g) ? U.tagSel.filter(x => x !== g) : [...U.tagSel, g]; sfx('tick'); renderSide(); renderMain(); },
   tagmode: el => { U.tagMode = el.dataset.v; renderMain(); },
   tagclear: () => { U.tagSel = []; renderSide(); renderMain(); },
-  page: el => { if (U.bsel) { U.bsel = null; document.body.classList.remove('batch'); } U.page = el.dataset.page; U.sel = null; document.body.classList.remove('drawer'); fx('#main > *:not(.top)', 'fade'); render(); },
+  page: el => { if (U.bsel) { U.bsel = null; document.body.classList.remove('batch'); } U.page = el.dataset.page; U.sel = null; document.body.classList.remove('drawer'); fx('#main > *:not(.top):not(.vtabs)', 'fade'); render(); },
   burger: () => document.body.classList.add('drawer'),
   scrim: () => { document.body.classList.remove('drawer'); closeDetail(); },
   open: el => { U.sel = el.dataset.id; $$('.sel').forEach(x => x.classList.remove('sel')); $$(`[data-act="open"][data-id="${U.sel}"]`).forEach(x => x.classList.add('sel')); renderDetail(); },
@@ -830,7 +832,6 @@ const ACT = {
   nfmt: el => { const f = el.dataset.for; if (f && /^#[nx]-ta$/.test(f) && BE.cur && BE.cur.o.pre === f[1] && $(`#${f[1]}-ed`) && $(`#${f[1]}-ed`).classList.contains('ed-blocks') && bedFormat(el.dataset.k)) return; mdFormat(el.dataset.k, f ? $(f) : null); },
   ...NOTE_ACT,
   ...RECUR_ACT,
-  pgmore: () => { U.pgx = !U.pgx; renderSide(); },
   ...TPL_ACT,
   ...BR_ACT,
   ...CD_ACT,

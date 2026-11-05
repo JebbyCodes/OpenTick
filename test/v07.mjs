@@ -90,7 +90,7 @@ assert.ok(A.fdStatus()[1].includes('paused')); A.fdHandler({ beta: -178, gamma: 
 
 /* clock */
 A.S.settings.clock = { on: true, h24: false, sec: false }; const cp = A.clockParts(new Date(2026, 9, 12, 17, 5, 9));
-eq({ ...cp }, { time: '5:05', ap: 'PM', date: 'Monday, 12 October 2026' });
+eq({ ...cp }, { time: '5:05', ap: 'PM', date: 'Monday, 12 October 2026', short: 'Mon 12 Oct' });
 A.S.settings.clock = { on: true, h24: true, sec: true }; assert.equal(A.clockParts(new Date(2026, 9, 12, 7, 5, 9)).time, '07:05:09');
 
 /* layout regression: the sidebar / details panel can be hidden (fixed, out of flow) without #main falling into a 0px track */
