@@ -50,7 +50,7 @@ jobs:
 
       # Python is only needed by the workflow linter (it reads the YAML files with PyYAML).
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: '3.13'
 
@@ -102,7 +102,7 @@ jobs:
         uses: ./.github/actions/setup-node
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: '3.13'
 
