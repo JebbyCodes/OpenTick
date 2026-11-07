@@ -7,15 +7,15 @@ with sync_playwright() as p:
     # the Calendar: Month by default is the calendar; Week, 3 days and Day are the time grid
     pg.evaluate("U.page='calendar'; render()"); pg.wait_for_timeout(150)
     tabs = pg.evaluate("[...document.querySelectorAll('#main > .vtabs button')].map(b => b.innerText.trim())")
-    assert tabs == ['Month', 'Week', '3 days', 'Day', 'Agenda', 'Countdowns', 'Time zones'], tabs
+    assert tabs == ['Month', 'Week', '3 days', 'Day', 'Agenda', 'Classes', 'Countdowns', 'Time zones'], tabs
     pg.click('#main > .vtabs [data-v=week]'); pg.wait_for_selector('.tt-scroll'); assert pg.evaluate('U.page') == 'timetable'
     assert pg.evaluate("document.querySelector('#main > .vtabs button.on').innerText.trim()") == 'Week'
     assert pg.locator('#main > header.top [data-act=ttview], #main > header.top [data-act=calview]').count() == 0, 'the view buttons are not repeated on the toolbar'
     pg.click('#main > .vtabs [data-v="3day"]'); pg.wait_for_timeout(150); assert pg.evaluate("document.querySelectorAll('.tt-col').length") == 3
     pg.click('#main > .vtabs [data-v=month]'); pg.wait_for_timeout(150); assert pg.evaluate('U.page') == 'calendar' and pg.locator('.tt-scroll').count() == 0
     # one Add, one More: the Classes view is inside More, not a button of its own
-    assert pg.locator('[data-act=caladd]').count() == 1 and pg.locator('[data-act=calmore]').count() == 1 and pg.locator('[data-act=scmode]').count() == 0
-    pg.click('[data-act=calmore]'); assert pg.locator('.ctx-i').count() >= 2; pg.keyboard.press('Escape')
+    assert pg.locator('[data-act=caladd]').count() == 1 and pg.locator('[data-act=calmore]').count() == 1 and pg.locator('header.top [data-act=scmode]').count() == 0
+    pg.click('[data-act=calmore]'); assert pg.locator('.ctx-i').count() >= 1; pg.keyboard.press('Escape')
     # headings say what the button says
     for page, label in (('gantt', 'Timeline'), ('kanban', 'Board'), ('matrix', 'Matrix'), ('habits', 'Habits')):
         pg.evaluate(f"U.page='{page}'; render()"); pg.wait_for_timeout(100)

@@ -21,7 +21,6 @@ for (const v of ['month', 'week', '3day', 'day', 'agenda']) {
   A.calGo(v); const h = A.els['#main'].innerHTML;
   assert.ok(h.includes('caladd') && h.includes('calmore'), `${v}: one Add and one More`);
   assert.ok(h.includes('data-act="calview"') && h.includes('data-act="ttview"'), `${v}: the mode tabs are there`);
-  assert.ok(!h.includes('data-act="scmode" data-m="school"'), `${v}: the Classes switch is in More, not on the toolbar`);
 }
 // the More menu holds the rest, and only offers what applies to the view
 A.calGo('week'); assert.ok(A.calMoreItems().length >= 3); A.calGo('month'); assert.ok(A.calMoreItems().length < 6);

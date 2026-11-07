@@ -261,7 +261,7 @@ function vtabsHtml() {
   if (sec === 'calendar' && vs.includes('calendar')) { // one Calendar: Month and Agenda list tasks by date, Week / 3 days / Day are the time grid (the old Timetable)
     const cur = typeof calMode === 'function' ? calMode() : '';
     const tab = (on, act, attrs, ico, label) => `<button role="tab" class="${on ? 'on' : ''}" aria-selected="${on}" data-act="${act}" ${attrs}>${ic(ico, 15)}<span>${esc(label)}</span></button>`;
-    return `<nav class="vtabs" role="tablist" aria-label="${esc(name)} views">${CAL_MODES.map(([v, n, i, grid]) => tab(cur === v, grid ? 'ttview' : 'calview', `data-v="${v}"`, i, n)).join('')}${vs.filter(k => k !== 'calendar' && k !== 'timetable').map(k => tab(U.page === k, 'page', `data-page="${k}"`, VIEW_TAB[k][1], VIEW_TAB[k][0])).join('')}</nav>`;
+    return `<nav class="vtabs" role="tablist" aria-label="${esc(name)} views">${CAL_MODES.map(([v, n, i, grid]) => tab(cur === v, grid ? 'ttview' : 'calview', `data-v="${v}"`, i, n)).join('')}${typeof scName === 'function' && typeof schoolOn === 'function' ? tab(schoolOn() && U.page === 'timetable', 'scmode', 'data-m="school"', 'graduation', scName()) : ''}${vs.filter(k => k !== 'calendar' && k !== 'timetable').map(k => tab(U.page === k, 'page', `data-page="${k}"`, VIEW_TAB[k][1], VIEW_TAB[k][0])).join('')}</nav>`;
   }
   if (vs.length < 2) return '';
   return `<nav class="vtabs" role="tablist" aria-label="${esc(name)} views">${vs.map(k => `<button role="tab" class="${U.page === k ? 'on' : ''}" aria-selected="${U.page === k}" data-act="page" data-page="${k}">${ic(VIEW_TAB[k][1], 15)}<span>${esc(VIEW_TAB[k][0])}</span></button>`).join('')}</nav>`;
@@ -505,7 +505,6 @@ function calMoreItems() {
   const grid = calIsGrid(), tz2 = typeof tzValid === 'function' && tzValid(S.settings.tt.tz2) && S.settings.tt.tz2 !== tzLocal(), out = [];
   if (grid) out.push({ label: ttTrayOn() ? 'Hide unscheduled tasks' : 'Show unscheduled tasks', icon: 'list', run: () => ACT.tttray() }, { label: tz2 ? 'Second time zone…' : 'Add a second time zone…', icon: 'globe', run: () => ACT.tt2() });
   out.push({ label: 'Holidays and days off…', icon: 'sun', run: () => holDlg() });
-  if (typeof scName === 'function') out.push({ label: `${scName()}: lessons, exams, homework…`, icon: 'graduation', run: () => ACT.scmode({ dataset: { m: 'school' } }) });
   if (grid) out.push({ label: 'Timetable settings…', icon: 'sliders', run: () => ACT.ttset() });
   return out;
 }
