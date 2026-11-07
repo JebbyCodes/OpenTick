@@ -1792,7 +1792,7 @@ html{overscroll-behavior:none}
 .cal-sub{display:flex;align-items:center;gap:8px;padding:0 16px 8px;flex:none;min-height:24px}.cal-sub b{font-size:15px;font-weight:700;letter-spacing:-.005em;font-variant-numeric:tabular-nums}
 @media(max-width:820px){.cal-sub{padding:0 12px 6px}
   /* a very small or very zoomed phone: the header, view tabs and day strip must not squeeze the time grid away. The grid keeps a usable height and the page scrolls instead */
-  #main:has(>.tt){overflow-y:auto}#main:has(>.tt)>*{flex-shrink:0}#main>.tt{min-height:260px;flex:1 0 260px}}
+  #main:has(>.tt),#main:has(>.cal){overflow-y:auto}#main:has(>.tt)>*,#main:has(>.cal)>*{flex-shrink:0}#main>.tt{min-height:260px;flex:1 0 260px}#main>.cal{min-height:330px;flex:1 0 330px}}
 body.gtfull .vtabs,body.nfull .vtabs{display:none}
 /* on a phone an open note fills the screen; on a computer the list and the note sit side by side and the view switcher (Notes / Templates) stays */
 @media(max-width:820px){#main:has(.nt.open)>.vtabs{display:none}}
