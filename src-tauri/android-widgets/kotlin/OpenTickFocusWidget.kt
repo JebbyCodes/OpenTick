@@ -2,25 +2,22 @@ package __PACKAGE__
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
-import android.content.Intent
 import android.os.Build
 import android.os.SystemClock
 import android.widget.RemoteViews
 import org.json.JSONObject
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
 import java.util.Locale
 import __PACKAGE__.R
 
 /** The focus timer: a ring, the time left (it counts down on its own while a session runs), and today's minutes. */
 class OpenTickFocusWidget : OtBaseWidget() {
     override val layout = R.layout.ot_widget_focus
+    private val H = Hd(R.id.ot_fc_bg, R.id.ot_fc_title, R.id.ot_fc_sub, 0, 0, 0, 0, 0)
 
     override fun fill(context: Context, manager: AppWidgetManager, id: Int, rv: RemoteViews, data: JSONObject?, th: OtTheme) {
         val fc = data?.optJSONObject("fc")
         val min = fc?.optInt("min", 0) ?: 0
-        head(context, id, rv, th, "ot_fc", "Focus", "$min min today", "focus", "", "page", "focus")
+        head(context, id, rv, th, H, "Focus", "$min min today", "focus", "", "page", "focus")
         val run = fc?.optBoolean("run", false) ?: false
         val tot = maxOf(1, fc?.optInt("tot", 1500) ?: 1500)
         var left = fc?.optInt("left", tot) ?: tot

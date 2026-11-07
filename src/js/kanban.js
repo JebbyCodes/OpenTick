@@ -115,13 +115,13 @@ function kbColHtml(b, c, ci, list) {
 function renderKanbanPage() {
   const b = kbCurrent();
   if (!b) {
-    $('#main').innerHTML = topHtml('Boards', '') + `<div class="body"><div class="empty">${ic('columns', 40)}<p>A board for your tasks, with headings of your own. Pick a start, then rename, add or remove headings any time.</p><div class="knpre">${KB_PRESETS.map((p, i) => `<button class="btn" data-act="knnew" data-preset="${i}"><b>${esc(p[0])}</b><small>${esc(p[1])}</small></button>`).join('')}</div></div></div>`;
+    $('#main').innerHTML = topHtml('Board', '') + `<div class="body"><div class="empty">${ic('columns', 40)}<p>A board for your tasks, with headings of your own. Pick a start, then rename, add or remove headings any time.</p><div class="knpre">${KB_PRESETS.map((p, i) => `<button class="btn" data-act="knnew" data-preset="${i}"><b>${esc(p[0])}</b><small>${esc(p[1])}</small></button>`).join('')}</div></div></div>`;
     return;
   }
   const by = kbColumns(b), total = [...by.values()].reduce((a, l) => a + l.length, 0);
   const tabs = S.boards.map(x => `<button class="knt${x.id === b.id ? ' on' : ''}" data-act="knpick" data-id="${esc(x.id)}" style="--c:${esc(x.color)}" aria-pressed="${x.id === b.id}">${x.icon ? iconAny(x.icon, 14) : ''}<span>${esc(x.name || 'Board')}</span></button>`).join('');
   const tools = `<button class="ib" data-act="knedit" title="Board settings" aria-label="Board settings">${ic('sliders')}</button><button class="btn pri" data-act="knnew">${ic('plus', 16)}<span class="hide-m"> Board</span></button>`;
-  $('#main').innerHTML = topHtml('Boards', tools)
+  $('#main').innerHTML = topHtml('Board', tools)
     + `<div class="knbar"><div class="knts" role="tablist" aria-label="Boards">${tabs}</div><label class="knsc" title="What this board shows">${ic(b.scope.startsWith('tag:') ? 'tag' : b.scope.startsWith('project:') ? 'layers' : 'list', 14)}<select data-kns aria-label="What this board shows">${opts(scopeOptions('Everything'), b.scope)}</select></label><span class="knct">${total} card${total === 1 ? '' : 's'}</span></div>`
     + `<div class="body knbody"><div class="kn" data-board="${esc(b.id)}">${b.cols.map((c, i) => kbColHtml(b, c, i, by.get(c.id))).join('')}<div class="knc knnewc"><input class="knnew" placeholder="+ Add a heading" autocomplete="off" aria-label="Add a heading"></div></div></div>`;
 }

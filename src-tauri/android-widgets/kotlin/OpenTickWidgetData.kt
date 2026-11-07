@@ -25,6 +25,10 @@ object OtData {
     fun find(ctx: Context, name: String): File? {
         val known = synchronized(seen) { seen[name] }
         if (known != null && known.exists()) return known
+        // the usual places first (cheap): Tauri keeps the app's files in the app's files folder
+        val usual = listOfNotNull(ctx.filesDir, ctx.dataDir?.let { File(it, "files") }).map { File(it, name) }.filter { it.isFile }
+        val first = usual.maxByOrNull { it.lastModified() }
+        if (first != null) { synchronized(seen) { seen[name] = first }; return first }
         val hits = ArrayList<File>()
         val roots = listOfNotNull(ctx.filesDir, ctx.dataDir).distinct()
         for (r in roots) walk(r, 0, name, hits)

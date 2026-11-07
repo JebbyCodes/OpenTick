@@ -62,7 +62,8 @@ with sync_playwright() as p:
     # the Classes timetable (its exams and homework are ordinary tasks)
     b, ctx, pg = launch(p, mobile=False)
     n0 = pg.evaluate("S.tasks.length"); pg.evaluate("U.page='timetable'; render()"); pg.wait_for_timeout(150)
-    pg.click('[data-act=scmode][data-m=school]'); pg.click('[data-act=scsetup]'); pg.click('[data-act=sctab][data-t=subj]'); pg.click('[data-act=scadd]')
+    pg.click('[data-act=calmore]'); pg.click('.ctx-i:has-text("lessons, exams")'); pg.wait_for_selector('[data-act=scsetup]')  # the Classes view lives in the Calendar's more menu
+    pg.click('[data-act=scsetup]'); pg.click('[data-act=sctab][data-t=subj]'); pg.click('[data-act=scadd]')
     pg.fill('[data-k=name]', 'Maths'); pg.click('.mbox [data-m=save]'); pg.click('[data-act=sctab][data-t=week]'); pg.click('.sc-c >> nth=0')
     pg.select_option('[data-k=subjectId]', index=1); pg.click('.mbox [data-m=save]'); pg.wait_for_timeout(200)
     assert pg.evaluate("S.school.filter(r=>r.k==='lesson').length") == 1 and pg.locator('.sc-c.has').count() == 1

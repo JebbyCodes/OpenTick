@@ -50,6 +50,7 @@ with sync_playwright() as p:
     b, ctx, pg = launch(p, mobile=False); pg.evaluate("S.settings.scale=1.4; applyScale(1.4,{quiet:true}); U.page='timetable'; render()"); pg.wait_for_timeout(300)
     bb = pg.locator('[data-act=ttnext]').first; bb.hover(); pg.wait_for_timeout(700)
     t = pg.locator('#tip').bounding_box(); r = bb.bounding_box()
-    assert abs((t['x'] + t['width'] / 2) - (r['x'] + r['width'] / 2)) < 40 and abs(t['y'] + t['height'] - r['y']) < 40, f'tip {t} sits by its button {r} when zoomed'
+    above = abs(t['y'] + t['height'] - r['y']) < 40; below = abs(t['y'] - (r['y'] + r['height'])) < 40  # a button near the top edge gets its tip underneath
+    assert abs((t['x'] + t['width'] / 2) - (r['x'] + r['width'] / 2)) < 40 and (above or below), f'tip {t} sits by its button {r} when zoomed'
     b.close()
 print('tooltip browser tests passed')

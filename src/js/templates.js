@@ -257,6 +257,13 @@ const TPL_ACT = {
   tplopen: el => { U.tplSel = el.dataset.id; renderMain(); },
   tplback: () => { U.tplSel = null; renderMain(); },
   tplfill: el => tplFill(el.dataset.id),
+  // "New note from a template" on the Notes page: pick one, or go and make the first
+  async notetpl() {
+    if (!S.templates.length) { U.page = 'templates'; U.tplSel = null; render(); toast('Make a template first, then fill it in from here'); return; }
+    const ts = S.templates.slice().sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || (a.name || '').localeCompare(b.name || ''));
+    const i = await askMenu('New note from a template', ts.map(t => ({ label: t.name || 'Untitled template' })));
+    if (i != null) tplFill(ts[i].id);
+  },
   tpltag: el => { U.tplTag = U.tplTag === el.dataset.tag ? '' : el.dataset.tag; renderMain(); },
   tplpin: el => { const t = tplById(el.dataset.id); if (t) { t.pinned = !t.pinned; save(); renderMain(); } },
   tpldup: el => { const t = tplById(el.dataset.id); if (!t) return; const c = newTemplate({ ...JSON.parse(JSON.stringify(t)), id: uid(), name: (t.name || 'Template') + ' copy', pinned: false, created: Date.now(), updated: Date.now() }); S.templates.push(c); save(); U.tplSel = c.id; renderMain(); toast('Duplicated'); },

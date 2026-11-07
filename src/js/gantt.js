@@ -130,7 +130,7 @@ function renderGantt() {
   const old = $('.gt-wrap'), keep = old && !U.gScrollReset ? [old.scrollLeft, old.scrollTop] : null; U.gScrollReset = false;
   const trayHtml = gtTrayOn() ? `<aside class="gt-tray"><div class="rs rs-l" data-rs="gtray" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize · double-click to reset"></div><div class="trh"><b>Unscheduled</b><small>${undatedL.length}</small><button class="ib sm" data-act="uitoggle" data-k="gtray" title="Hide this panel">${ic('x', 14)}</button></div><div class="trl">${undatedL.slice(0, 120).map(t => `<div class="tri p${t.priority}${U.sel === t.id ? ' sel' : ''}" draggable="true" data-act="open" data-id="${t.id}"><div class="ttl">${titleHtml(t)}</div>${U.gList === 'all' ? `<div class="meta"><span class="ln"><i style="background:${listOf(t.listId).color}"></i>${esc(listOf(t.listId).name)}</span></div>` : ''}</div>`).join('') || '<p class="hint">Every open task has a date.</p>'}</div><p class="hint">Drag a task onto the timeline to schedule it.</p></aside>` : '';
   if (!rows.some(r => r.k !== 'list')) {
-    $('#main').innerHTML = topHtml('Gantt', tools) + `<div class="gt-body"><div class="empty">${ic('table', 44)}<p>No tasks with dates yet.<br>Give a task a start or due date (task details → “Gantt dates”), or drag one from the panel.</p></div>${trayHtml}</div>`;
+    $('#main').innerHTML = topHtml('Timeline', tools) + `<div class="gt-body"><div class="empty">${ic('table', 44)}<p>No tasks with dates yet.<br>Give a task a start or due date (task details → “Gantt dates”), or drag one from the panel.</p></div>${trayHtml}</div>`;
     return;
   }
   const min = addDays(pYmd(all.reduce((a, b) => (a < b ? a : b))), -3), max = addDays(pYmd(all.reduce((a, b) => (a > b ? a : b))), 10), span = dayDiff(ymd(max), ymd(min)) + 1, W = Math.round(span * ppd);
@@ -175,7 +175,7 @@ function renderGantt() {
     return `<div class="gt-r${r.k === 'sub' ? ' gt-s' : ''}${isT && U.sel === r.t.id ? ' sel' : ''}${d.done ? ' fin' : ''}" data-act="open" data-id="${id}" data-i="${i}"><div class="gt-n" style="padding-left:${10 + (r.lv || 0) * 16}px">${r.kids ? `<button class="ib sm" data-act="gtog" data-key="${key}">${ic(U.gcol.has(key) ? 'right' : 'down', 14)}</button>` : '<span class="gt-sp"></span>'}<span class="gt-tt">${isT ? titleHtml(r.t) : esc(r.s.title)}</span>${colHtml(k => (k === 'status' ? `<em class="st ${st[1]}">${esc(st[0])}</em>` : esc(String(gtCol(k)[2](d, x)))))}</div><div class="gt-t" style="width:${W}px;${bg}">${bars}<u style="left:${tX}px"></u></div></div>`;
   }).join('');
   const heads = cols.map(k => `<span class="gt-c gt-ch" draggable="true" data-gcol="${k}" style="width:${gtCol(k)[1]}px" title="Click for options · drag to reorder" data-act="gcolmenu">${esc(gtCol(k)[0])}</span>`).join('');
-  $('#main').innerHTML = topHtml('Gantt', tools) + (g.legend === false ? '' : gtLegend(g, rows))
+  $('#main').innerHTML = topHtml('Timeline', tools) + (g.legend === false ? '' : gtLegend(g, rows))
     + `<div class="gt-body"><div class="gt-wrap${tbl ? '' : ' tbl-off'}${lanes ? ' lanes' : ''}" style="--gn:${tbl ? nameW : 30}px;--gr:${lanes ? 44 : 30}px"><div class="gt-in" data-w="${W}" style="width:calc(var(--gn) + ${W}px)"><div class="gt-h"><div class="gt-n gt-hn"><span class="gt-tt">Task</span>${heads}<i class="rs rs-r" data-rs="gname" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize the table · double-click to reset"></i></div><div class="gt-t gt-ht" style="width:${W}px"><div class="gt-h1">${top}</div><div class="gt-h2">${sub}</div><u style="left:${tX}px"></u><em class="gt-tl" style="left:${tX}px">Today</em></div></div>${body}</div></div>${trayHtml}</div>`
     + `<div class="gt-foot hint">${gtSummary(D)}<span class="gt-help">Drag a bar to move it, pull its edges to change the dates. Open a task to edit plan and actual dates.</span></div>`;
   const wrap = $('.gt-wrap');
@@ -210,13 +210,13 @@ function gtDetailHtml(t) {
   const lo = [d.ps, d.as].filter(Boolean).sort()[0], hi = [d.pe, d.ae || (d.as ? d.today : null)].filter(Boolean).sort().pop(), span = lo && hi ? dayDiff(hi, lo) + 1 : 0;
   const bar = (a, b, cls) => (a && b && span ? `<i class="gx-b ${cls}" style="left:${(dayDiff(a, lo) / span * 100).toFixed(2)}%;width:${Math.max(1.5, (dayDiff(b, a) + 1) / span * 100).toFixed(2)}%"></i>` : '');
   const late = d.pe && (d.ae || (!done && d.today > d.pe ? d.today : null)); const over = late && late > d.pe ? bar(gtShift(d.pe, 1), late, 'ov') : '';
-  return `<details class="gtd gtx"${t.start || t.astart || done ? ' open' : ''}><summary>Plan &amp; actual (Gantt)</summary>
+  return `<details class="gtd gtx"${t.start || t.astart || done ? ' open' : ''}><summary>Plan &amp; actual (Timeline)</summary>
 <div class="gx-grid"><div class="gx-col"><h5>Plan</h5><label class="gl">Start<input type="date" data-f="start" value="${t.start || ''}"></label><label class="gl">End <small>(due date)</small><input type="date" data-f="due" value="${t.due || ''}"></label></div>
 <div class="gx-col"><h5>Actual</h5><label class="gl">Start<input type="date" data-f="astart" value="${t.astart || ''}"></label><label class="gl">End <small>(completed)</small><input type="date" data-f="aend" value="${done && d.ae ? d.ae : ''}"></label></div></div>
 <div class="chips gx-btns"><button class="btn sm" data-act="gxstart"${t.astart === todayStr() ? ' disabled' : ''}>Started today</button><button class="btn sm" data-act="gxend"${done ? ' disabled' : ''}>Finished today</button><button class="btn sm" data-act="gxclear"${t.astart || done ? '' : ' disabled'}>Clear actual</button></div>
 ${span ? `<div class="gx-mini"><div class="gx-row"><span>Plan</span><div>${bar(d.ps, d.pe, 'plan')}</div></div><div class="gx-row"><span>Actual</span><div>${d.as ? bar(d.as, d.ae || d.today, d.open ? 'live' : 'act') : ''}${over}</div></div><div class="gx-ax"><small>${esc(gtMD(lo))}</small><small>${esc(gtMD(hi))}</small></div></div>` : ''}
 <div class="gx-stats"><span class="st ${st[1]}">${esc(st[0])}</span>${pd ? `<span>${pd} d planned</span>` : ''}${ad ? `<span>${ad} d actual</span>` : ''}${vr ? `<span class="${vr[0] === '+' ? 'late' : ''}">${vr} vs plan</span>` : ''}${pct != null && !done ? `<span>${pct}% of plan elapsed</span>` : ''}</div>
-<p class="hint">Setting an actual end completes the task; clearing it reopens it. The same dates appear in the Gantt view.</p></details>`;
+<p class="hint">Setting an actual end completes the task; clearing it reopens it. The same dates appear in the Timeline view.</p></details>`;
 }
 
 /* ---------- drag bars: move / resize the plan, pull the actual's start or end ---------- */
@@ -457,7 +457,7 @@ async function gtColMenu(k) {
 async function gtMore() {
   const g = S.settings.gantt;
   const items = [{ label: g.legend === false ? 'Show the legend' : 'Hide the legend' }, { label: 'Reset the view' }];
-  const r = await askMenu('Gantt', items); if (r == null) return;
+  const r = await askMenu('Timeline', items); if (r == null) return;
   if (r === 0) { g.legend = g.legend === false; save(); renderMain(); }
   else if (r === 1) { Object.assign(g, { scale: 'week', zoom: 1, mode: 'both', cols: ['plan', 'actual'], table: true, legend: true, hatch: true, progress: true, lanes: true }); U.gcol.clear(); save(); U.gScrollReset = true; renderMain(); toast('View reset'); }
 }

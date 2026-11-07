@@ -162,12 +162,18 @@ function sectionsAll() {
   const order = pageOrder(), at = s => Math.min(...s[3].map(k => order.indexOf(k)));
   return SECTIONS.slice().sort((a, b) => at(a) - at(b));
 }
-const viewsOf = sec => { const s = SECTIONS.find(x => x[0] === sec); return s ? s[3].filter(k => !S.settings.ui.hidePages.includes(k) || k === U.page) : []; };
+const viewsOf = sec => {
+  const s = SECTIONS.find(x => x[0] === sec), hid = S.settings.ui.hidePages; if (!s) return [];
+  const out = s[3].filter(k => !hid.includes(k) || k === U.page);
+  // the Calendar is one view whose week and day are the old Timetable: it shows unless both of those were hidden (older saved layouts have two switches)
+  if (sec === 'calendar') { const rest = out.filter(k => k !== 'timetable'); if (!rest.includes('calendar') && out.includes('timetable')) rest.unshift('calendar'); return rest; }
+  return out;
+};
 const sectionsShown = () => sectionsAll().filter(s => viewsOf(s[0]).length);
 // the view a section opens on: the one you used last in it, else its first
 function sectionTarget(sec) {
   const vs = viewsOf(sec), last = (U.secLast || {})[sec];
-  return vs.includes(last) ? last : vs[0] || (SECTIONS.find(x => x[0] === sec) || [, , , ['tasks']])[3][0];
+  return vs.includes(last) || (last === 'timetable' && vs.includes('calendar')) ? last : vs[0] || (SECTIONS.find(x => x[0] === sec) || [, , , ['tasks']])[3][0];
 }
 function uiMoveSection(sec, d) {
   const all = sectionsAll().map(s => s[0]), i = all.indexOf(sec), j = i + d; if (i < 0 || j < 0 || j >= all.length) return;
@@ -185,7 +191,7 @@ function pagesGrid() { return sectionsShown().map(([k, n, i]) => [k, n, i]); }
 const pagesMoreBtn = () => '';
 function uiSidebarSettings() {
   const u = S.settings.ui, secs = sectionsAll();
-  return `<div class="vlist">${secs.map((s, i) => `<div class="vsec"><div class="vrow vsh"><b>${ic(s[2], 16)} ${esc(s[1])}</b><span><button class="ib sm" data-secmv="${s[0]}" data-d="-1"${i ? '' : ' disabled'} title="Move up" aria-label="Move ${esc(s[1])} up">${ic('up', 14)}</button><button class="ib sm" data-secmv="${s[0]}" data-d="1"${i < secs.length - 1 ? '' : ' disabled'} title="Move down" aria-label="Move ${esc(s[1])} down">${ic('down', 14)}</button></span></div>${s[3].length > 1 || s[3][0] !== s[0] ? s[3].map(k => `<div class="vrow vsub"><label><input type="checkbox" data-pg="${k}"${u.hidePages.includes(k) ? '' : ' checked'}> ${ic(VIEW_TAB[k][1], 15)} ${esc(VIEW_TAB[k][0])}</label></div>`).join('') : `<div class="vrow vsub"><label><input type="checkbox" data-pg="${s[3][0]}"${u.hidePages.includes(s[3][0]) ? '' : ' checked'}> Show in the sidebar</label></div>`}</div>`).join('')}</div><p class="hint">Related views share one place: Tasks holds the list, board, matrix and timeline; Calendar holds the month, timetable, countdowns and time zones. Untick a view to hide its tab. Drag the section buttons in the sidebar to reorder them.</p>`;
+  return `<div class="vlist">${secs.map((s, i) => `<div class="vsec"><div class="vrow vsh"><b>${ic(s[2], 16)} ${esc(s[1])}</b><span><button class="ib sm" data-secmv="${s[0]}" data-d="-1"${i ? '' : ' disabled'} title="Move up" aria-label="Move ${esc(s[1])} up">${ic('up', 14)}</button><button class="ib sm" data-secmv="${s[0]}" data-d="1"${i < secs.length - 1 ? '' : ' disabled'} title="Move down" aria-label="Move ${esc(s[1])} down">${ic('down', 14)}</button></span></div>${s[3].length > 1 || s[3][0] !== s[0] ? s[3].filter(k => k !== 'timetable').map(k => `<div class="vrow vsub"><label><input type="checkbox" data-pg="${k}"${(k === 'calendar' ? u.hidePages.includes('calendar') && u.hidePages.includes('timetable') : u.hidePages.includes(k)) ? '' : ' checked'}> ${ic(VIEW_TAB[k][1], 15)} ${esc(VIEW_TAB[k][0])}</label></div>`).join('') : `<div class="vrow vsub"><label><input type="checkbox" data-pg="${s[3][0]}"${u.hidePages.includes(s[3][0]) ? '' : ' checked'}> Show in the sidebar</label></div>`}</div>`).join('')}</div><p class="hint">Related views share one place: Tasks holds the list, board, matrix and timeline; Calendar holds the month, week, 3 days, day and agenda, plus countdowns and time zones. Untick a view to hide its tab. Drag the section buttons in the sidebar to reorder them.</p>`;
 }
 function uiMovePage(k, d) {
   const u = S.settings.ui, order = pageOrder();
@@ -266,9 +272,9 @@ function paletteItems(q) {
     go('New list…', 'Action', () => ACT.addlist()), go('New template…', 'Action', () => TPL_ACT.tpladd()), go('New note', 'Action', () => { U.page = 'notes'; U.sel = null; render(); ACT.noteadd(); }), go('Settings…', 'Action', openSettings),
     go('Keyboard shortcuts', '?', openShortcuts), go('Help & user guide', 'Help', () => openHelp()), go('About OpenTick: version, licences, credits', 'Help', () => openAbout()),
     go('Interface size…', 'Appearance', openSettings), go('Background effects…', 'Appearance', openBgSettings),
-    go('Gantt: zoom in', 'Gantt', () => { U.page = 'gantt'; render(); gtZoom(1); }), go('Gantt: zoom out', 'Gantt', () => { U.page = 'gantt'; render(); gtZoom(-1); }),
-    go('Gantt: choose table columns…', 'Gantt', () => { U.page = 'gantt'; render(); openGtCols(); }),
-    go('Gantt: print / save as PDF', 'Gantt', () => { U.page = 'gantt'; render(); setTimeout(gtPrint, 100); }), go('Gantt: export…', 'Gantt', () => { U.page = 'gantt'; render(); openGtExport(); }),
+    go('Timeline: zoom in', 'Timeline', () => { U.page = 'gantt'; render(); gtZoom(1); }), go('Timeline: zoom out', 'Timeline', () => { U.page = 'gantt'; render(); gtZoom(-1); }),
+    go('Timeline: choose table columns…', 'Timeline', () => { U.page = 'gantt'; render(); openGtCols(); }),
+    go('Timeline: print / save as PDF', 'Timeline', () => { U.page = 'gantt'; render(); setTimeout(gtPrint, 100); }), go('Timeline: export…', 'Timeline', () => { U.page = 'gantt'; render(); openGtExport(); }),
     ...themeList().map(t => go('Theme: ' + t[1], 'Theme', () => { S.settings.theme = t[0]; applyTheme(); save(); })),
   ];
   q = q.toLowerCase().trim();

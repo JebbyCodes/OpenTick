@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.6.2
+
+**App**
+- Changed: **Calendar and Timetable are one Calendar now.** One switcher holds **Month**, **Week**, **3 days**, **Day** and **Agenda**, next to Countdowns and Time zones. Month and Agenda list tasks by date; Week, 3 days and Day are the time grid with lessons, weekly slots and timed tasks (what the Timetable view was). Switching keeps the date you were looking at. Old saved layouts and links still work: the Timetable's saved view, the "Timetable" page in widgets and links, and a calendar left on Week or Day all land on the right view.
+- Changed: **the Calendar's toolbar is the same everywhere and says what it does.** Back, **Today**, forward, one **Add** button, and a **More** menu (unscheduled tasks, second time zone, holidays and days off, classes, timetable settings) instead of seven unlabelled icons. Inside Classes a labelled **Calendar** button goes back. The quick day strip is only shown on phones.
+- Fixed: **Templates could not be reached from Notes on a computer.** The Notes / Templates switcher was hidden whenever a note was open, which on a computer is always. It now stays (it is only hidden on a phone while a note fills the screen), and the Notes page has a **New note from a template** button.
+- Fixed: **keyboard shortcuts showed up on hover and were hard to see otherwise.** Key caps now sit on the sidebar pages, the search box and buttons with words on them all the time and never appear on hover; an icon button names its shortcut at the end of its tooltip, so hovering shows only the tooltip. Turning the setting off removes both.
+- Fixed: **headings now match their tabs.** The Timeline tab opened a page headed "Gantt", Habits one headed "Habit", Board one headed "Boards"; every page is headed with its tab's name (Calendar's date range sits under the switcher).
+- Fixed: **tapping a section in Settings made the strip of sections jump.** Settings is now a list of sections on the left (a strip on a phone that stays where it is) beside one scrolling pane; the strip is no longer inside the part that scrolls.
+- New: **search in Settings.** Type in the box at the top: every setting answers with its section and what it does; picking one opens the section and flashes the setting.
+- New: **search everything.** Press **/** or **Ctrl + K**, or click the search box in the sidebar. Tasks, notes, templates, lists, projects, tags, habits, countdowns, time zones, boards, timetable slots, pages, commands and settings all answer from one place, grouped, with the words you typed marked; **↑ ↓** choose, **Enter** opens, and "See all tasks" hands the words to the Tasks page's own search. The old sidebar box only searched tasks.
+- Small: the Habits widget, page and tab are all "Habits"; the command palette says "Timeline" where it said "Gantt".
+
+**Android widgets**
+- Fixed (rebuilt, not just hardened): widgets that still showed "Can't load widget". This could not be reproduced without a device, so the cause is a best reading of how home screens apply a widget, and the widgets were rebuilt around it: every list widget is a small header plus **one small layout per row** added to a list box (no more 7–10 rows hidden inside one big layout), every view is found by its id (nothing is looked up by name, which a minified release build can break), nothing scrolls sideways like a marquee (that went through a call some launchers refuse), the box is cleared before rows are added, and the data file is found in the app's own folder first. If a widget still cannot be drawn it shows the small plain card with the reason. The Kotlin was compiled against the Android API here and the layouts are checked by `npm test`, but it has not been run on a phone: please say if a widget still fails and which one.
+- Changed: the Timetable widget gets room and teacher on their own lines and drops the week arrows only on a very narrow widget; the Calendar widget shows the weeks that fit; month names shorten on a narrow widget.
+
+**Sync and encryption**
+- Nothing about the sync file or encryption changed (still schema 6); the Calendar merge and the search only change how things are shown, and the layout choices stay on the device.
+
 ## 0.6.1
 
 **App**

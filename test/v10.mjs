@@ -147,10 +147,13 @@ async function widgets() {
   assert.equal(W.cssHex('nonsense-colour', '#123456'), '#123456');
   // Android sources: placeholders, manifest entries and XML are all there
   const base = new URL('../src-tauri/android-widgets/', import.meta.url);
-  for (const f of ['kotlin/OpenTickWidgetData.kt', 'kotlin/OpenTickTasksWidget.kt', 'kotlin/OpenTickQuickWidget.kt', 'kotlin/OpenTickWidgetActivity.kt', 'kotlin/OpenTickWidgetBoot.kt', 'res/layout/ot_widget_tasks.xml', 'res/layout/ot_widget_quick.xml', 'res/xml/ot_widget_tasks_info.xml', 'res/xml/ot_widget_quick_info.xml', 'manifest-snippet.xml']) assert.ok(existsSync(new URL(f, base)), f + ' exists');
+  for (const f of ['kotlin/OpenTickWidgetData.kt', 'kotlin/OpenTickTasksWidget.kt', 'kotlin/OpenTickQuickWidget.kt', 'kotlin/OpenTickWidgetActivity.kt', 'kotlin/OpenTickWidgetBoot.kt', 'res/layout/ot_widget_tasks.xml', 'res/layout/ot_widget_row_task.xml', 'res/layout/ot_widget_quick.xml', 'res/xml/ot_widget_tasks_info.xml', 'res/xml/ot_widget_quick_info.xml', 'manifest-snippet.xml']) assert.ok(existsSync(new URL(f, base)), f + ' exists');
   const mf = readFileSync(new URL('manifest-snippet.xml', base), 'utf8'); for (const c of ['OpenTickTasksWidget', 'OpenTickQuickWidget', 'OpenTickWidgetActivity', 'OpenTickWidgetBoot']) assert.ok(mf.includes(c), c + ' is registered');
   const lay = readFileSync(new URL('res/layout/ot_widget_tasks.xml', base), 'utf8'), kt = readFileSync(new URL('kotlin/OpenTickTasksWidget.kt', base), 'utf8');
-  for (let i = 0; i < 8; i++) for (const p of ['r', 'c', 't', 'd']) { assert.ok(lay.includes(`@+id/ot_${p}${i}"`), `row ${i} id ${p}`); assert.ok(kt.includes(`R.id.ot_${p}${i}`), `Kotlin uses ${p}${i}`); }
+  // the tasks widget is a shell (header + list box) plus one small layout per row, added at run time: the ids Kotlin uses must all exist
+  const row = readFileSync(new URL('res/layout/ot_widget_row_task.xml', base), 'utf8');
+  for (const i of ['title', 'sub', 'add', 'plus', 'empty', 'list', 'more']) { assert.ok(lay.includes(`@+id/ot_ts_${i}"`), `shell id ${i}`); assert.ok(kt.includes(`R.id.ot_ts_${i}`), `Kotlin uses ot_ts_${i}`); }
+  for (const i of ['root', 'bg', 'check', 'title', 'when', 'dot', 'list']) { assert.ok(row.includes(`@+id/ot_rt_${i}"`), `row id ${i}`); assert.ok(kt.includes(`R.id.ot_rt_${i}`), `Kotlin uses ot_rt_${i}`); }
   const ci = readFileSync(new URL('../.github/actions/setup-android/action.yml', import.meta.url), 'utf8'); assert.ok(ci.includes('scripts/android/android-widgets.mjs'), 'CI installs the widgets');
   const cap = JSON.parse(readFileSync(new URL('../src-tauri/capabilities/default.json', import.meta.url), 'utf8')); assert.ok(cap.permissions.some(p => p === 'fs:allow-mkdir') && cap.permissions.some(p => p.identifier === 'fs:scope'), 'the app may write its widget file');
   console.log('1.0 feature tests passed');

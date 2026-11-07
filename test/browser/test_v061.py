@@ -60,6 +60,8 @@ with sync_playwright() as p:
     assert tb == ['Projects', 'Tasks', 'Notes', 'Calendar', 'Habits', 'More'], tb
     pg.evaluate("U.page = 'calendar'; render()")
     r = pg.evaluate("(() => { const t = document.querySelector('#main > .vtabs'); const o = [...t.querySelectorAll('button')].map(b => b.getBoundingClientRect()); return { n: o.length, w: t.clientWidth, sw: t.scrollWidth, oy: getComputedStyle(t).overflowY, doc: document.documentElement.scrollWidth, vw: innerWidth } })()")
-    assert r['n'] == 4 and r['oy'] == 'hidden' and r['doc'] <= r['vw'] + 1, r
+    assert r['n'] == 7 and r['sw'] > r['w'] and r['oy'] == 'hidden' and r['doc'] <= r['vw'] + 1, r  # Month, Week, 3 days, Day, Agenda + Countdowns, Time zones: the strip scrolls sideways, the page does not
+    assert pg.evaluate("[...document.querySelectorAll('#main > .vtabs button')].map(b => b.innerText.trim())") == ['Month', 'Week', '3 days', 'Day', 'Agenda', 'Countdowns', 'Time zones']
+    assert pg.evaluate("document.querySelectorAll('#main > .vtabs button.on').length") == 1, 'one Calendar view is lit at a time'
     b.close()
 print('0.6.1 browser tests passed (clock on phones, key hints, one-way scrolling, sections)')

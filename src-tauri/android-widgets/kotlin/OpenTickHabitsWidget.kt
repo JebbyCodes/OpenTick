@@ -2,58 +2,49 @@ package __PACKAGE__
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
-import android.content.Intent
-import android.os.Build
-import android.os.SystemClock
 import android.widget.RemoteViews
 import org.json.JSONObject
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
-import java.util.Locale
 import __PACKAGE__.R
 
 /** Today's habits with their streaks. Tap the circle to check one in; the app applies it the next time it opens. */
 class OpenTickHabitsWidget : OtBaseWidget() {
     override val layout = R.layout.ot_widget_habits
+    private val H = Hd(R.id.ot_hb_bg, R.id.ot_hb_title, R.id.ot_hb_sub, 0, 0, R.id.ot_hb_empty, R.id.ot_hb_list, R.id.ot_hb_more)
     private val ROWS = 7
 
     override fun fill(context: Context, manager: AppWidgetManager, id: Int, rv: RemoteViews, data: JSONObject?, th: OtTheme) {
-        val arr = data?.optJSONArray("hb")
+        val arr = items(data, "hb")
         val total = arr?.length() ?: 0
         val flipped = OtData.pending(context, "habit")
         var done = 0
         for (i in 0 until total) { val o = arr?.optJSONObject(i) ?: continue; if (o.optBoolean("d", false) != (o.optString("id") in flipped)) done++ }
-        head(context, id, rv, th, "ot_hb", "Habit", if (total > 0) "$done/$total today" else "", "page", "habits", "page", "habits")
+        head(context, id, rv, th, H, "Habits", if (total > 0) "$done/$total today" else "", "page", "habits", "page", "habits")
         val rowsFit = fit(manager, id, 49, 60, ROWS)
-        emptyText(context, rv, th, "ot_hb", data, total == 0, "No habits yet")
-        for (n in 0 until ROWS) {
-            val r = OtUi.rid(context, "ot_hb_r$n")
-            val o = if (n < rowsFit && arr != null) arr.optJSONObject(n) else null
-            OtUi.show(rv, r, o != null)
-            if (o == null) continue
+        emptyText(rv, th, H, data, total == 0, "No habits yet")
+        clearRows(rv, H)
+        val shown = minOf(rowsFit, total)
+        for (n in 0 until shown) {
+            val o = arr?.optJSONObject(n) ?: continue
             val hid = o.optString("id")
             val col = OtUi.hex(o.optString("c"), th.acc)
             val on = o.optBoolean("d", false) != (hid in flipped)
-            OtUi.tint(rv, OtUi.rid(context, "ot_hb_b$n"), th.card)
-            OtUi.tint(rv, OtUi.rid(context, "ot_hb_i$n"), OtUi.alpha(col, 60))
-            val e = OtUi.rid(context, "ot_hb_e$n")
+            val row = newRow(context, R.layout.ot_widget_row_habit)
+            OtUi.tint(row, R.id.ot_rh_bg, th.card)
+            OtUi.tint(row, R.id.ot_rh_icon, OtUi.alpha(col, 60))
             val icon = o.optString("e", "")
-            rv.setTextViewText(e, if (icon.isNotEmpty()) icon else o.optString("n").take(1).uppercase())
-            rv.setTextColor(e, col)
-            val name = OtUi.rid(context, "ot_hb_n$n")
-            rv.setTextViewText(name, o.optString("n"))
-            rv.setTextColor(name, th.text)
-            val s = OtUi.rid(context, "ot_hb_s$n")
+            row.setTextViewText(R.id.ot_rh_emoji, if (icon.isNotEmpty()) icon else o.optString("n").take(1).uppercase())
+            row.setTextColor(R.id.ot_rh_emoji, col)
+            row.setTextViewText(R.id.ot_rh_name, o.optString("n"))
+            row.setTextColor(R.id.ot_rh_name, th.text)
             val streak = o.optInt("s", 0)
-            rv.setTextViewText(s, if (streak > 0) "🔥 $streak ${o.optString("u", "day")} streak" else "No streak yet")
-            rv.setTextColor(s, th.muted)
-            val c = OtUi.rid(context, "ot_hb_c$n")
-            rv.setImageViewResource(c, if (on) R.drawable.ot_widget_check_on else R.drawable.ot_widget_check_off)
-            OtUi.tint(rv, c, if (on) col else th.muted)
-            rv.setOnClickPendingIntent(c, OtUi.actIntent(context, OpenTickHabitsWidget::class.java, "habit", hid, (hid.hashCode() * 29) xor id))
-            rv.setOnClickPendingIntent(r, OtUi.appIntent(context, "page", "habits", (hid.hashCode() * 23) xor id))
+            row.setTextViewText(R.id.ot_rh_streak, if (streak > 0) "🔥 $streak ${o.optString("u", "day")} streak" else "No streak yet")
+            row.setTextColor(R.id.ot_rh_streak, th.muted)
+            row.setImageViewResource(R.id.ot_rh_check, if (on) R.drawable.ot_widget_check_on else R.drawable.ot_widget_check_off)
+            OtUi.tint(row, R.id.ot_rh_check, if (on) col else th.muted)
+            row.setOnClickPendingIntent(R.id.ot_rh_check, OtUi.actIntent(context, OpenTickHabitsWidget::class.java, "habit", hid, (hid.hashCode() * 29) xor id))
+            row.setOnClickPendingIntent(R.id.ot_rh_root, OtUi.appIntent(context, "page", "habits", (hid.hashCode() * 23) xor id))
+            addRow(rv, H, row)
         }
-        moreText(context, rv, th, "ot_hb", total - minOf(rowsFit, total), id, "page", "habits")
+        moreText(context, rv, th, H, total - shown, id, "page", "habits")
     }
 }

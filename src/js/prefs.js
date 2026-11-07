@@ -92,7 +92,7 @@ ${typeof svcSettingsHtml === 'function' ? svcSettingsHtml() : ''}
 }
 function keysSettingsHtml() {
   return `<p class="hint">${skOn() ? 'Keyboard shortcuts work on computers. They are not used on phones and tablets.' : 'Keyboard shortcuts are for computers; they are switched off on phones and tablets.'}</p>
-<label class="a11y-r tg"><span><b>Show the keys on buttons</b><small>A small key cap next to a button that has a shortcut, and in its tooltip.</small></span><input type="checkbox" data-pf="keys.hints"${S.settings.keys.hints !== false ? ' checked' : ''}></label>
+<label class="a11y-r tg"><span><b>Show the keys on buttons</b><small>A small key cap on the pages in the sidebar, the search box and buttons with words on them. An icon button names its shortcut in its tooltip.</small></span><input type="checkbox" data-pf="keys.hints"${S.settings.keys.hints !== false ? ' checked' : ''}></label>
 <div class="dgrid"><button data-pfa="shortcuts">${ic('code', 18)}<span><b>See every shortcut</b><small>Searchable · or press ? anywhere</small></span></button></div>
 <p class="hint">Right-click a task, list, note, template, calendar day or timetable block for the same choices as its ⋯ button. Press Shift while right-clicking to get the browser’s own menu.</p>`;
 }
@@ -104,24 +104,96 @@ function openPrivacy() {
   openModal(`<h3>${ic('shield', 18)} Privacy policy</h3><div class="md priv">${md(PRIVACY_MD)}</div><div class="mact"><button class="pri" data-m="ok">Close</button></div>`, m => { m.onclick = e => { if (e.target.closest('[data-m=ok]') || e.target.classList.contains('mback')) closeModal(); }; }, 'wide');
 }
 
-/* ---- wiring: the settings window's tabs and the fields above ---- */
+/* ---- wiring: the settings window's sections, its search, and the fields above ----
+   On a computer the sections are a list down the left; on a phone a strip across the top that stays where it is when you tap (it sits outside the
+   part that scrolls, and is only moved when the section you tapped is partly out of view). */
 function prefTab(k) {
   U.setTab = k; const m = $('#modal'); if (!m) return;
+  const q = $('#setq', m); if (q && q.value) { q.value = ''; setSearchRun(m); } // picking a section ends a search
   $$('.stb', m).forEach(b => { const on = b.dataset.stab === k; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); });
   $$('.stab', m).forEach(s => { s.hidden = s.dataset.tab !== k; });
-  const box = $('.mbox', m); if (box) box.scrollTop = 0;
-  prefTabShow(m);
+  const c = $('#setc', m); if (c) c.scrollTop = 0;
+  prefTabShow(m, true);
 }
-// keep the chosen tab visible in the strip (on a phone the strip scrolls sideways)
-function prefTabShow(m) { const on = $('.stb.on', m), strip = $('.stabs', m); if (on && strip && on.scrollIntoView) { try { strip.scrollLeft = Math.max(0, on.offsetLeft - strip.clientWidth / 2 + on.offsetWidth / 2); } catch (e) { /* no layout */ } } }
+// keep the chosen section visible in the phone strip: only when it is partly out of view, and without the page jumping
+function prefTabShow(m, tapped) {
+  const on = $('.stb.on', m), strip = $('.set-n', m); if (!on || !strip || strip.scrollWidth <= strip.clientWidth + 2) return;
+  const l = on.offsetLeft, r = l + on.offsetWidth, v0 = strip.scrollLeft, v1 = v0 + strip.clientWidth;
+  if (tapped && l >= v0 && r <= v1) return;
+  try { strip.scrollLeft = l < v0 || !tapped ? Math.max(0, l - 12) : r - strip.clientWidth + 12; } catch (e) { /* no layout */ }
+}
+/* search: every setting is an entry (its label, the small print under it and its section's name and keywords); a result switches to the
+   section and flashes the setting. The entries are read from the page each time, so they always match what is there. */
+const SET_ALIAS = {
+  general: 'start screen home week monday sunday clock time 24-hour banners sidebar views default list priority reminder tasks',
+  appearance: 'theme dark light colours colors font size zoom scale density spacing animation motion background effects e-ink eink',
+  notifications: 'reminders alerts notify notifications push banner',
+  access: 'accessibility contrast reduce motion large text tap targets screen reader dyslexia',
+  sound: 'sound volume vibrate haptic focus pomodoro timer break chime',
+  keys: 'keyboard shortcuts keys hotkeys hints key caps',
+  data: 'data sync backup export import encryption vault passphrase delete wipe webdav git s3 restore snapshot',
+  widgets: 'widgets home screen android floating window',
+  integrations: 'integrations bridge api link tools connect',
+  about: 'about privacy policy help guide version licence license credits',
+};
+const SET_ITEM = 'h4.mh, label, .a11y-r, .dgrid > button, details > summary, .vrow.vsh, .about';
+const SET_OUTER = 'label, .a11y-r, .dgrid > button, summary';
+function setLabelOf(el) {
+  const b = el.querySelector('b,strong'); if (b && !el.matches('h4,summary')) return b.textContent.replace(/\s+/g, ' ').trim();
+  if (el.matches('h4,summary,.about')) return el.textContent.replace(/\s+/g, ' ').trim().slice(0, 60);
+  let t = ''; el.childNodes.forEach(n => { if (n.nodeType === 3) t += n.textContent; else if (n.nodeType === 1 && !/^(SELECT|INPUT|TEXTAREA|BUTTON|SVG)$/i.test(n.tagName) && !n.querySelector('select,input,textarea')) t += ' ' + n.textContent; });
+  t = t.replace(/\s+/g, ' ').trim();
+  return t || el.textContent.replace(/\s+/g, ' ').trim().slice(0, 60);
+}
+function setIndex(m) {
+  const out = [];
+  for (const [k, name] of SET_TABS.map(t => [t[0], t[1]])) {
+    out.push({ tab: k, tabName: name, label: name, hint: 'Section', hay: (name + ' ' + (SET_ALIAS[k] || '')).toLowerCase(), el: null });
+    const sec = $(`.stab[data-tab="${k}"]`, m); if (!sec) continue;
+    for (const el of sec.querySelectorAll(SET_ITEM)) {
+      if (el.parentElement && el.parentElement.closest(SET_OUTER) && !el.matches('h4.mh')) continue; // only the outermost block of a setting
+      const label = setLabelOf(el); if (!label) continue;
+      const sm = el.querySelector('small'), hint = sm ? sm.textContent.replace(/\s+/g, ' ').trim() : '';
+      out.push({ tab: k, tabName: name, label, hint, hay: (label + ' ' + hint).toLowerCase(), el });
+    }
+  }
+  return out;
+}
+function setSearchRun(m) {
+  const q = $('#setq', m), box = $('#setres', m); if (!q || !box) return;
+  const words = q.value.toLowerCase().split(/\s+/).filter(Boolean), tabs = $$('.stab', m);
+  if (!words.length) { box.hidden = true; box.innerHTML = ''; tabs.forEach(s => { s.hidden = s.dataset.tab !== U.setTab; }); return; }
+  tabs.forEach(s => { s.hidden = true; });
+  const hits = setIndex(m).filter(e => words.every(w => e.hay.includes(w))), seen = new Set(), list = [];
+  for (const e of hits) { const key = e.tab + '|' + e.label; if (seen.has(key)) continue; seen.add(key); list.push(e); }
+  // a section's own entry comes first only when nothing inside it matched better
+  box._hits = list.slice(0, 40); box.hidden = false;
+  box.innerHTML = box._hits.length ? box._hits.map((e, i) => `<button class="sr-i" data-sres="${i}"><span class="sr-t">${esc(e.label)}</span><small>${e.hint === 'Section' ? 'Settings section' : esc(e.tabName) + (e.hint ? ' · ' + esc(e.hint.slice(0, 90)) : '')}</small></button>`).join('')
+    : `<p class="hint sr-none">No setting matches “${esc(q.value.trim())}”. Try another word, like “sync”, “dark” or “reminder”.</p>`;
+}
+function setSearchGo(m, i) {
+  const box = $('#setres', m), e = box && box._hits && box._hits[i]; if (!e) return;
+  prefTab(e.tab); // ends the search and shows the section
+  const el = e.el; if (!el || !el.isConnected) return;
+  const d = el.closest('details'); if (d) d.open = true;
+  try { el.scrollIntoView({ block: 'center', behavior: 'auto' }); } catch (err) { /* no layout */ }
+  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1800);
+}
+document.addEventListener('input', e => { const t = e.target; if (t && t.id === 'setq') { const m = $('#modal'); if (m) setSearchRun(m); } });
+document.addEventListener('keydown', e => {
+  const t = e.target; if (!t || t.id !== 'setq') return; const m = $('#modal');
+  if (e.key === 'Enter') { e.preventDefault(); setSearchGo(m, 0); }
+  else if (e.key === 'Escape' && t.value) { e.preventDefault(); e.stopPropagation(); t.value = ''; setSearchRun(m); }
+}, true);
 function prefRead(el) {
   if (el.type === 'checkbox') return el.checked;
   if (el.dataset.pfn || el.type === 'number') return +el.value || 0;
   return el.value;
 }
 document.addEventListener('click', async e => {
-  const t = e.target; if (!t || !t.closest || !$('#modal .stabs')) return;
+  const t = e.target; if (!t || !t.closest || !$('#modal .set-n')) return;
   const tab = t.closest('[data-stab]'); if (tab) { prefTab(tab.dataset.stab); return; }
+  const sr = t.closest('[data-sres]'); if (sr) { setSearchGo($('#modal'), +sr.dataset.sres); return; }
   const a = t.closest('[data-pfa]'); if (!a) return;
   const k = a.dataset.pfa;
   if (k === 'testnotif') { await ensureNotify(); notify('OpenTick', 'This is what a reminder looks like.'); sfx('chime'); }
@@ -129,7 +201,7 @@ document.addEventListener('click', async e => {
   else if (k === 'privacy') { closeModal(); openPrivacy(); }
 });
 document.addEventListener('change', e => {
-  const el = e.target; if (!el || !el.dataset || !$('#modal .stabs')) return;
+  const el = e.target; if (!el || !el.dataset || !$('#modal .set-n')) return;
   if (el.dataset.pfa === 'motion') { S.settings.motion = el.checked ? 'off' : 'normal'; motionApply(); save(); return; }
   if (el.dataset.pf) {
     prefSet(el.dataset.pf, prefRead(el));

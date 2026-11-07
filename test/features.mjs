@@ -71,6 +71,9 @@ assert.ok(A.GT_COLS.actual, 'combined actual column exists');
 U.page = 'timetable'; U.ttV = null;
 for (const v of ['day', '3day', 'week']) { S.settings.tt.view = v; U.ttV = v; A.render(); }
 S.settings.tt.view = '3day'; U.ttV = '3day'; eq(A.ttDays().length, 3);
-S.settings.tt.view = 'day'; U.ttV = 'day'; A.render(); assert.ok(A.els['#main'].innerHTML.includes('tt-strip'), 'day view has the week strip');
+S.settings.tt.view = 'day'; U.ttV = 'day'; A.render(); assert.ok(!A.els['#main'].innerHTML.includes('tt-strip'), 'a wide screen has the calendar toolbar, so no extra day strip');
+A.win.innerWidth = 400; A.render(); assert.ok(A.els['#main'].innerHTML.includes('tt-strip'), 'on a phone the day view has the week strip');
+U.ttV = 'week'; A.render(); assert.ok(!A.els['#main'].innerHTML.includes('tt-strip'), 'the week view needs no strip');
+A.win.innerWidth = 1800; U.ttV = 'day';
 A.ACT.ttview({ dataset: { v: 'week' } }); assert.equal(A.ttView(), 'week');
 console.log('0.6 feature tests passed');

@@ -38,11 +38,10 @@ for (const k of Object.keys(res)) assert.equal(after[k], res[k], 'run scripts/an
 for (const m of allKt.matchAll(/R\.id\.(\w+)/g)) assert.ok(ids.has(m[1]), 'R.id.' + m[1] + ' is in a layout');
 for (const m of allKt.matchAll(/R\.layout\.(\w+)/g)) assert.ok(res['layout/' + m[1] + '.xml'], 'layout ' + m[1]);
 for (const m of allKt.matchAll(/R\.drawable\.(\w+)/g)) assert.ok(res['drawable/' + m[1] + '.xml'], 'drawable ' + m[1]);
-// views looked up by name: "ot_ls_n$n" needs ot_ls_n0 ..., "ot_mx_t${i}_$j" needs ot_mx_t0_0, a plain "ot_x_y" needs itself
-for (const m of allKt.matchAll(/"(ot_[a-z]+_[a-z]+)(\$[a-z]|\$\{[a-z]\}_\$[a-z])?"/g)) {
-  const [, base, tail] = m; const want = !tail ? base : tail.includes('_') ? base + '0_0' : base + '0';
-  assert.ok(ids.has(want), `view ${want} (from ${m[0]}) is in a layout`);
-}
+// nothing is looked up by name at run time (a minified release build can break that); every view is an R.id the layouts declare, and no view marquee
+const widgetKt = Object.entries(kt).filter(([f]) => f !== 'OpenTickBg.kt').map(([, v]) => v).join('\n'); // (the background service looks up the notification icon by name on purpose)
+assert.doesNotMatch(widgetKt, /getIdentifier|OtUi\.rid\(/, 'no view or resource is found by its name');
+assert.doesNotMatch(allKt, /"setSelected"|setSelected\(/, 'no marquee: setSelected through a RemoteViews is not allowed by every home screen');
 // layouts only use ids that are unique, and every drawable and string a layout names exists
 for (const [k, v] of Object.entries(res)) if (k.startsWith('layout/')) {
   const own = [...v.matchAll(/android:id="@\+id\/(\w+)"/g)].map(m => m[1]); assert.equal(new Set(own).size, own.length, k + ': ids are unique');
@@ -76,36 +75,48 @@ for (const [, cls, label, info] of recv) {
   }
   const okOn = { setTextViewText: ['TextView', 'Chronometer'], setTextColor: ['TextView', 'Chronometer'], setImageViewBitmap: ['ImageView'], setImageViewResource: ['ImageView'], setColorFilter: ['ImageView'], setChronometer: ['Chronometer'], setChronometerCountDown: ['Chronometer'] };
   let checked = 0;
+  // arrays of ids ("private val X = intArrayOf(...)" or arrayOf(intArrayOf(...), ...)): the ids inside are all checked
+  const arraysOf = src => { const out = {}; for (const m of src.matchAll(/private val (\w+) = (?:intArrayOf|arrayOf)\(/g)) { let d = 1, i = m.index + m[0].length; const st = i; while (d && i < src.length) { if (src[i] === '(') d++; else if (src[i] === ')') d--; i++; } out[m[1]] = [...src.slice(st, i).matchAll(/R\.id\.(\w+)/g)].map(x => x[1]); } return out; };
   for (const src of Object.values(kt)) { // variable names mean different views in different files, so each file is read on its own
-    const arrays = {}; for (const m of src.matchAll(/private val (\w+) = intArrayOf\(([^)]*)\)/g)) arrays[m[1]] = [...m[2].matchAll(/R\.id\.(\w+)/g)].map(x => x[1]);
-    const vars = {}; for (const m of src.matchAll(/val (\w+) = (OtUi\.rid\(context, "[^"]+"\)|R\.id\.\w+)/g)) vars[m[1]] = m[2];
+    const arrays = arraysOf(src);
     const check = (call, arg) => {
-      let e = vars[arg] || arg, names;
-      const idm = /^R\.id\.(\w+)$/.exec(e), ridm = /^OtUi\.rid\(context, "([^"]+)"\)$/.exec(e), arr = /^(\w+)\[\w+\]$/.exec(e);
-      if (idm) names = [idm[1]]; else if (ridm) names = [ridm[1].replace(/\$\{?\w+\}?/g, '0')]; else if (arr && arrays[arr[1]]) names = arrays[arr[1]]; else return; // a parameter (head() builds names itself; checked below)
+      const idm = /^R\.id\.(\w+)$/.exec(arg), arr = /^(\w+)(?:\[\w+\])+$/.exec(arg); let names;
+      if (idm) names = [idm[1]]; else if (arr && arrays[arr[1]]) names = arrays[arr[1]]; else return; // a parameter (head() takes its views from the widget's Hd; checked below)
       for (const n of names) { checked++; assert.ok(typeOf[n], `${call}: view ${n} does not exist`); assert.ok([...typeOf[n]].every(t => okOn[call].includes(t)), `${call} is called on ${n}, which is a ${[...typeOf[n]]}`); }
     };
-    for (const m of src.matchAll(/rv\.(setTextViewText|setTextColor|setImageViewBitmap|setImageViewResource|setChronometer|setChronometerCountDown)\(\s*(OtUi\.rid\([^)]*\)|R\.id\.\w+|\w+(?:\[\w+\])?)/g)) check(m[1], m[2]);
-    for (const m of src.matchAll(/OtUi\.tint\(\s*rv,\s*(OtUi\.rid\([^)]*\)|R\.id\.\w+|\w+(?:\[\w+\])?)/g)) check('setColorFilter', m[1]);
+    for (const m of src.matchAll(/\b(?:rv|row)\.(setTextViewText|setTextColor|setImageViewBitmap|setImageViewResource|setChronometer|setChronometerCountDown)\(\s*(R\.id\.\w+|\w+(?:\[\w+\])+|\w+)/g)) check(m[1], m[2]);
+    for (const m of src.matchAll(/OtUi\.tint\(\s*(?:rv|row),\s*(R\.id\.\w+|\w+(?:\[\w+\])+|\w+)/g)) check('setColorFilter', m[1]);
+    // each widget's Hd(bg, title, sub, add, plus, empty, list, more) names views of the right kind
+    for (const m of src.matchAll(/private val H = Hd\(([^)]*)\)/g)) {
+      const a = m[1].split(',').map(x => x.trim()), want = ['ImageView', 'TextView', 'TextView', 'ImageView', 'ImageView', 'TextView', 'LinearLayout', 'TextView'];
+      assert.equal(a.length, 8, 'Hd has eight views'); a.forEach((x, i) => { if (x === '0') return; const n = x.replace('R.id.', ''); checked++; assert.deepEqual([...(typeOf[n] || [])], [want[i]], `Hd view ${i} (${n}) is a ${want[i]}`); });
+    }
   }
   assert.ok(checked > 100, 'the type check really ran (' + checked + ' calls)');
-  // the shared header / empty / more parts every widget builds by name
-  for (const k of ['ot_ls', 'ot_pr', 'ot_nt', 'ot_cal', 'ot_tt', 'ot_mx', 'ot_hb', 'ot_cd', 'ot_fc']) {
+  // the shared header / empty / more parts every widget has
+  for (const k of ['ot_ts', 'ot_ls', 'ot_pr', 'ot_nt', 'ot_cal', 'ot_tt', 'ot_mx', 'ot_hb', 'ot_cd', 'ot_fc']) {
     for (const [suf, want] of [['_bg', 'ImageView'], ['_title', 'TextView'], ['_sub', 'TextView']]) assert.deepEqual([...(typeOf[k + suf] || [])], [want], k + suf);
     for (const suf of ['_add', '_plus']) if (typeOf[k + suf]) assert.deepEqual([...typeOf[k + suf]], ['ImageView'], k + suf);
   }
 }
+// list widgets build one small layout per row and add it to the list box: every widget that adds rows empties the box first (a home screen may
+// re-apply a RemoteViews on top of the one it shows), every row layout has a root id for its tap, and each row's views are the ones its layout declares
+for (const [f, t] of Object.entries(kt)) if (/\baddRow\(/.test(t) && f !== 'OtBaseWidget.kt') assert.match(t, /\bclearRows\(rv, H\)/, f + ' clears the rows before adding them');
+assert.match(kt['OtBaseWidget.kt'], /rv\.removeAllViews\(h\.list\)/); assert.match(kt['OtBaseWidget.kt'], /rv\.addView\(h\.list, row\)/);
+for (const [k, v] of Object.entries(res)) if (/^layout\/ot_widget_row_/.test(k)) assert.match(v, /<FrameLayout[^>]*android:id="@\+id\/ot_r\w_root"/, k + ' has a root id for the tap');
+{ const used = new Set([...allKt.matchAll(/R\.layout\.(ot_widget_row_\w+|ot_widget_calweek)/g)].map(m => m[1]));
+  for (const k of Object.keys(res)) if (/^layout\/ot_widget_row_/.test(k)) assert.ok(used.has(k.slice(7, -4)), k + ' is used by a widget'); }
 // the failure paths: a widget that cannot be drawn shows a plain card with the reason, and nothing in the service can take the process down
 assert.ok(res['layout/ot_widget_loading.xml'] && /ot_ld_text/.test(res['layout/ot_widget_loading.xml']), 'the plain card layout');
 assert.match(kt['OtBaseWidget.kt'], /fun fallback\(/); assert.match(kt['OtBaseWidget.kt'], /R\.layout\.ot_widget_loading/); assert.doesNotMatch(kt['OtBaseWidget.kt'], /updateAppWidget\(id, RemoteViews\(context\.packageName, layout\)\)/, 'a failed widget no longer falls back to the big unfilled layout (white shapes)');
-assert.match(res['raw/ot_widget_keep.xml'], /tools:keep="[^"]*@layout\/ot_widget_\*/, 'release builds keep the widget resources by name (Kotlin finds the rows by name)');
+assert.match(res['raw/ot_widget_keep.xml'], /tools:keep="[^"]*@layout\/ot_widget_\*/, 'release builds keep the widget resources by name (a release build never drops a layout a widget builds at run time)');
 { const svc = kt['OpenTickBg.kt'], on = svc.slice(svc.indexOf('override fun onStartCommand')); assert.match(on, /plainNotification/, 'the service always has a notification to put up in time'); assert.match(on.slice(0, on.indexOf('override fun onTaskRemoved')), /catch \(e: Throwable\)/, 'nothing escapes onStartCommand');
   assert.match(svc, /ic_dialog_info/, 'the small icon is never 0'); const boot = kt['OpenTickWidgetBoot.kt']; assert.equal((boot.match(/postDelayed\(\{ try/g) || []).length, 4, 'every delayed call in the boot provider is guarded'); }
 // braces and parentheses balance in every Kotlin file (a cheap guard against a broken edit)
 for (const [f, t] of Object.entries(kt)) { const code = t.replace(/"(\\.|[^"\\])*"/g, '""').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, ''); for (const [a, b] of [['{', '}'], ['(', ')'], ['[', ']']]) assert.equal(code.split(a).length, code.split(b).length, `${f}: ${a}${b} balance`); }
 // the data the widgets read is written by the app
 const wj = rd('src/js/widget.js');
-for (const m of allKt.matchAll(/\bdata\?\.opt(?:JSONArray|JSONObject)\("(\w+)"\)/g)) if (m[1] !== 'theme') assert.match(wj, new RegExp('\\b' + m[1] + ': '), 'the snapshot has "' + m[1] + '"');
+for (const m of allKt.matchAll(/\b(?:(?:data|shownData)\??\.opt(?:JSONArray|JSONObject)|items)\((?:data, )?"(\w+)"\)/g)) if (m[1] !== 'theme') assert.match(wj, new RegExp('\\b' + m[1] + ': '), 'the snapshot has "' + m[1] + '"');
 for (const op of ['nav', 'page', 'note', 'newnote', 'focus', 'habit']) assert.match(wj, new RegExp("'" + op + "'"), 'the app acts on widget op ' + op);
 // the background service: Kotlin parts, manifest entries, and the keys the page writes are the keys Kotlin reads
 {

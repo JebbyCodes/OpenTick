@@ -1548,11 +1548,11 @@ body.locked{overflow:hidden}body.locked #dock{display:none}
 /* ---- 0.5: keyboard shortcuts (key caps, hints on buttons, the shortcuts window) ---- */
 kbd,.skk kbd,.skh kbd{display:inline-block;min-width:1.5em;padding:1px 6px;border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;background:var(--card);color:var(--text);font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;text-align:center}
 .skk{display:inline-flex;gap:3px;align-items:center}
-.skh{display:inline-flex;gap:2px;margin-left:auto;pointer-events:none;opacity:.8}.skh kbd{font-size:10px;min-width:1.4em;padding:0 4px;color:var(--muted);background:transparent}
+/* a key cap that sits on a label all the time (never appears or changes on hover: hovering shows the tooltip and nothing else) */
+.skh{display:inline-flex;gap:2px;margin-left:auto;pointer-events:none;opacity:.85;flex:none}.skh kbd{font-size:10px;min-width:1.4em;padding:0 4px;color:var(--muted);background:transparent;border-color:var(--line)}
 #side .pages .pg,[data-act=uitoggle],[data-act=settings],.top .ib,.top .btn{position:relative}
-#side .pages .pg .skh{position:absolute;top:1px;right:1px;margin:0}
-.top .ib .skh,.top .btn .skh,.brand .ib .skh{position:absolute;right:-2px;bottom:-9px;margin:0;opacity:0;transition:opacity .12s;z-index:5;background:var(--bg);border-radius:6px}
-.top .ib:hover .skh,.top .btn:hover .skh,.brand .ib:hover .skh,.top .ib:focus-visible .skh,.top .btn:focus-visible .skh,.brand .ib:focus-visible .skh{opacity:1}
+#side .pages .pg .skh{position:absolute;top:2px;right:3px;margin:0}#side .pages .pg .skh kbd{min-width:0;padding:0 4px;border-bottom-width:1px;line-height:1.35}
+.top .btn .skh{margin-left:8px}
 #side .search .skh{margin-left:6px}
 html[data-skhints=off] .skh{display:none}
 @media (hover:none) and (pointer:coarse){.skh{display:none!important}}
@@ -1572,7 +1572,22 @@ html[data-skhints=off] .skh{display:none}
 @media(prefers-reduced-motion:reduce){.ctx{animation:none}}
 
 /* ---- 0.5: settings tabs ---- */
-.stabs{display:flex;gap:4px;overflow-x:auto;padding:2px 0 8px;margin:0 0 6px;border-bottom:1px solid var(--line);scrollbar-width:thin}
+/* settings: a list of sections on the left (a strip on a phone), the search above, and one scrolling pane, so tapping a section never moves the rest */
+.mbox.set{width:min(900px,calc(96vw / var(--zf,1)));height:min(700px,calc(90vh / var(--zf,1)));max-height:none;padding:0;display:flex;flex-direction:column;overflow:hidden}
+.set-h{display:flex;align-items:center;gap:12px;padding:14px 18px 12px;flex:none}.set-h h3{margin:0;flex:none}
+.set-q{display:flex;align-items:center;gap:8px;flex:1;max-width:380px;margin-left:auto;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--hover);color:var(--muted)}
+.set-q:focus-within{border-color:var(--acc);color:var(--text)}.set-q input{flex:1;min-width:0;border:0;background:transparent;padding:8px 0;color:var(--text);outline:0;font-size:14px}
+.set-b{display:flex;flex:1;min-height:0;border-top:1px solid var(--line)}
+.set-n{display:flex;flex-direction:column;gap:2px;width:200px;flex:none;overflow-y:auto;padding:10px 8px;border-right:1px solid var(--line)}
+.set-n .stb{width:100%;justify-content:flex-start;border-radius:10px;padding:8px 11px}
+.set-c{flex:1;min-width:0;overflow-y:auto;overscroll-behavior:contain;padding:14px 20px 20px}
+.mbox.set>.mact{flex:none;padding:10px 18px;border-top:1px solid var(--line);margin:0}
+.set-res{display:flex;flex-direction:column;gap:2px}.sr-i{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;text-align:left;padding:9px 12px;border-radius:10px;background:none;border:1px solid transparent;color:var(--text)}
+.sr-i:hover,.sr-i:focus-visible{background:var(--hover);border-color:var(--line)}.sr-i small{color:var(--muted);font-size:12px}.sr-none{padding:14px 4px}
+.set-c .flash{animation:setflash 1.6s ease-out;border-radius:10px}@keyframes setflash{0%,40%{background:color-mix(in srgb,var(--acc) 30%,transparent);box-shadow:0 0 0 6px color-mix(in srgb,var(--acc) 30%,transparent)}100%{background:transparent;box-shadow:0 0 0 6px transparent}}
+@media(max-width:820px){.mbox.set{width:100%!important;height:calc(100dvh / var(--zf,1));border-radius:0;padding-bottom:0}.mback.set{align-items:stretch}.set-h{padding:12px 12px 10px}.set-q{max-width:none}
+  .set-b{flex-direction:column}.set-n{flex-direction:row;width:auto;overflow-x:auto;overflow-y:hidden;border-right:0;border-bottom:1px solid var(--line);padding:6px 8px;scrollbar-width:none;overscroll-behavior-x:contain}.set-n::-webkit-scrollbar{display:none}
+  .set-n .stb{width:auto;flex:none;border-radius:999px;padding:7px 11px}.set-c{padding:12px 12px 20px}.mbox.set>.mact{padding-bottom:calc(10px + env(safe-area-inset-bottom))}}
 .stb{display:inline-flex;align-items:center;gap:6px;flex:none;padding:7px 11px;border:1px solid transparent;border-radius:999px;background:none;color:var(--muted);font-size:13px;cursor:pointer;white-space:nowrap}
 .stb:hover{background:var(--hover);color:var(--text)}.stb.on{background:color-mix(in srgb,var(--acc) 18%,transparent);color:var(--text);border-color:color-mix(in srgb,var(--acc) 50%,transparent);font-weight:600}
 .stab[hidden]{display:none}.stab>.mh.first{margin-top:4px}
@@ -1732,7 +1747,6 @@ html[data-pager] #main{padding-right:68px} /* room for the page up / down button
 
 /* ---------- less cramped: spacing choice (Settings → Appearance), the details panel waiting for a task, quieter key hints ---------- */
 body.dauto #app{--dw:0px}body.dauto #detail,body.dauto #rs-detail{display:none}
-#side .pages .pg .skh{opacity:0;transition:opacity .12s}#side .pages .pg:hover .skh,#side .pages .pg:focus-visible .skh{opacity:.9}
 .pg.pgmore{color:var(--muted)}
 @media(min-width:821px){
 body.roomy .top{min-height:64px;padding:14px 22px;gap:10px}
@@ -1764,7 +1778,7 @@ body.roomy #detail .dbody,body.roomy #detail .form{gap:14px}
    `overscroll-behavior:contain` stops a scroll that reached the end from being handed on to the page behind. */
 html{overscroll-behavior:none}
 .scroll,.body,.cbody,.qb,.dbody,.trl,.nt-items,.wk-col,.hb-icons,.tb-c,.ic-scroll,.pk-lists,.imp-lists,.fv-body,.lplist,.bsheet,.scp,.sc-body,.home,.sk-list,.pal-l,.lic-txt,.lic-list,.priv,.tpl-nl,.wg-l,.mbox,.ctx,.emb-b,.knb,.cal-week,.edprev,.bed-menu,.tplpv,.tt-ad,#lock,#detail .dbody{overflow-x:hidden;overscroll-behavior:contain}
-.kan,.tzgrid,.knts,.kn,.stabs,.sc-tabs,.hm-scroll,.mdtbl,.nt-ed .ne-tool,.help table,.bk-code .bk-t,.bk-raw .bk-t,.bk-table .bk-t{overflow-y:hidden;overscroll-behavior-x:contain}
+.kan,.tzgrid,.knts,.kn,.set-n,.sc-tabs,.hm-scroll,.mdtbl,.nt-ed .ne-tool,.help table,.bk-code .bk-t,.bk-raw .bk-t,.bk-table .bk-t{overflow-y:hidden;overscroll-behavior-x:contain}
 .tt-scroll,.gt-wrap,.matrix{overscroll-behavior:contain}
 .vtabs{overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain}
 
@@ -1774,6 +1788,34 @@ html{overscroll-behavior:none}
 .vtabs button:hover{background:var(--hover);color:var(--text)}.vtabs button.on{background:var(--sel);color:var(--text);border-color:var(--line)}
 @media(max-width:820px){.vtabs{padding:0 8px 8px}}
 @media(max-width:820px) and (max-height:700px){.vtabs{padding-bottom:4px}.vtabs button{padding:4px 10px;font-size:12.5px}}
-#main:has(.nt.open)>.vtabs,body.gtfull .vtabs,body.nfull .vtabs{display:none}
+/* the date range under the Calendar's view switcher (what the header's arrows move) */
+.cal-sub{display:flex;align-items:center;gap:8px;padding:0 16px 8px;flex:none;min-height:24px}.cal-sub b{font-size:15px;font-weight:700;letter-spacing:-.005em;font-variant-numeric:tabular-nums}
+@media(max-width:820px){.cal-sub{padding:0 12px 6px}
+  /* a very small or very zoomed phone: the header, view tabs and day strip must not squeeze the time grid away. The grid keeps a usable height and the page scrolls instead */
+  #main:has(>.tt){overflow-y:auto}#main:has(>.tt)>*{flex-shrink:0}#main>.tt{min-height:260px;flex:1 0 260px}}
+body.gtfull .vtabs,body.nfull .vtabs{display:none}
+/* on a phone an open note fills the screen; on a computer the list and the note sit side by side and the view switcher (Notes / Templates) stays */
+@media(max-width:820px){#main:has(.nt.open)>.vtabs{display:none}}
+.empty-a{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:6px}
 .vsec{padding:4px 0 6px;border-bottom:1px solid var(--line)}.vsec:last-child{border-bottom:0}.vrow.vsub{padding-left:24px}.vrow.vsh{font-size:13px}
 html[data-eink] .vtabs button.on{border:2px solid #000;background:#fff;color:#000}
+
+/* ---- search (everything): a wide sheet with the box on top, scopes, grouped results ---- */
+.mbox.gs{width:min(680px,calc(94vw / var(--zf,1)));max-height:min(640px,calc(84vh / var(--zf,1)));padding:0;display:flex;flex-direction:column;overflow:hidden}.mback.gs{align-items:flex-start;padding-top:min(10vh,90px)}
+.gs-top{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);color:var(--muted);flex:none}
+.gs-top input{flex:1;min-width:0;border:0;background:transparent;color:var(--text);font-size:16px;padding:6px 0;outline:0}
+.gs-chips{display:flex;gap:6px;padding:8px 12px;flex:none;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--line)}.gs-chips::-webkit-scrollbar{display:none}
+.gs-chips button{flex:none;padding:5px 11px;border-radius:999px;border:1px solid transparent;background:none;color:var(--muted);font-size:12.5px;font-weight:600;cursor:pointer}
+.gs-chips button:hover{background:var(--hover);color:var(--text)}.gs-chips button.on{background:var(--sel);color:var(--text);border-color:var(--line)}
+.gs-l{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:4px 6px 8px}
+.gs-gh{display:flex;align-items:center;gap:7px;padding:10px 10px 4px;color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}.gs-gh small{margin-left:auto;font-size:11px;letter-spacing:0}
+.gs-r{display:flex;align-items:center;gap:11px;width:100%;text-align:left;padding:8px 10px;border-radius:10px;border:1px solid transparent;background:none;color:var(--text);cursor:pointer;min-height:44px}
+.gs-r.on{background:var(--sel);border-color:var(--line)}.gs-r>.ic{flex:none;color:var(--muted)}
+.gs-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}.gs-t b{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.gs-t small{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gs-t mark{background:color-mix(in srgb,var(--acc) 32%,transparent);color:inherit;border-radius:3px;padding:0 1px}
+.gs-h{flex:none;font-style:normal;color:var(--muted);font-size:12px}.gs-all b{color:var(--acc)}
+.gs-none{padding:22px 14px;text-align:center}
+.gs-foot{display:flex;gap:16px;padding:8px 14px;border-top:1px solid var(--line);color:var(--muted);font-size:12px;flex:none}.gs-foot kbd{margin-right:2px}
+@media(max-width:820px){.mback.gs{padding-top:0}.mbox.gs{width:100%!important;max-height:calc(100dvh / var(--zf,1));height:calc(100dvh / var(--zf,1));border-radius:0}.gs-foot{display:none}.gs-top input{font-size:16px}}
+#side .search input[readonly]{cursor:pointer;caret-color:transparent}#side .search{cursor:pointer}
+html[data-eink] .gs-r.on{border:2px solid #000}

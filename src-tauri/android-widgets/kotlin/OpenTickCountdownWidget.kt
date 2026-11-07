@@ -14,6 +14,7 @@ import __PACKAGE__.R
  */
 class OpenTickCountdownWidget : OtBaseWidget() {
     override val layout = R.layout.ot_widget_countdowns
+    private val H = Hd(R.id.ot_cd_bg, R.id.ot_cd_title, R.id.ot_cd_sub, 0, 0, R.id.ot_cd_empty, R.id.ot_cd_list, R.id.ot_cd_more)
     private val ROWS = 6
 
     /** Days between today and a "yyyy-mm-dd" date, both read on the calendar of [zone]. */
@@ -46,36 +47,34 @@ class OpenTickCountdownWidget : OtBaseWidget() {
     }
 
     override fun fill(context: Context, manager: AppWidgetManager, id: Int, rv: RemoteViews, data: JSONObject?, th: OtTheme) {
-        val arr = data?.optJSONArray("cd")
+        val arr = items(data, "cd")
         val total = arr?.length() ?: 0
-        head(context, id, rv, th, "ot_cd", "Countdowns", if (total > 0) "$total" else "", "page", "countdowns", "page", "countdowns")
-        val rowsFit = fit(manager, id, 54, 60, ROWS)
-        emptyText(context, rv, th, "ot_cd", data, total == 0, "No countdowns yet")
+        head(context, id, rv, th, H, "Countdowns", if (total > 0) "$total" else "", "page", "countdowns", "page", "countdowns")
+        val rowsFit = fit(manager, id, 53, 60, ROWS)
+        emptyText(rv, th, H, data, total == 0, "No countdowns yet")
+        clearRows(rv, H)
         val now = System.currentTimeMillis()
-        for (n in 0 until ROWS) {
-            val r = OtUi.rid(context, "ot_cd_r$n")
-            val o = if (n < rowsFit && arr != null) arr.optJSONObject(n) else null
-            OtUi.show(rv, r, o != null)
-            if (o == null) continue
+        val shown = minOf(rowsFit, total)
+        for (n in 0 until shown) {
+            val o = arr?.optJSONObject(n) ?: continue
             val col = OtUi.hex(o.optString("c"), th.acc)
-            OtUi.tint(rv, OtUi.rid(context, "ot_cd_b$n"), th.card)
-            OtUi.tint(rv, OtUi.rid(context, "ot_cd_i$n"), OtUi.alpha(col, 60))
-            val e = OtUi.rid(context, "ot_cd_e$n")
+            val row = newRow(context, R.layout.ot_widget_row_cd)
+            OtUi.tint(row, R.id.ot_rc_bg, th.card)
+            OtUi.tint(row, R.id.ot_rc_icon, OtUi.alpha(col, 60))
             val icon = o.optString("e", "")
-            rv.setTextViewText(e, if (icon.isNotEmpty()) icon else "⏳")
-            rv.setTextColor(e, col)
-            val name = OtUi.rid(context, "ot_cd_n$n")
-            rv.setTextViewText(name, o.optString("n"))
-            rv.setTextColor(name, th.text)
+            row.setTextViewText(R.id.ot_rc_emoji, if (icon.isNotEmpty()) icon else "⏳")
+            row.setTextColor(R.id.ot_rc_emoji, col)
+            row.setTextViewText(R.id.ot_rc_name, o.optString("n"))
+            row.setTextColor(R.id.ot_rc_name, th.text)
             val (num, unit) = big(o, now)
-            val nv = OtUi.rid(context, "ot_cd_v$n")
-            rv.setTextViewText(nv, num)
-            rv.setTextColor(nv, col)
-            val uv = OtUi.rid(context, "ot_cd_u$n")
-            rv.setTextViewText(uv, unit)
-            rv.setTextColor(uv, th.muted)
-            rv.setOnClickPendingIntent(r, OtUi.appIntent(context, "page", "countdowns", (o.optString("id").hashCode() * 31) xor id))
+            row.setTextViewText(R.id.ot_rc_value, num)
+            row.setTextColor(R.id.ot_rc_value, col)
+            row.setTextViewText(R.id.ot_rc_unit, unit)
+            row.setTextColor(R.id.ot_rc_unit, th.muted)
+            OtUi.show(row, R.id.ot_rc_unit, unit.isNotEmpty())
+            row.setOnClickPendingIntent(R.id.ot_rc_root, OtUi.appIntent(context, "page", "countdowns", (o.optString("id").hashCode() * 31) xor id))
+            addRow(rv, H, row)
         }
-        moreText(context, rv, th, "ot_cd", total - minOf(rowsFit, total), id, "page", "countdowns")
+        moreText(context, rv, th, H, total - shown, id, "page", "countdowns")
     }
 }

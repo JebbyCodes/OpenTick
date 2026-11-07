@@ -45,7 +45,7 @@ export function makeApp({ fetch = globalThis.fetch, store = {}, indexedDB } = {}
     tzValid, tzParts, tzOffset, tzToUtc, tzDate, tzHM, tzAbbr, tzOffLabel, tzFull, tzFmt, tzLocal, tzOf, tzCity, tzNewZone, tzNormalise, tzRows, tzState, tzPlan, tzClass, tzSummary, tzOptions, scopeOptions, scopeHas, TZ_ACT,
     cdNormalise, cdMoment, cdDateFor, cdLeft, cdShort, cdBig, cdWhen, cdList, cdStripHtml, cdFromTask, cdById, CD_ACT, renderCountdowns, renderZones, renderKanbanPage,
     kbNormalise, kbNewBoard, kbTasks, kbColOf, kbColumns, kbMove, kbMoveStep, kbAddTask, kbCurrent, kbById, kbCol, KB_PRESETS, KB_ACT, kbHome,
-    bridgeCall, bridgeParseUrl, bridgeHandleUrl, brOpenUrl, brSendable, brCallbackOk, brHash, brCfg, BR_PERMS, BR_CMDS, bridgeSettingsHtml, BR_ACT, remEntries, tzAnchored, tzReflow, tzTaskSync, tzWatch, tzTaskOptions, __mock: (n, fn) => { eval(n + ' = fn'); } })`, ctx);
+    bridgeCall, bridgeParseUrl, bridgeHandleUrl, brOpenUrl, brSendable, brCallbackOk, brHash, brCfg, BR_PERMS, BR_CMDS, bridgeSettingsHtml, BR_ACT, remEntries, tzAnchored, tzReflow, tzTaskSync, tzWatch, tzTaskOptions, srchGroups, srchWords, CAL_MODES, calMode, calGo, calIsGrid, calMoreItems, calView, vtabsHtml, SET_TABS, SECTIONS, PAGES, VIEW_TAB, topHtml, __mock: (n, fn) => { eval(n + ' = fn'); } })`, ctx);
   api.store = store; api.els = els; api.LST = LST; api.win = win;
   // dispatch to the page-level listeners the app registered, with a fake event whose closest() answers from `hits` (selector -> element)
   api.fire = (type, hits = {}, extra = {}) => { const e = { target: { closest: s => hits[s] || null, classList: { contains: () => false }, ...extra.target }, preventDefault() {}, stopPropagation() {}, ...extra }; for (const f of LST[type] || []) f(e); return e; };

@@ -272,8 +272,8 @@ const SET_TABS = [['general', 'General', 'sliders'], ['appearance', 'Appearance'
 function openSettings(tab) {
   const s = S.settings; if (typeof tab === 'string') U.setTab = tab; if (!SET_TABS.some(t => t[0] === U.setTab)) U.setTab = 'general';
   const sec = (id, html) => `<section class="stab" data-tab="${id}" role="tabpanel"${U.setTab === id ? '' : ' hidden'}>${html}</section>`;
-  openModal(`<h3>Settings</h3><div class="stabs" role="tablist">${SET_TABS.map(([k, n, i]) => `<button role="tab" class="stb${U.setTab === k ? ' on' : ''}" data-stab="${k}" aria-selected="${U.setTab === k}">${ic(i, 15)}<span>${n}</span></button>`).join('')}</div>`
-  + sec('general', `<div class="form"><label>Start screen${homeSelectHtml()}</label><label>Week starts on<select data-s="weekStart">${opts([[1, 'Monday'], [0, 'Sunday'], [6, 'Saturday']], s.weekStart)}</select></label></div>
+  openModal(`<div class="set-h"><h3>Settings</h3><label class="set-q">${ic('search', 15)}<input type="search" id="setq" placeholder="Search settings" aria-label="Search settings" autocomplete="off" spellcheck="false"></label></div><div class="set-b"><nav class="set-n" role="tablist" aria-label="Settings sections">${SET_TABS.map(([k, n, i]) => `<button role="tab" class="stb${U.setTab === k ? ' on' : ''}" data-stab="${k}" aria-selected="${U.setTab === k}">${ic(i, 15)}<span>${n}</span></button>`).join('')}</nav><div class="set-c" id="setc"><div id="setres" class="set-res" hidden></div>`
+    + sec('general', `<div class="form"><label>Start screen${homeSelectHtml()}</label><label>Week starts on<select data-s="weekStart">${opts([[1, 'Monday'], [0, 'Sunday'], [6, 'Saturday']], s.weekStart)}</select></label></div>
 ${tasksSettingsHtml()}
 <h4 class="mh">Clock</h4><div class="mrow tight"><label class="chkl"><input type="checkbox" data-ck="on"${s.clock.on !== false ? ' checked' : ''}> Show date &amp; time</label><label class="chkl"><input type="checkbox" data-ck="h24"${s.clock.h24 ? ' checked' : ''}> 24-hour clock</label><label class="chkl"><input type="checkbox" data-ck="sec"${s.clock.sec ? ' checked' : ''}> Seconds</label></div><p class="hint">At the foot of the sidebar, or a small corner label when the sidebar is hidden.</p>
 <div class="mrow tight" style="margin-top:10px"><label class="chkl"><input type="checkbox" data-bnr="on"${s.banners !== false ? ' checked' : ''}> Show banners on lists and projects</label></div>
@@ -303,14 +303,14 @@ ${tasksSettingsHtml()}
   + sec('about', `<h4 class="mh">Help &amp; about</h4><div class="dgrid"><button data-m="help">${ic('book-open', 18)}<span><b>Help &amp; user guide</b><small>How everything works · printable</small></span></button><button data-m="aboutdlg">${ic('info', 18)}<span><b>About OpenTick</b><small>v${esc(APP_VERSION)} · source, licences &amp; credits</small></span></button></div>
 <div class="about">${logoHtml(40)}<div><b>OpenTick</b> <span class="ver">v${esc(APP_VERSION)}</span><br><span class="hint">${OTMETA.built ? 'Built ' + esc(OTMETA.built) + ' · ' : ''}Your data lives on this device. Turn on Sync to share it between devices, or export a JSON backup. Theme, sound and view settings stay per device.</span></div></div>
 ${privacySettingsHtml()}`)
-  + `<div class="mact"><button class="pri" data-m="ok">Done</button></div>`, m => { if (typeof prefTabShow === 'function') setTimeout(() => prefTabShow(m), 0);
+  + `</div></div><div class="mact"><button class="pri" data-m="ok">Done</button></div>`, m => { if (typeof prefTabShow === 'function') prefTabShow(m); if (!narrow(820) && $('#setq', m)) $('#setq', m).focus();
     loadSnaps(m); scaleBind(m);
     m.onchange = e => {
       const el = e.target;
       if (el.dataset.bnr) { S.settings.banners = el.checked; save(); return; }
       if (el.dataset.ck) { S.settings.clock[el.dataset.ck] = el.checked; save(); clockPaint(); return; }
       if (el.dataset.snd) { const k = el.dataset.snd; S.settings.sound[k] = el.type === 'checkbox' ? el.checked : +el.value; save(); if (k === 'vol' || (k === 'on' && el.checked)) sfx('done', true); return; }
-      if (el.dataset.pg) { const h = S.settings.ui.hidePages; if (el.checked) S.settings.ui.hidePages = h.filter(k => k !== el.dataset.pg); else if (!h.includes(el.dataset.pg)) h.push(el.dataset.pg); save(); const b = $('#sbv', m); if (b) b.innerHTML = uiSidebarSettings(); return; }
+      if (el.dataset.pg) { const h = S.settings.ui.hidePages, ks = el.dataset.pg === 'calendar' ? ['calendar', 'timetable'] : [el.dataset.pg]; /* the Calendar's week and day are part of it */ for (const k of ks) { if (el.checked) S.settings.ui.hidePages = S.settings.ui.hidePages.filter(x => x !== k); else if (!S.settings.ui.hidePages.includes(k)) S.settings.ui.hidePages.push(k); } save(); const b = $('#sbv', m); if (b) b.innerHTML = uiSidebarSettings(); return; }
       if (el.dataset.sx) { S.settings[el.dataset.sx] = el.value; if (el.dataset.sx === 'motion') motionApply(); save(); return; }
       if (el.dataset.s) { S.settings[el.dataset.s] = +el.value; }
       if (el.dataset.p) { S.settings.pomo[el.dataset.p] = Math.max(1, Math.min(180, +el.value || 25)); if (!P.run) pSet(P.mode); }
@@ -351,7 +351,7 @@ ${privacySettingsHtml()}`)
       else if (a === 'themeexp') { const c = customTheme(b.dataset.id); if (c) try { if (await saveText(themeSlug(c.name) + '.css', themeFile(c), 'text/css')) toast('Theme saved'); } catch (err) { toast('Could not save: ' + (err.message || err)); } }
       else if (a === 'themedel') { const c = customTheme(b.dataset.id); if (c && await askConfirm(`Remove the theme “${c.name}”?`, 'Remove')) { themeRemove(c.id); closeModal(); openSettings(); } else if (c) openSettings(); }
     };
-  }, 'wide');
+  }, 'set');
 }
 
 /* ---------- actions ---------- */
@@ -777,6 +777,7 @@ const ACT = {
     if (!await askConfirm(`Delete section “${s}”? Its tasks stay in the list.`)) return;
     l.sections = l.sections.filter(x => x !== s); S.tasks.forEach(t => { if (t.listId === l.id && t.section === s) t.section = null; }); save(); renderMain();
   },
+  qclear: () => { U.q = ''; U.sel = null; renderSide(); renderMain(); renderDetail(); },
   showdone: () => { const k = U.q ? 'search' : U.nav; U.showDone[k] = !U.showDone[k]; renderMain(); },
   emptytrash: async () => { if (await askConfirm('Permanently delete everything in Trash?')) { S.tasks = S.tasks.filter(t => !t.deleted); U.sel = null; save(); refresh(); } },
   cleardone: async () => { if (await askConfirm('Move all completed tasks to Trash?', 'Clear')) { S.tasks.forEach(t => { if (!t.deleted && t.status === 'done') t.deleted = Date.now(); }); save(); refresh(); } },
@@ -798,11 +799,11 @@ const ACT = {
   // calendar
   calprev: () => calShift(-1), calnext: () => calShift(1),
   caltoday: () => { U.calD = new Date(); fx('#main > *:not(.top)', 'fade'); renderMain(); },
-  calview: el => {
-    const t = new Date(); if (U.calD.getFullYear() === t.getFullYear() && U.calD.getMonth() === t.getMonth()) U.calD = t; // keep "today" in view when switching
-    S.settings.cal.view = el.dataset.v; save(); fx('#main > *:not(.top)', 'fade'); renderMain();
-  },
-  calgo: (el, e) => { if (e) e.stopPropagation(); U.calD = pYmd(el.dataset.d); S.settings.cal.view = 'day'; save(); fx('#main > *:not(.top)', 'fade'); renderMain(); },
+  calview: el => calGo(el.dataset.v),
+  calgo: (el, e) => { if (e) e.stopPropagation(); calGo('day', pYmd(el.dataset.d)); },
+  // the one Add button: a task on the day shown (month, agenda) or a task / lesson slot on the grid
+  caladd: () => { if (U.page === 'timetable') ACT.ttadd(); else { const t = new Date(), d = U.calD && U.calD.getMonth() === t.getMonth() && U.calD.getFullYear() === t.getFullYear() ? t : U.calD; ACT.calday({ dataset: { d: ymd(d) } }); } },
+  calmore: el => { const r = el.getBoundingClientRect(); ctxOpen(Math.max(8, r.right - 250), r.bottom + 4, calMoreItems()); },
   async calday(el) {
     const d = el.dataset.d, txt = await askText('Add task on ' + fmtDate(d), '', 'e.g. Dentist 3pm !high');
     if (!txt) return;
@@ -871,7 +872,7 @@ const ACT = {
   // timetable
   ttprev: () => ttShift(-1), ttnext: () => ttShift(1),
   tttoday: () => { U.ttDate = new Date(); renderMain(); },
-  ttview: el => { U.ttV = el.dataset.v; S.settings.tt.view = el.dataset.v; save(); renderMain(); },
+  ttview: el => calGo(el.dataset.v),
   ttday: el => { U.ttDate = pYmd(el.dataset.d); U.ttV = 'day'; S.settings.tt.view = 'day'; save(); renderMain(); },
   ttjump: el => { U.ttDate = pYmd(el.dataset.d); renderMain(); },
   tttray: () => { if (narrow(820)) openTTTasks(); else { U.ttTray = !ttTrayOn(); renderMain(); } },
@@ -1027,7 +1028,7 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Tab') { mdTab(el, e); return; }
   }
   if (e.key === 'Escape') { if (U.nFull && !$('#modal.on') && !$('.bed-pop')) { noteFull(false); return; } if ($('#modal.on')) { const b = $('.mback'); if (b) b.click(); } else if (U.sel) closeDetail(); else document.body.classList.remove('drawer'); return; }
-  if ((e.key === 'k' && (e.ctrlKey || e.metaKey)) || (e.key === '/' && !typing)) { e.preventDefault(); document.body.classList.add('drawer'); const q = $('#q'); if (q) q.focus(); return; }
+  if ((e.key === 'k' && (e.ctrlKey || e.metaKey)) || (e.key === '/' && !typing)) { e.preventDefault(); const sq = $('#modal.on #setq'); if (sq) { sq.focus(); return; } if (!$('#modal.on')) openSearch(''); return; }
   if (!typing && !e.ctrlKey && !e.metaKey && !e.altKey && !($('#modal.on'))) {
     if (e.key === '[') { e.preventDefault(); uiToggle('side'); return; }
     if (e.key === ']') { e.preventDefault(); uiToggle('detail'); return; }

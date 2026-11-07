@@ -108,12 +108,12 @@ const LIST_ICONS = ['list', 'inbox', 'sun', 'calendar', 'star', 'flag', 'heart',
 const listIcon = (o, n = 18) => { const i = o && o.icon; return i && IC[i] ? ic(i, n) : i ? `<span class="emo" style="font-size:${Math.round(n * 0.9)}px">${esc(i)}</span>` : ic(o && o.listIds ? 'layers' : 'list', n); };
 const U = { projList: {}, tagSel: [], tagMode: 'all', hist: { acts: [], kinds: [], q: '', sort: 'new', shown: 150 },  page: 'tasks', nav: 'today', q: '', sel: null, calD: new Date(), fx: [], showDone: {}, drag: null, _rn: null, ttDate: null, ttTray: null, ttV: null };
 const SMART = [['inbox', 'Inbox', 'inbox'], ['today', 'Today', 'sun'], ['tomorrow', 'Tomorrow', 'sunrise'], ['week', 'Next 7 Days', 'calendar'], ['all', 'All', 'layers']];
-const PAGES = [['home', 'Projects', 'dashboard'], ['tasks', 'Tasks', 'check-circle'], ['notes', 'Notes', 'notes'], ['calendar', 'Calendar', 'calendar'], ['timetable', 'Timetable', 'table'], ['gantt', 'Gantt', 'gantt'], ['matrix', 'Matrix', 'grid'], ['habits', 'Habit', 'activity'], ['focus', 'Focus', 'clock'], ['templates', 'Templates', 'copy'], ['countdowns', 'Countdowns', 'hourglass'], ['zones', 'Time zones', 'globe'], ['kanban', 'Boards', 'columns']];
+const PAGES = [['home', 'Projects', 'dashboard'], ['tasks', 'Tasks', 'check-circle'], ['notes', 'Notes', 'notes'], ['calendar', 'Calendar', 'calendar'], ['timetable', 'Week & day', 'table'], ['gantt', 'Timeline', 'gantt'], ['matrix', 'Matrix', 'grid'], ['habits', 'Habits', 'activity'], ['focus', 'Focus', 'clock'], ['templates', 'Templates', 'copy'], ['countdowns', 'Countdowns', 'hourglass'], ['zones', 'Time zones', 'globe'], ['kanban', 'Board', 'columns']];
 // The sidebar and the phone tab bar show SECTIONS; each section groups related views (the pages above, whose ids are what everything else
 // uses: shortcuts, widgets, links, settings). A slim switcher under the page header moves between a section's views.
 const SECTIONS = [['home', 'Projects', 'dashboard', ['home']], ['tasks', 'Tasks', 'check-circle', ['tasks', 'kanban', 'matrix', 'gantt']], ['notes', 'Notes', 'notes', ['notes', 'templates']], ['calendar', 'Calendar', 'calendar', ['calendar', 'timetable', 'countdowns', 'zones']], ['habits', 'Habits', 'activity', ['habits', 'focus']]];
 // how a view is named inside its section: [label, icon]
-const VIEW_TAB = { home: ['Projects', 'dashboard'], tasks: ['List', 'list'], kanban: ['Board', 'columns'], matrix: ['Matrix', 'grid'], gantt: ['Timeline', 'gantt'], notes: ['Notes', 'notes'], templates: ['Templates', 'copy'], calendar: ['Month', 'calendar'], timetable: ['Timetable', 'table'], countdowns: ['Countdowns', 'hourglass'], zones: ['Time zones', 'globe'], habits: ['Habits', 'activity'], focus: ['Focus', 'clock'] };
+const VIEW_TAB = { home: ['Projects', 'dashboard'], tasks: ['List', 'list'], kanban: ['Board', 'columns'], matrix: ['Matrix', 'grid'], gantt: ['Timeline', 'gantt'], notes: ['Notes', 'notes'], templates: ['Templates', 'copy'], calendar: ['Calendar', 'calendar'], timetable: ['Week & day', 'table'], countdowns: ['Countdowns', 'hourglass'], zones: ['Time zones', 'globe'], habits: ['Habits', 'activity'], focus: ['Focus', 'clock'] };
 const FLAT = ['done', 'trash', 'wontdo', 'search'];
 // inline markdown in titles, never as links (rows are click targets)
 const FULLDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -257,8 +257,14 @@ const canDrag = () => S.settings.sort === 'manual' && sortDir() === 'asc' && S.s
 // the view switcher under a page's header: only for a section with more than one view showing
 function vtabsHtml() {
   const sec = typeof secOf === 'function' ? secOf(U.page) : null; if (!sec) return '';
-  const vs = viewsOf(sec); if (vs.length < 2) return '';
-  return `<nav class="vtabs" role="tablist" aria-label="${esc(SECTIONS.find(s => s[0] === sec)[1])} views">${vs.map(k => `<button role="tab" class="${U.page === k ? 'on' : ''}" aria-selected="${U.page === k}" data-act="page" data-page="${k}">${ic(VIEW_TAB[k][1], 15)}<span>${esc(VIEW_TAB[k][0])}</span></button>`).join('')}</nav>`;
+  const vs = viewsOf(sec), name = SECTIONS.find(s => s[0] === sec)[1];
+  if (sec === 'calendar' && vs.includes('calendar')) { // one Calendar: Month and Agenda list tasks by date, Week / 3 days / Day are the time grid (the old Timetable)
+    const cur = typeof calMode === 'function' ? calMode() : '';
+    const tab = (on, act, attrs, ico, label) => `<button role="tab" class="${on ? 'on' : ''}" aria-selected="${on}" data-act="${act}" ${attrs}>${ic(ico, 15)}<span>${esc(label)}</span></button>`;
+    return `<nav class="vtabs" role="tablist" aria-label="${esc(name)} views">${CAL_MODES.map(([v, n, i, grid]) => tab(cur === v, grid ? 'ttview' : 'calview', `data-v="${v}"`, i, n)).join('')}${vs.filter(k => k !== 'calendar' && k !== 'timetable').map(k => tab(U.page === k, 'page', `data-page="${k}"`, VIEW_TAB[k][1], VIEW_TAB[k][0])).join('')}</nav>`;
+  }
+  if (vs.length < 2) return '';
+  return `<nav class="vtabs" role="tablist" aria-label="${esc(name)} views">${vs.map(k => `<button role="tab" class="${U.page === k ? 'on' : ''}" aria-selected="${U.page === k}" data-act="page" data-page="${k}">${ic(VIEW_TAB[k][1], 15)}<span>${esc(VIEW_TAB[k][0])}</span></button>`).join('')}</nav>`;
 }
 const topHtml = (title, tools = '') => vtabsHtml() ? topHead(title, tools) + vtabsHtml() : topHead(title, tools);
 const topHead = (title, tools = '') => `<header class="top"><button class="ib burger" data-act="burger" aria-label="Menu">${ic('menu', 22)}</button><h1>${title}</h1><div class="tools">${tools}</div><button class="ib pt pt-det" data-act="uitoggle" data-k="detail" title="Show / hide task details  ]" aria-label="Show or hide the task details">${ic('panel-right', 20)}</button></header>`;
@@ -305,7 +311,7 @@ function renderSide() {
     return [`<div class="navrow proj${on('project:' + p.id) ? ' on' : ''}" style="--d:0">${kids ? `<button class="caret${open ? ' open' : ''}" data-act="pexp" data-pid="${esc(p.id)}" aria-label="${open ? 'Collapse' : 'Expand'} ${esc(p.name)}" aria-expanded="${open}">${ic('right', 12)}</button>` : '<span class="caret sp"></span>'}<button class="nav${on('project:' + p.id)}" data-act="nav" data-nav="project:${esc(p.id)}"><span class="ni" style="color:${p.color}">${listIcon(p, 18)}</span><span class="nl">${esc(p.name)}</span>${n ? `<span class="cnt">${n}</span>` : ''}</button></div>`, ...(open ? projKids(p) : [])]; });
   $('#side').innerHTML = `
 <div class="brand">${logoHtml(28)}<span class="bn"><b>OpenTick</b><small class="ver" title="Version ${esc(APP_VERSION)}">v${esc(APP_VERSION)}</small></span><button class="ib" data-act="uitoggle" data-k="side" title="${S.settings.ui.side ? 'Hide sidebar' : 'Dock sidebar'}">${ic('panel-left', 18)}</button><button class="ib" data-act="settings" title="Settings">${ic('sliders', 18)}</button></div>
-<div class="search">${ic('search', 16)}<input id="q" placeholder="Search" autocomplete="off"></div>
+<div class="search">${ic('search', 16)}<input id="q" placeholder="Search everything" aria-label="Search everything: tasks, notes, templates, settings" autocomplete="off" readonly>${U.q ? `<button class="ib sm" data-act="qclear" title="Clear this search" aria-label="Clear this search">${ic('x', 14)}</button>` : ''}</div>
 <div class="pages">${pagesGrid().map(([k, n, i]) => `<button class="pg${secOf(U.page) === k ? ' on' : ''}" data-act="page" data-page="${sectionTarget(k)}" data-sec="${k}" title="${n} — drag to reorder" draggable="true">${ic(i, 20)}<small>${n}</small></button>`).join('')}${pagesMoreBtn()}</div>
 <div class="scroll">
 ${SMART.map(([k, n, i]) => item(k, n, i, null, openCount(k))).join('')}
@@ -478,9 +484,31 @@ function renderHistory() {
 /* ---------- calendar ----------
    Views: month, week, day and agenda (the next 30 days as a list). A repeating task is drawn on every date it comes
    round again, not only the next one: those later dates are "virtual" (dashed, not tickable) and open the real task. */
-const CAL_VIEWS = [['month', 'Month'], ['week', 'Week'], ['day', 'Day'], ['agenda', 'Agenda']];
-const CAL_STEP = { week: 7, day: 1, agenda: 30 };
-const calView = () => { const v = (S.settings.cal || {}).view; return CAL_VIEWS.some(x => x[0] === v) ? v : 'month'; };
+/* One Calendar, five ways to look at it. Month and Agenda list tasks by date (page "calendar"); Week, 3 days and Day are the time grid with lessons,
+   weekly slots and timed tasks (page "timetable", which used to be a view of its own). Both pages keep their own date, and switching carries it over. */
+const CAL_MODES = [['month', 'Month', 'calendar', false], ['week', 'Week', 'table', true], ['3day', '3 days', 'columns', true], ['day', 'Day', 'sun', true], ['agenda', 'Agenda', 'list', false]];
+const CAL_STEP = { agenda: 30 };
+const calView = () => ((S.settings.cal || {}).view === 'agenda' ? 'agenda' : 'month'); // what the "calendar" page shows (an old saved week or day view now lives on the grid)
+const calMode = () => (U.page === 'timetable' ? (schoolOn() ? '' : ttView()) : calView()); // the mode that is on, for the switcher
+const calIsGrid = () => U.page === 'timetable' && !schoolOn();
+// switch the Calendar to a mode, keeping the date you were looking at
+function calGo(v, date) {
+  const grid = CAL_MODES.some(m => m[0] === v && m[3]), from = date ? new Date(date) : (U.page === 'timetable' ? new Date(U.ttDate || Date.now()) : new Date(U.calD));
+  if (grid) { S.settings.tt.mode = 'plan'; U.ttDate = from; U.ttV = v; S.settings.tt.view = v; U.page = 'timetable'; }
+  else { const t = new Date(); if (!date && from.getFullYear() === t.getFullYear() && from.getMonth() === t.getMonth()) from.setTime(t.getTime()); U.calD = from; S.settings.cal.view = v === 'agenda' ? 'agenda' : 'month'; U.page = 'calendar'; }
+  save(); render();
+}
+// the header every Calendar mode shares: back / today / forward, one Add, and a More menu that holds the rest (nothing else is an unlabelled icon)
+const calTools = nav => `<button class="ib" data-act="${nav}prev" title="Previous" aria-label="Previous">${ic('left')}</button><button class="btn" data-act="${nav}today" title="Jump to today">Today</button><button class="ib" data-act="${nav}next" title="Next" aria-label="Next">${ic('right')}</button><button class="btn pri" data-act="caladd" title="Add a task, a lesson or a weekly slot">${ic('plus', 16)}<span class="hide-m"> Add</span></button><button class="ib" data-act="calmore" title="More: unscheduled tasks, holidays, second time zone, classes, settings" aria-label="More options" aria-haspopup="menu">${ic('more')}</button>`;
+const calSub = label => `<div class="cal-sub" aria-live="polite"><b>${label}</b></div>`;
+function calMoreItems() {
+  const grid = calIsGrid(), tz2 = typeof tzValid === 'function' && tzValid(S.settings.tt.tz2) && S.settings.tt.tz2 !== tzLocal(), out = [];
+  if (grid) out.push({ label: ttTrayOn() ? 'Hide unscheduled tasks' : 'Show unscheduled tasks', icon: 'list', run: () => ACT.tttray() }, { label: tz2 ? 'Second time zone…' : 'Add a second time zone…', icon: 'globe', run: () => ACT.tt2() });
+  out.push({ label: 'Holidays and days off…', icon: 'sun', run: () => holDlg() });
+  if (typeof scName === 'function') out.push({ label: `${scName()}: lessons, exams, homework…`, icon: 'graduation', run: () => ACT.scmode({ dataset: { m: 'school' } }) });
+  if (grid) out.push({ label: 'Timetable settings…', icon: 'sliders', run: () => ACT.ttset() });
+  return out;
+}
 // the dates (from..to, inclusive) on which an open repeating task comes round again after its own due date
 function repeatDates(t, from, to) {
   if (!t.repeat || !t.due || t.status !== 'open' || t.deleted) return [];
@@ -533,14 +561,6 @@ function renderCal() {
     }).join('');
     title = `${MONTHS[mo]} ${y}`;
     body = `<div class="cal"><div class="dows">${head}</div><div class="cgrid">${cells}</div></div>`;
-  } else if (view === 'week') {
-    const days = Array.from({ length: 7 }, (_, i) => addDays(wkStart(d0), i)), by = calItems(ymd(days[0]), ymd(days[6]));
-    title = ttRange(days);
-    body = `<div class="cal-week"><div class="wk-in"><div class="wk-head">${days.map(d => `<button class="wk-dh${ymd(d) === td ? ' today' : ''}" data-act="calgo" data-d="${ymd(d)}" title="Open this day"><small>${DAYS[d.getDay()]}</small><b>${d.getDate()}</b></button>`).join('')}</div><div class="wk-cols">${days.map(d => { const k = ymd(d), ho = holOn(d); return `<div class="wk-col${k === td ? ' today' : ''}${ho ? ' hol' : ''}" data-act="calday" data-d="${k}"${ho ? ` style="--hc:${holColor(ho)}"` : ''}>${ho ? holBand(ho) : ''}${(by[k] || []).map(calChip).join('')}</div>`; }).join('')}</div></div></div>`;
-  } else if (view === 'day') {
-    const k = ymd(d0), ts = calItems(k, k)[k] || [];
-    title = ttRange([d0]);
-    body = (holOn(d0) ? holBand(holOn(d0), 'big') : '') + `<div class="quick"><input class="caladd" data-d="${k}" autocomplete="off" placeholder="+ Add task on ${esc(fmtDate(k))} — try “Dentist 3pm !high”"></div><div class="body">${ts.length ? ts.map(it => calRow(it)).join('') : `<div class="empty">${ic('calendar', 44)}<p>Nothing planned for ${esc(fmtDate(k).toLowerCase())}</p></div>`}</div>`;
   } else {
     const from = ymd(d0), to = ymd(addDays(d0, 29)), by = calItems(from, to), late = from <= td ? S.tasks.filter(t => !t.deleted && t.status === 'open' && t.due && t.due < td && t.due < to) : [];
     const days = Object.keys(by).sort(), n = days.length + (late.length ? 1 : 0);
@@ -548,8 +568,7 @@ function renderCal() {
     title = `Agenda · ${dm(d0)} – ${dm(e0)}`;
     body = `<div class="body agenda">${holIn(from, to).map(o => holBand(o, 'big') ).join('')}${late.length ? `<div class="grp late">Overdue<span>${late.length}</span></div>` + late.sort((a, b) => dueKey(a).localeCompare(dueKey(b))).map(t => rowHtml(t, true)).join('') : ''}${days.map(k => `<div class="grp${k === td ? ' today' : ''}" data-act="calgo" data-d="${k}">${esc(calDayLabel(k))}<span>${by[k].length}</span></div>` + by[k].map(it => calRow(it)).join('')).join('')}${n ? '' : `<div class="empty">${ic('calendar', 44)}<p>Nothing planned in the next 30 days</p></div>`}</div>`;
   }
-  const seg = `<div class="seg cal-seg">${CAL_VIEWS.map(([v, n]) => `<button class="${view === v ? 'on' : ''}" data-act="calview" data-v="${v}">${n}</button>`).join('')}</div>`;
-  $('#main').innerHTML = topHtml(esc(title), `<button class="ib" data-act="calprev" title="Previous" aria-label="Previous">${ic('left')}</button><button class="btn" data-act="caltoday">Today</button><button class="ib" data-act="calnext" title="Next" aria-label="Next">${ic('right')}</button>${seg}<button class="ib" data-act="holidays" title="Holidays" aria-label="Holidays">${ic('sun')}</button>`) + body;
+  $('#main').innerHTML = topHtml('Calendar', calTools('cal')) + calSub(esc(title)) + body;
 }
 
 /* ---------- eisenhower matrix ----------
@@ -807,15 +826,13 @@ function renderTimetablePlan() {
   const cols = data.map(x => `<div class="tt-col${x.k === td ? ' today' : ''}${x.off ? ' off' : ''}" data-act="ttcell" data-d="${x.k}" data-from="${from}">${x.off ? `<div class="tt-hol" style="--hc:${holColor(x.off)}"><span class="mq">${ic('sun', 12)} ${esc(holName(x.off))}</span></div>` : ''}${x.items.map(it => block(it, x.d)).join('')}${x.k === td && nowM >= from && nowM <= to ? `<div class="tt-now" style="top:${(nowM - from) * ppm}px"></div>` : ''}</div>`).join('');
   const trayOn = ttTrayOn(), un = ttUnscheduled();
   const tray = trayOn ? `<aside class="tray"><div class="rs rs-l" data-rs="tray" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize · double-click to reset"></div><div class="trh"><b>Tasks</b><small>${un.length} without a time</small><button class="ib sm" data-act="tttray" title="Hide this panel">${ic('x', 14)}</button></div><input class="tradd" placeholder="+ New task  (try “Study 4pm for 90min”)" autocomplete="off"><div class="trl">${un.slice(0, 80).map(ttTrayItem).join('') || '<p class="hint">Nothing waiting — nice.</p>'}</div><p class="hint">Drag a task onto the grid, or press the clock to pick a time. Pull a block’s top or bottom edge to resize it.</p></aside>` : '';
-  const seg = `<div class="seg">${[['day', 'Day'], ['3day', '3 days'], ['week', 'Week']].map(([v, n]) => `<button class="${view === v ? 'on' : ''}" data-act="ttview" data-v="${v}">${n}</button>`).join('')}</div>`;
-  const tools = `<button class="ib" data-act="ttprev" title="Previous">${ic('left')}</button><button class="btn" data-act="tttoday">Today</button><button class="ib" data-act="ttnext" title="Next">${ic('right')}</button>${seg}${ttModeSeg()}<button class="btn pri" data-act="ttadd" title="Add a task or a weekly slot">${ic('plus', 16)}<span class="hide-m"> Add</span></button><button class="ib${trayOn ? ' on' : ''}" data-act="tttray" title="Unscheduled tasks">${ic('list')}</button><button class="ib${tz2 ? ' on' : ''}" data-act="tt2" title="Second time zone" aria-label="Second time zone">${ic('globe')}</button><button class="ib" data-act="holidays" title="Holidays" aria-label="Holidays">${ic('sun')}</button><button class="ib" data-act="ttset" title="Timetable settings">${ic('sliders')}</button>`;
   const old = $('.tt-scroll'), keep = old && !U.ttRe ? old.scrollTop * (TT_HH / (prevHH || TT_HH)) : null;
   const draft = $('.tradd') ? $('.tradd').value : '';
   const hint = S.slots.length ? '' : `<p class="hint pad">${phone ? 'Tap' : 'Click or drag across'} the grid to add a task or a weekly slot.</p>`;
   const legend = phone ? '' : `<div class="tt-legend"><span><i class="lg slot"></i>Weekly slot</span><span><i class="lg task"></i>Task with a time</span>${S.settings.tt.classes !== false && scHas() ? `<span><i class="lg lsn"></i>${esc(scName())} lesson</span>` : ''}<span class="hint tt-tip" tabindex="0" title="Click or drag on the grid to add · drag a block to move it · pull its top or bottom edge to resize">${ic('info', 13)} How to</span></div>`;
-  const strip = view === 'week' ? '' : ttStrip(days[0]);
+  const strip = view === 'week' || !phone ? '' : ttStrip(days[0]); // the quick day strip is for a phone, where the grid shows only one or three days
   const zcap = tz2 ? `<p class="tt-tz2 hint pad">${ic('globe', 12)} Left: ${esc(tzCity(tzLocal()))} (your time) · Right: ${esc((S.zones.find(z => z.tz === tz2) || {}).name || tzCity(tz2))}, ${esc(tzOffLabel(Date.now(), tz2))}</p>` : '';
-  $('#main').innerHTML = topHtml(esc(ttRange(days)), tools) + strip + hint + zcap + legend
+  $('#main').innerHTML = topHtml('Calendar', calTools('tt')) + calSub(esc(ttRange(days))) + strip + hint + zcap + legend
     + `<div class="tt"><div class="tt-scroll"><div class="tt-inner" style="${tz2 ? '--gw:92px;' : ''}--n:${data.length};--cw:${view === 'week' ? (phone ? 92 : 104) : 0}px;--hh:${TT_HH}px"><div class="tt-top">${view === 'day' ? '' : head}${allday}</div><div class="tt-body" style="height:${(to - from) * ppm}px"><div class="tt-gut">${hours}</div>${cols}</div></div></div>${tray}</div>`
     + `<button class="fab" data-act="ttadd" aria-label="Add to the timetable">${ic('plus', 26)}</button>`;
   const sc = $('.tt-scroll');

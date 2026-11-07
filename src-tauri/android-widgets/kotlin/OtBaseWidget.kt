@@ -6,12 +6,22 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.widget.RemoteViews
+import org.json.JSONArray
 import org.json.JSONObject
 import __PACKAGE__.R
 
 /**
+ * The views every list-style widget header and body is made of (the ids come from the generated layout): the background, the title and its
+ * smaller line, the round "+", the "nothing here" text, the box the rows are added to, and the "+N more" line. A zero means the widget has none.
+ */
+class Hd(val bg: Int, val title: Int, val sub: Int, val add: Int, val plus: Int, val empty: Int, val list: Int, val more: Int)
+
+/**
  * What every OpenTick widget has in common: it reads the data file the app keeps (the theme and the numbers), draws itself into its layout,
- * and redraws when it is resized or when something on it was tapped. A widget that fails to fill in still shows its layout, never a crash.
+ * and redraws when it is resized or when something on it was tapped. A widget that fails to fill in still shows a card, never a crash.
+ *
+ * Widgets with a list build one small RemoteViews per row (its own layout, with plain ids) and add it to the list box. That keeps every layout
+ * small, and nothing is looked up by name at run time, which is what a minified release build can break.
  */
 abstract class OtBaseWidget : AppWidgetProvider() {
     abstract val layout: Int
@@ -78,42 +88,54 @@ abstract class OtBaseWidget : AppWidgetProvider() {
         return ((minH - headerDp) / rowDp).coerceIn(1, max)
     }
 
+    /** The widget's current width in dp (what the home screen says it is, or a normal four-cell width). */
+    fun widthDp(manager: AppWidgetManager, id: Int): Int = manager.getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 250)
+
+    /** A list from the app's data, or null while there is no data or it is locked (so a locked widget never draws what it must not show). */
+    fun items(data: JSONObject?, key: String): JSONArray? = if (data == null || data.optBoolean("locked", false)) null else data.optJSONArray(key)
+
     /** The parts every header shares: title colours, the round accent "+", and tapping the title. */
-    fun head(context: Context, id: Int, rv: RemoteViews, th: OtTheme, k: String, title: String, sub: String, addOp: String, addId: String, openOp: String, openId: String) {
-        rv.setInt(OtUi.rid(context, k + "_bg"), "setColorFilter", th.bg)
-        val t = OtUi.rid(context, k + "_title")
-        rv.setTextViewText(t, title)
-        rv.setTextColor(t, th.text)
-        val s = OtUi.rid(context, k + "_sub")
-        rv.setTextViewText(s, sub)
-        rv.setTextColor(s, th.muted)
-        rv.setOnClickPendingIntent(t, OtUi.appIntent(context, openOp, openId, id * 11 + 1))
-        rv.setOnClickPendingIntent(s, OtUi.appIntent(context, openOp, openId, id * 11 + 2))
-        val add = OtUi.rid(context, k + "_add")
-        if (add != 0) {
-            OtUi.tint(rv, add, th.acc)
-            OtUi.tint(rv, OtUi.rid(context, k + "_plus"), th.onAcc)
-            rv.setOnClickPendingIntent(add, OtUi.appIntent(context, addOp, addId, id * 11 + 3))
-            rv.setOnClickPendingIntent(OtUi.rid(context, k + "_plus"), OtUi.appIntent(context, addOp, addId, id * 11 + 3))
+    fun head(context: Context, id: Int, rv: RemoteViews, th: OtTheme, h: Hd, title: String, sub: String, addOp: String, addId: String, openOp: String, openId: String) {
+        rv.setInt(h.bg, "setColorFilter", th.bg)
+        rv.setTextViewText(h.title, title)
+        rv.setTextColor(h.title, th.text)
+        rv.setTextViewText(h.sub, sub)
+        rv.setTextColor(h.sub, th.muted)
+        rv.setOnClickPendingIntent(h.title, OtUi.appIntent(context, openOp, openId, id * 11 + 1))
+        rv.setOnClickPendingIntent(h.sub, OtUi.appIntent(context, openOp, openId, id * 11 + 2))
+        if (h.add != 0) {
+            OtUi.tint(rv, h.add, th.acc)
+            OtUi.tint(rv, h.plus, th.onAcc)
+            rv.setOnClickPendingIntent(h.add, OtUi.appIntent(context, addOp, addId, id * 11 + 3))
+            rv.setOnClickPendingIntent(h.plus, OtUi.appIntent(context, addOp, addId, id * 11 + 3))
         }
     }
 
-    /** Shows an "empty" message (or hides it) and hides the unused rows. */
-    fun emptyText(context: Context, rv: RemoteViews, th: OtTheme, k: String, data: JSONObject?, empty: Boolean, msg: String) {
-        val e = OtUi.rid(context, k + "_empty")
-        rv.setTextColor(e, th.muted)
+    /** Shows an "empty" message (or hides it). */
+    fun emptyText(rv: RemoteViews, th: OtTheme, h: Hd, data: JSONObject?, empty: Boolean, msg: String) {
+        rv.setTextColor(h.empty, th.muted)
         val locked = data?.optBoolean("locked", false) == true
-        rv.setTextViewText(e, if (data == null) "Open OpenTick once to fill this widget" else if (locked) OtUi.LOCKED else msg)
-        OtUi.show(rv, e, empty || data == null || locked)
+        rv.setTextViewText(h.empty, if (data == null) "Open OpenTick once to fill this widget" else if (locked) OtUi.LOCKED else msg)
+        OtUi.show(rv, h.empty, empty || data == null || locked)
     }
 
-    fun moreText(context: Context, rv: RemoteViews, th: OtTheme, k: String, hidden: Int, id: Int, openOp: String, openId: String) {
-        val m = OtUi.rid(context, k + "_more")
-        rv.setTextColor(m, th.muted)
-        OtUi.show(rv, m, hidden > 0)
+    fun moreText(context: Context, rv: RemoteViews, th: OtTheme, h: Hd, hidden: Int, id: Int, openOp: String, openId: String) {
+        rv.setTextColor(h.more, th.muted)
+        OtUi.show(rv, h.more, hidden > 0)
         if (hidden > 0) {
-            rv.setTextViewText(m, "+$hidden more")
-            rv.setOnClickPendingIntent(m, OtUi.appIntent(context, openOp, openId, id * 11 + 4))
+            rv.setTextViewText(h.more, "+$hidden more")
+            rv.setOnClickPendingIntent(h.more, OtUi.appIntent(context, openOp, openId, id * 11 + 4))
         }
     }
+
+    /**
+     * Empties the row box. This has to happen on every draw: the home screen may apply a RemoteViews on top of the one it already shows,
+     * and rows added again without clearing would pile up.
+     */
+    fun clearRows(rv: RemoteViews, h: Hd) { rv.removeAllViews(h.list) }
+
+    /** A fresh, empty row made from a row layout. */
+    fun newRow(context: Context, rowLayout: Int): RemoteViews = RemoteViews(context.packageName, rowLayout)
+
+    fun addRow(rv: RemoteViews, h: Hd, row: RemoteViews) { rv.addView(h.list, row) }
 }

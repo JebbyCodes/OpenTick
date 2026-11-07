@@ -29,13 +29,13 @@ app.S.settings.ui.hidePages = []; app.S.settings.ui.pageOrder = []; U.page = 'ta
 eq(sectionsShown().map(s => s[0]), ['home', 'tasks', 'notes', 'calendar', 'habits']);
 eq(SECTIONS.flatMap(s => s[3]).sort(), pagesShown().map(p => p[0]).sort(), 'every view belongs to a section, none twice');
 for (const [k, , , vs] of SECTIONS) for (const v of vs) assert.equal(secOf(v), k);
-eq(viewsOf('tasks'), ['tasks', 'kanban', 'matrix', 'gantt']); eq(viewsOf('calendar'), ['calendar', 'timetable', 'countdowns', 'zones']);
+eq(viewsOf('tasks'), ['tasks', 'kanban', 'matrix', 'gantt']); eq(viewsOf('calendar'), ['calendar', 'countdowns', 'zones'], 'the Timetable is the Calendar\'s week and day now: one view');
 assert.equal(secOf('help'), null, 'Help and History belong to no section');
 U.page = 'tasks'; assert.match(vtabsHtml(), /data-page="kanban"[\s\S]*data-page="matrix"[\s\S]*data-page="gantt"/, 'the switcher lists the views of the section');
 U.page = 'home'; assert.equal(vtabsHtml(), '', 'a section with one view has no switcher');
 U.page = 'zones'; assert.equal(secOf(U.page), 'calendar'); U.secLast = { calendar: 'zones' }; assert.equal(sectionTarget('calendar'), 'zones', 'a section reopens on the view last used');
 app.S.settings.ui.hidePages = ['zones', 'countdowns']; U.page = 'tasks'; U.secLast = { calendar: 'zones' };
-eq(viewsOf('calendar'), ['calendar', 'timetable']); assert.equal(sectionTarget('calendar'), 'calendar', 'a hidden view is not opened');
+eq(viewsOf('calendar'), ['calendar']); assert.equal(sectionTarget('calendar'), 'calendar', 'a hidden view is not opened');
 app.S.settings.ui.hidePages = ['habits', 'focus']; eq(sectionsShown().map(s => s[0]), ['home', 'tasks', 'notes', 'calendar'], 'a section with every view hidden goes');
 U.page = 'focus'; assert.ok(sectionsShown().some(s => s[0] === 'habits'), 'but not while you are in it');
 app.S.settings.ui.hidePages = []; U.page = 'tasks';

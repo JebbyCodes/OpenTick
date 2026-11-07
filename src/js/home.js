@@ -41,7 +41,7 @@ function renderHome() {
 document.addEventListener('keydown', e => { const c = e.target && e.target.classList && e.target.classList.contains('pcard') ? e.target : null; if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); c.click(); } });
 
 /* ---------- the screen OpenTick opens on ---------- */
-const HOME_SCREENS = [['tasks:today', 'Today'], ['home', 'Projects (home screen)'], ['tasks:inbox', 'Inbox'], ['tasks:tomorrow', 'Tomorrow'], ['tasks:week', 'Next 7 Days'], ['tasks:all', 'All tasks'], ['notes', 'Notes'], ['templates', 'Templates'], ['calendar', 'Calendar'], ['timetable', 'Timetable'], ['gantt', 'Gantt'], ['matrix', 'Matrix'], ['habits', 'Habit'], ['focus', 'Focus']];
+const HOME_SCREENS = [['tasks:today', 'Today'], ['home', 'Projects (home screen)'], ['tasks:inbox', 'Inbox'], ['tasks:tomorrow', 'Tomorrow'], ['tasks:week', 'Next 7 Days'], ['tasks:all', 'All tasks'], ['notes', 'Notes'], ['templates', 'Templates'], ['calendar', 'Calendar'], ['timetable', 'Timetable'], ['gantt', 'Timeline'], ['matrix', 'Matrix'], ['habits', 'Habit'], ['focus', 'Focus']];
 function homeValid(v) {
   if (typeof v !== 'string') return false;
   if (HOME_SCREENS.some(x => x[0] === v)) return true;

@@ -100,10 +100,10 @@ function renderNotes() {
   let n = U.noteSel && noteById(U.noteSel); if (!n) U.noteSel = null;
   if (!n && !narrow(820) && !U.nq) { const first = noteList()[0]; if (first) { n = first; U.noteSel = first.id; } }
   if (U._nDetFor !== (n ? n.id : null)) { U._nDetFor = n ? n.id : null; U.nDet = false; } // the details fold away again when another note is opened
-  const tools = `<button class="btn pri" data-act="noteadd">${ic('plus', 16)}<span class="hide-m"> New note</span></button><button class="ib" data-act="noteimport" title="Import a Markdown file">${ic('upload')}</button>`;
+  const tools = `<button class="btn pri" data-act="noteadd">${ic('plus', 16)}<span class="hide-m"> New note</span></button><button class="ib" data-act="notetpl" title="New note from a template" aria-label="New note from a template">${ic('copy')}</button><button class="ib" data-act="noteimport" title="Import a Markdown file">${ic('upload')}</button>`;
   $('#main').innerHTML = topHtml('Notes', tools)
     + `<div class="nt${n ? ' open' : ''}${noteListOn() ? '' : ' nolist'}"><aside class="nt-list"><button type="button" class="nt-scope${noteScope() ? ' on' : ''}" data-act="notescope" title="Show the notes of a list or project">${ic('folder', 14)}<span>${esc(noteScopeLabel())}</span><em>${noteScopeCount(noteScope())}</em>${ic('down', 12)}</button><div class="nt-search">${ic('search', 15)}<input id="nq" placeholder="Search notes" value="${esc(U.nq)}" autocomplete="off"></div><div class="nt-items" id="nt-items">${noteListHtml()}</div></aside>`
-    + `<section class="nt-ed${U.nFull && n ? ' full' : ''}${U.nDet && n ? ' det' : ''}" id="nt-ed">${n ? noteEditorHtml(n) : `<div class="empty">${ic('file-text', 44)}<p>${S.notes.length ? 'Pick a note to read or edit it' : 'Write your first note'}</p><button class="btn pri" data-act="noteadd">${ic('plus', 16)} New note</button></div>`}</section></div>`;
+    + `<section class="nt-ed${U.nFull && n ? ' full' : ''}${U.nDet && n ? ' det' : ''}" id="nt-ed">${n ? noteEditorHtml(n) : `<div class="empty">${ic('file-text', 44)}<p>${S.notes.length ? 'Pick a note to read or edit it' : 'Write your first note'}</p><div class="empty-a"><button class="btn pri" data-act="noteadd">${ic('plus', 16)} New note</button><button class="btn" data-act="notetpl">${ic('copy', 16)} From a template</button></div></div>`}</section></div>`;
   noteBedStart(); noteVV();
 }
 // start the block editor on the Notes page (when that is the chosen mode)

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="30dp" android:orientation="horizontal">
+<FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cw_c0" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cw_d0" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cw_k0" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cw_c1" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cw_d1" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cw_k1" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cw_c2" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cw_d2" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cw_k2" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cw_c3" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cw_d3" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cw_k3" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cw_c4" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cw_d4" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cw_k4" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cw_c5" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cw_d5" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cw_k5" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+<FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+<ImageView android:id="@+id/ot_cw_c6" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_circle" />
+<TextView android:id="@+id/ot_cw_d6" android:layout_width="match_parent" android:layout_height="match_parent" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" android:gravity="center" />
+<ImageView android:id="@+id/ot_cw_k6" android:layout_width="4dp" android:layout_height="4dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="2dp" android:importantForAccessibility="no" android:src="@drawable/ot_widget_dot" />
+</FrameLayout>
+</LinearLayout>

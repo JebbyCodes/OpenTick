@@ -34,9 +34,7 @@ object OtUi {
         return PendingIntent.getBroadcast(context, code, i, flags())
     }
 
-    /** A view's id by name, so the repeated rows of a layout (ot_ls_n0, ot_ls_n1 ...) do not need an array each. */
-    fun rid(context: Context, name: String): Int = context.resources.getIdentifier(name, "id", context.packageName)
-
+    /** Colours an ImageView (the shapes in the layouts are white, so this is what gives them the theme's colours). */
     fun tint(rv: RemoteViews, viewId: Int, color: Int) { rv.setInt(viewId, "setColorFilter", color) }
 
     fun show(rv: RemoteViews, viewId: Int, on: Boolean) { rv.setViewVisibility(viewId, if (on) android.view.View.VISIBLE else android.view.View.GONE) }

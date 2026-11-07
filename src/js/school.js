@@ -217,10 +217,8 @@ function scTabHtml(tab) {
 }
 const SC_TABS = [['today', 'Today', 'sun'], ['day', 'Day', 'calendar'], ['week', 'Week', 'table'], ['exam', 'Exams', 'exam'], ['hw', 'Homework', 'homework'], ['subj', 'Subjects', 'book'], ['teach', 'Teachers', 'teacher'], ['note', 'Notes', 'sticky']];
 const SC_VIEWS = new Set(['today', 'day', 'week']);
-// the planner's one icon button for switching to the classes (and the grid icon for going back): the graduation cap, whatever the thing is called
-const ttModeSeg = () => (schoolOn()
-  ? `<button class="ib on" data-act="scmode" data-m="plan" title="Back to the timetable" aria-label="Back to the timetable">${ic('table', 18)}</button>`
-  : `<button class="ib" data-act="scmode" data-m="school" title="${esc(scName())}: lessons, exams and homework" aria-label="Open ${esc(scName())}">${ic('graduation', 18)}</button>`);
+// in the classes layout a labelled button goes back to the Calendar (to open the classes from the Calendar, use its More menu)
+const ttModeSeg = () => (schoolOn() ? `<button class="btn" data-act="scmode" data-m="plan" title="Back to the calendar's week and day views">${ic('left', 15)} Calendar</button>` : '');
 function renderSchool() {
   const tab = SC_TABS.some(x => x[0] === U.scTab) ? U.scTab : (scHas() ? 'today' : 'week'), date = U.scDate || new Date(), name = scName();
   const wt = scWeekType(tab === 'week' ? scWeekDates(date) : date);
@@ -469,7 +467,7 @@ async function scAddMenu(pre = {}) {
   else scEdit(k);
 }
 const SC_ACT = {
-  scmode: el => { S.settings.tt.mode = el.dataset.m === 'school' ? 'school' : 'plan'; if (S.settings.tt.mode === 'school') U.scDate = U.ttDate || U.scDate || new Date(); save(); fx('#main > *:not(.top)', 'fade'); render(); },
+  scmode: el => { S.settings.tt.mode = el.dataset.m === 'school' ? 'school' : 'plan'; if (S.settings.tt.mode === 'school') { U.scDate = (U.page === 'calendar' ? U.calD : U.ttDate) || U.scDate || new Date(); U.page = 'timetable'; } save(); fx('#main > *:not(.top)', 'fade'); render(); },
   sctab: el => { U.scTab = el.dataset.t; renderMain(); },
   scwk: el => { const d = +el.dataset.d, step = (U.scTab === 'week' ? 7 : 1); U.scDate = d ? addDays(U.scDate || new Date(), d * step) : new Date(); renderMain(); },
   scjump: el => { U.scDate = pYmd(el.dataset.d); if (U.scTab === 'week') U.scTab = 'day'; renderMain(); },

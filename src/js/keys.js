@@ -103,8 +103,11 @@ function skKey(e) {
 }
 document.addEventListener('keydown', skKey);
 
-/* ---- hints on buttons: a small key cap, drawn after each render ----
-   [selector, shortcut id or a function giving the combo]. The hint is only added once and never inside an input. */
+/* ---- hints on buttons, drawn after each render ----
+   [selector, shortcut or a function giving it]. Two kinds, so a shortcut is never shown twice at once:
+   • where a label has room (the pages in the sidebar, a button with words on it, the search box) a small key cap sits there all the time;
+   • an icon button has no room, so its shortcut is written at the end of its tooltip, "Settings (Ctrl+,)", and shows only while you hover it.
+   Hovering therefore shows nothing but the tooltip. A hint is only added once and never inside an input. */
 const SK_HINTS = [
   ['#side .pages .pg', (el, i) => (i < 9 ? String(i + 1) : '')],
   ['[data-act=uitoggle][data-k=side]', () => '['], ['[data-act=uitoggle][data-k=detail]', () => ']'], ['[data-act=settings]', () => skFirst('settings')],
@@ -113,6 +116,8 @@ const SK_HINTS = [
   ['[data-act=calprev],[data-act=ttprev]', () => 'ArrowLeft'], ['[data-act=calnext],[data-act=ttnext]', () => 'ArrowRight'], ['[data-act=caltoday],[data-act=tttoday]', () => 't'],
   ['[data-act=ptoggle]', () => ' '], ['#detail [data-act=del]', () => 'Delete'],
 ];
+// does this element have room for a key cap of its own? (icon buttons and the tiny "+" beside a heading do not)
+const skRoomy = el => !(el.closest('.sec') || el.classList.contains('ib') || (el.tagName === 'INPUT'));
 function skApplyHints(root) {
   if (typeof document === 'undefined' || !root || !root.querySelectorAll) return;
   const on = skHints(); document.documentElement.dataset.skhints = on ? 'on' : 'off'; if (!on) return;
@@ -120,14 +125,14 @@ function skApplyHints(root) {
     let els; try { els = [...root.querySelectorAll(sel)]; } catch (e) { continue; }
     els.forEach((el, i) => {
       if (el.dataset.skd || el.closest('input,textarea,select')) return;
-      if (!el.dataset.lbl) el.dataset.lbl = el.title || el.getAttribute('aria-label') || '';
       const combo = fn(el, i); if (!combo) return; el.dataset.skd = '1';
-      const tip = skText(combo); el.title = (el.title ? el.title.replace(/\s*\(.{1,24}\)$/, '') : el.getAttribute('aria-label') || '') + (el.title || el.getAttribute('aria-label') ? ' ' : '') + `(${tip})`;
-      if (el.tagName === 'INPUT') { el.setAttribute('aria-keyshortcuts', tip); return; }
-      el.setAttribute('aria-keyshortcuts', tip.replace(/\+/g, '+'));
-      // a small icon button (the "+" beside Lists) has no room for key caps: they spilled out sideways and were clipped. Its tooltip carries the shortcut instead.
-      if (el.closest('.sec') || (el.classList.contains('ib') && el.classList.contains('sm'))) return;
-      el.insertAdjacentHTML('beforeend', `<span class="skh" aria-hidden="true">${skCaps(combo).map(x => `<kbd>${esc(x)}</kbd>`).join('')}</span>`);
+      const tip = skText(combo); el.setAttribute('aria-keyshortcuts', tip);
+      if (el.tagName === 'INPUT' || skRoomy(el)) {
+        if (el.tagName !== 'INPUT') el.insertAdjacentHTML('beforeend', `<span class="skh" aria-hidden="true">${skCaps(combo).map(x => `<kbd>${esc(x)}</kbd>`).join('')}</span>`);
+        return;
+      }
+      const base = (el.getAttribute('title') || el.getAttribute('aria-label') || '').replace(/\s*\(.{1,24}\)$/, '');
+      if (!el.dataset.lbl) el.dataset.lbl = base; el.dataset.sktBase = el.getAttribute('title') || ''; el.dataset.skt = tip; el.setAttribute('title', base ? `${base} (${tip})` : `(${tip})`);
     });
   }
 }
@@ -139,8 +144,9 @@ function skHintsStart() {
   for (const r of roots) obs.observe(r, { childList: true, subtree: true });
   setTimeout(run, 120);
 }
-function skHintsRefresh() { // after the setting changed: take the chips away or draw them
-  $$('.skh').forEach(x => x.remove()); $$('[data-skd]').forEach(x => delete x.dataset.skd);
+function skHintsRefresh() { // after the setting changed: take the chips and the tooltip keys away, or draw them
+  $$('.skh').forEach(x => x.remove());
+  $$('[data-skd]').forEach(x => { if (x.dataset.skt != null) { if (x.dataset.sktBase) x.setAttribute('title', x.dataset.sktBase); else x.removeAttribute('title'); delete x.dataset.skt; delete x.dataset.sktBase; } x.removeAttribute('aria-keyshortcuts'); delete x.dataset.skd; });
   skApplyHints(document.body);
 }
 
@@ -155,7 +161,7 @@ function skRowsHtml(q) {
   return h || '<p class="hint">No shortcut matches.</p>';
 }
 function openShortcuts() {
-  const extra = [['Alt + arrow keys', 'Move the focused matrix task to another box'], ['Arrow keys (habit history)', 'Move between days'], ['Ctrl + scroll (Gantt)', 'Zoom the timeline'], ['Right-click', 'The same menu as the ⋯ button']];
+  const extra = [['Alt + arrow keys', 'Move the focused matrix task to another box'], ['Arrow keys (habit history)', 'Move between days'], ['Ctrl + scroll (Timeline)', 'Zoom the timeline'], ['Right-click', 'The same menu as the ⋯ button']];
   const on = !((S.settings.keys) && S.settings.keys.hints === false);
   openModal(`<h3>Keyboard shortcuts</h3>${skOn() ? '' : '<p class="hint">Keyboard shortcuts are for computers. They are switched off on phones and tablets.</p>'}
 <div class="search sk-s">${ic('search', 16)}<input id="sk-q" placeholder="Find a shortcut" autocomplete="off" aria-label="Find a shortcut"></div>
