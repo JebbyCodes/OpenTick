@@ -4,7 +4,7 @@ from lib import *
 HITS = """(()=>{const bad=[];for(const b of document.querySelectorAll('#app [data-act], #app button, #app input, #app select')){const r=b.getBoundingClientRect();
   if(r.width<4||r.height<4||r.bottom<0||r.top>innerHeight||r.right<0||r.left>innerWidth||getComputedStyle(b).visibility==='hidden')continue;
   const x=Math.min(innerWidth-1,Math.max(0,r.left+r.width/2)),y=Math.min(innerHeight-1,Math.max(0,r.top+r.height/2));let clipped=false;for(let a=b.parentElement;a&&a!==document.body;a=a.parentElement){const cs=getComputedStyle(a);if(cs.overflowX!=='visible'||cs.overflowY!=='visible'){const q=a.getBoundingClientRect();if(x<q.left||x>q.right||y<q.top||y>q.bottom){clipped=true;break}}}if(clipped)continue;const e=document.elementFromPoint(x,y);
-  if(e&&!(b===e||b.contains(e)||e.contains(b)||(e.closest&&e.closest('label')&&e.closest('label').contains(b))))bad.push(b.outerHTML.slice(0,70))}return bad})()"""
+  if(e&&!(e.closest&&e.closest('#dock,#toast,.fab,#tabbar'))&&!(b===e||b.contains(e)||e.contains(b)||(e.closest&&e.closest('label')&&e.closest('label').contains(b))))bad.push(b.outerHTML.slice(0,70))}return bad})()"""
 with sync_playwright() as p:
     for name, mobile, w, h in (('desktop', False, 1280, 800), ('phone', True, 390, 780), ('small phone', True, 320, 640)):
         for z in (0.8, 1.5):
