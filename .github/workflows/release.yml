@@ -18,6 +18,7 @@ name: Release
 #    3. build ........... All of these run side by side, once the tag has been checked:
 #                           desktop (Windows, Linux, macOS)    android (APKs, App Bundle, e-ink)    ios (.ipa, needs Apple secrets)
 #                           web (website zips)                 docker (image files for every CPU + compose file)
+#                           watch (Wear OS APK, Tizen package; optional like iOS)
 #                         then two that wrap the desktop builds:  snap, msix-bundle
 #    4. release ......... ONE GitHub Release holding every file, SHA256SUMS.txt, signed build attestations and a description that
 #                         starts with "what's new" followed by a downloads table (Windows, macOS, Linux, Android, iOS, Docker, Web).
@@ -153,6 +154,15 @@ jobs:
       version: ${{ needs.prepare.outputs.version }}
     secrets: inherit
 
+  # Smartwatch packages (Wear OS APK and an unsigned Tizen .wgt). Optional: if this fails the release is still made, without them.
+  watch:
+    name: Smartwatch
+    needs: prepare
+    uses: ./.github/workflows/build-watch.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+    secrets: inherit
+
   web:
     name: Web
     needs: prepare
@@ -213,9 +223,9 @@ jobs:
   # ===============================================================================================================================
   release:
     name: GitHub Release
-    needs: [prepare, tests, desktop, android, web, docker, snap, msix-bundle, ios]
-    # Skipped on a dry run. Everything except iOS must have worked. iOS is optional: it needs Apple secrets and may be skipped or fail
-    # without stopping the release. (`!cancelled()` is what lets this job still run when the optional iOS job did not succeed.)
+    needs: [prepare, tests, desktop, android, web, docker, snap, msix-bundle, ios, watch]
+    # Skipped on a dry run. Everything except iOS and the smartwatch packages must have worked. Those are optional: iOS needs Apple secrets,
+    # and the watch builds are newer and cannot be tried on every platform, so either may be skipped or fail without stopping the release. (`!cancelled()` is what lets this job still run when the optional iOS job did not succeed.)
     if: >-
       ${{ !cancelled() && needs.prepare.outputs.publish == 'true'
       && needs.tests.result == 'success' && needs.desktop.result == 'success' && needs.android.result == 'success'

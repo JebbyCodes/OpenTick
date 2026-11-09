@@ -1,8 +1,9 @@
 # Releasing OpenTick
 
 ```sh
-npm run bump -- 0.6.0        # sets the version in every file, adds the CHANGELOG section, README "What's new" and F-Droid notes
+npm run bump -- 0.6.0        # sets the version in every file, adds the CHANGELOG section, the README's "What's new" and the F-Droid notes
 $EDITOR CHANGELOG.md         # write what is new (the release refuses to publish while it says TODO)
+npm run version:sync         # copies that section into the README (only the latest release is kept there; older ones stay in CHANGELOG.md)
 npm test                     # optional: CI runs it again
 git commit -am "Release 0.6.0"
 git tag v0.6.0
@@ -23,7 +24,7 @@ fails if anything disagrees. Files covered: `package.json`, `package-lock.json`,
 
 ## The workflows
 
-Fifteen files in `.github/workflows/`, grouped by the first word of their name. Everything starts from `ci.yml`, `release.yml` or `deploy-pages.yml`;
+Sixteen files in `.github/workflows/`, grouped by the first word of their name. Everything starts from `ci.yml`, `release.yml` or `deploy-pages.yml`;
 the `build-*` and `publish-*` files are building blocks that Release calls (each can also be run by hand to try one piece or retry a failed one).
 
 | File | What it does | Runs on |
@@ -34,7 +35,8 @@ the `build-*` and `publish-*` files are building blocks that Release calls (each
 | `build-android.yml` | signed universal APK, per-CPU APKs, App Bundle, e-ink APK | called by Release |
 | `build-ios.yml` | `.ipa` (skipped, not failed, without Apple secrets) | called by Release |
 | `build-snap.yml` | wraps the Linux `.deb` into a Snap (amd64, arm64) | called by Release |
-| `build-web.yml` | normal and e-ink website zips | called by Release |
+| `build-watch.yml` | the smartwatch edition as packages: a signed Wear OS APK and an unsigned Tizen `.wgt`. **Optional**: a failure here never stops a release | called by Release |
+| `build-web.yml` | normal, e-ink and smartwatch website zips | called by Release |
 | `build-docker.yml` | the Docker image as release files: one `.tar.gz` per CPU (amd64, arm64, armv7, i386) and a compose file. Starts the image and checks it answers. Pushes nothing | called by Release |
 | `publish-docker.yml` | pushes the multi-architecture image to `ghcr.io` (and Docker Hub if configured), then checks that anyone can pull it | called by Release, after the GitHub Release exists |
 | `publish-snap-store.yml` | uploads every `.snap` in the release to the Snap Store | called by Release |
@@ -42,11 +44,11 @@ the `build-*` and `publish-*` files are building blocks that Release calls (each
 | `publish-chocolatey.yml` | builds the Chocolatey package, attaches it to the release, pushes it | called by Release (stable only) |
 | `publish-scoop.yml` | opens a pull request on the Scoop bucket | called by Release (stable only) |
 | `publish-winget.yml` | opens a pull request on `microsoft/winget-pkgs` (off until configured) | called by Release (stable only) |
-| `deploy-pages.yml` | website (and `/eink/`, and the privacy policy) on GitHub Pages | pushes to `main` |
+| `deploy-pages.yml` | website (and `/eink/`, `/watch/`, and the privacy policy) on GitHub Pages | pushes to `main` |
 
 Every `publish-*` workflow skips itself with a warning when its secret is missing, and can be re-run by hand: Actions -> the workflow -> Run workflow -> tag.
 Releases made with the built-in `GITHUB_TOKEN` do not send a `release` event, which is why the publishers are *called* by Release instead of waiting for one.
-Required files missing from a release fail it; optional ones (32-bit, ARM, x86 phones, iOS, 32-bit Docker images) show as warnings.
+Required files missing from a release fail it; optional ones (32-bit, ARM, x86 phones, iOS, 32-bit Docker images, the Wear OS and Tizen packages) show as warnings.
 
 ### Removed workflows
 
@@ -88,8 +90,22 @@ Docker appears in three places, all made by a release:
 Package settings -> Change visibility -> Public. Until then only you can `docker pull` it. `publish-docker.yml` tests an anonymous pull at the end of every run
 and shows a warning with this exact fix if it fails, so you will not have to guess.
 
-`build-docker.yml` also starts the freshly built amd64 image and checks that `/healthz`, the normal app (with the right version) and `/eink/` all answer, so a
+`build-docker.yml` also starts the freshly built amd64 image and checks that `/healthz`, the normal app (with the right version), `/eink/` and `/watch/` all answer, so a
 broken image stops the release instead of reaching a server.
+
+## Smartwatch packages
+
+The watch edition (see [WATCHES.md](WATCHES.md)) is the normal app built with `--watch` (or `OPENTICK_WATCH=1`). It ships in five places:
+
+1. `/watch/` on the website, in the Docker image and in `OpenTick_x.y.z_web-watch.zip`: built by `deploy-pages.yml`, `build-docker.yml` and `build-web.yml`. These are **required**.
+2. `OpenTick_x.y.z_android-watch-universal.apk`: the Android build with `OPENTICK_WATCH=1`, the Android project marked as a Wear OS app by
+   `node scripts/android/android-widgets.mjs --watch` (the `watch: 'true'` input of the `setup-android` action), signed with the same key as the phone APK.
+3. `OpenTick_x.y.z_tizen-unsigned.wgt`: `node scripts/watch/make-tizen-wgt.mjs --version x.y.z`. It is **unsigned** on purpose: a Tizen app is signed with the
+   installer's own Samsung certificate, and this repository must not hold one.
+
+Items 2 and 3 are made by `build-watch.yml`, which Release treats like iOS: the release waits for it but is made even if it fails (the files then show as
+warnings). They cannot be run on a normal computer, so the first release that includes them is also their first real test: check the run, and try the APK on a
+watch or the Wear OS emulator (Android Studio → Device Manager → Wear OS) before telling anyone it works.
 
 ## Microsoft Store: how it works now
 

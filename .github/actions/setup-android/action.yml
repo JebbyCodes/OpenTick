@@ -18,6 +18,9 @@ inputs:
   key-alias:
     description: Name of the key inside the keystore
     required: true
+  watch:
+    description: Set to 'true' to mark the Android project as a Wear OS (smartwatch) app
+    default: 'false'
 
 runs:
   using: composite
@@ -77,13 +80,15 @@ runs:
     # ---- 4. The Android project Tauri generates, plus OpenTick's own additions ---------------------------------------------------------
     - name: Generate the Android project and add the OpenTick widgets and service
       shell: bash
+      env:
+        WATCH: ${{ inputs.watch }}
       run: |
         set -euo pipefail
         test -f src-tauri/icons/icon.png || { echo "::error::Missing src-tauri/icons/icon.png"; exit 1; }
         [ -d src-tauri/gen/android ] || npx tauri android init
         test -f src-tauri/gen/android/app/build.gradle.kts || { echo "::error::app/build.gradle.kts was not generated"; exit 1; }
         chmod +x src-tauri/gen/android/gradlew
-        node scripts/android/android-widgets.mjs
+        if [ "$WATCH" = "true" ]; then node scripts/android/android-widgets.mjs --watch; else node scripts/android/android-widgets.mjs; fi
         npx tauri icon src-tauri/icons/icon.png >/dev/null
 
     # ---- 5. Release signing ------------------------------------------------------------------------------------------------------------

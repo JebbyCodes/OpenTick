@@ -257,9 +257,9 @@ async function vaultReseal(progress) {
   say('Safety copy'); if (typeof premergeReseal === 'function') await premergeReseal();
   say('Sync login'); if (typeof saveSyncCfg === 'function') saveSyncCfg();
   let keys = []; try { keys = (await idb('readonly', s => s.getAllKeys())) || []; } catch (e) { keys = []; }
-  const snaps = keys.filter(k => /^snap:/.test(k)), files = keys.filter(k => /^file:/.test(k));
+  const snaps = keys.filter(k => /^snap:/.test(k)), files = keys.filter(k => /^(file|sound):/.test(k)); // attachments, and the reminder sound the person chose
   let n = 0; for (const k of snaps) { say(`Automatic backups ${++n}/${snaps.length}`); try { await snapReseal(k); } catch (e) { /* one unreadable copy must not stop the rest */ } }
-  n = 0; for (const k of files) { say(`Attached files ${++n}/${files.length}`); try { await fileReseal(k); } catch (e) { /* the same */ } }
+  n = 0; for (const k of files) { say(`Attached files and sounds ${++n}/${files.length}`); try { await fileReseal(k); } catch (e) { /* the same */ } }
   say('Widgets'); if (typeof widgetPush === 'function') widgetPush(true);
 }
 // turn encryption on. Resolves to the recovery key (text). `scopes` = { local, backup, sync }

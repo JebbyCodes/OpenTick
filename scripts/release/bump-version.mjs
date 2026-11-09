@@ -11,7 +11,8 @@
 //   snap/snapcraft.yaml                             version: 'x.y.z'
 //   packaging/msix/Package.appxmanifest             Identity Version="x.y.z.0" (the Microsoft Store wants four numbers)
 //   docs/fdroid/com.opentick.app.yml                the newest build's versionName / versionCode / commit and CurrentVersion / CurrentVersionCode
-//   README.md                                       the "What's new in x.y.z" section (the previous one is kept as "What was new in …")
+//   README.md                                       the "What's new in x.y.z" section: a copy of this version's CHANGELOG section. Only the latest release is
+//                                                   kept there; the one it replaces is not carried over (CHANGELOG.md holds every release)
 //   CHANGELOG.md                                    a "## x.y.z" section ("## Unreleased" is renamed; otherwise a stub is added)
 //   fastlane/metadata/android/en-GB/changelogs/<versionCode>.txt   F-Droid's per-release notes, made from the CHANGELOG section
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
@@ -34,6 +35,17 @@ const snapVersion = t => (t.match(/^version:\s*'?"?([^'"\s#]+)/m) || [])[1];
 const fdroidBuilds = t => [...t.matchAll(/^ {2}- versionName: (\S+)\r?\n\s+versionCode: (\d+)\r?\n\s+commit: (\S+)/gm)];
 export const msixFour = v => v.replace(/-.*$/, '') + '.0';
 export const readmeVersion = t => (t.match(/^## What's new in (\S+)/m) || [])[1];
+// the README's "What's new" section: from its heading to the "Earlier releases" line (the end is found by that line, not by the next heading,
+// so anything written between the two stays inside)
+export const EARLIER = 'Earlier releases are listed in [CHANGELOG.md](CHANGELOG.md).';
+export function readmeSection(t) {
+  const m = /^## What's new in \S+[^\n]*\n/m.exec(t); if (!m) return null;
+  const e = t.indexOf(EARLIER, m.index); if (e < 0) return null;
+  let end = e + EARLIER.length; while (t[end] === '\n') end++;
+  return { start: m.index, end, version: readmeVersion(t) };
+}
+// the same text for any version, so a test can compare it with the file
+export const readmeNotes = (v, body) => `## What's new in ${v}\n\n${(body || '').trim() || '- See [CHANGELOG.md](CHANGELOG.md).'}\n\n${EARLIER}\n\n`;
 
 /* ---- the CHANGELOG ---- */
 export const changelogSection = (text, v) => {
@@ -75,6 +87,13 @@ export function problems(v = JSON.parse(rd(FILES.pkg)).version) {
   const out = [], code = androidVersionCode(v);
   const cl = rd(FILES.changelog);
   if (changelogSection(cl, v) == null) out.push(`CHANGELOG.md has no "## ${v}" section (write what is new, or run: npm run version:sync)`);
+  // the README shows the latest release's notes and nothing older (CHANGELOG.md has the rest), and they are this version's CHANGELOG section
+  const rm = rd(FILES.readme), sec = readmeSection(rm), body = changelogSection(cl, v);
+  if (!sec) out.push('README.md has no "## What\'s new in …" section that ends with the "Earlier releases are listed in CHANGELOG.md" line');
+  else if (sec.version !== v) out.push(`README.md "What's new" is for ${sec.version}, expected ${v} (run: npm run version:sync)`);
+  else if (body != null && rm.slice(sec.start, sec.end).trim() !== readmeNotes(v, body).trim()) out.push(`README.md "What's new in ${v}" differs from the CHANGELOG section (run: npm run version:sync, after editing the CHANGELOG)`);
+  if (/^## What was new in /m.test(rm)) out.push('README.md keeps only the latest release\'s notes: move older "What was new in …" sections to CHANGELOG.md');
+  if (/README\.md#what/i.test(cl)) out.push('CHANGELOG.md points at README.md for release notes, but the README keeps only the latest release');
   if (code != null && !existsSync(P(`${FILES.fastlaneDir}/${code}.txt`))) out.push(`fastlane changelog ${code}.txt is missing (run: npm run version:sync)`);
   if (existsSync(P(FILES.fdroid))) {
     const b = fdroidBuilds(rd(FILES.fdroid)).pop(), fd = rd(FILES.fdroid);
@@ -112,12 +131,11 @@ export function setVersion(v) {
     return /^# Changelog\s*\n/.test(t) ? t.replace(/^(# Changelog\s*\n+)/, `$1${stub}`) : stub + t;
   });
   const body = changelogSection(rd(FILES.changelog), v);
-  // README: this version's "What's new" on top; the one that was there becomes "What was new in …"
+  // README: only the latest release's notes are kept. This version's section replaces the one that was there; older releases are in CHANGELOG.md.
   sub(FILES.readme, t => {
-    const old = readmeVersion(t); if (old === v) return t;
-    const bullets = changelogBullets(body).map(b => `- ${b}`).join('\n') || '- See [CHANGELOG.md](CHANGELOG.md).';
-    const fresh = `## What's new in ${v}\n\n${bullets}\n\nEarlier releases are listed in [CHANGELOG.md](CHANGELOG.md).\n\n`;
-    return old ? t.replace(/^## What's new in (\S+)/m, m => fresh + m.replace("What's new in", 'What was new in')) : t;
+    const sec = readmeSection(t); if (!sec) return t;
+    const fresh = readmeNotes(v, body);
+    return t.slice(0, sec.start) + fresh + t.slice(sec.end);
   });
   if (code != null) { const f = `${FILES.fastlaneDir}/${code}.txt`; if (!existsSync(P(f))) wr(f, fastlaneText(body)); }
 }

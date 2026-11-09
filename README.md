@@ -19,131 +19,17 @@
 </div>
 
 <p align="center">
-  <img src="docs/images/tasks.png" width="32%" alt="Task list">
-  <img src="docs/images/timetable.png" width="32%" alt="Timetable">
-  <img src="docs/images/gantt.png" width="32%" alt="Gantt chart">
+  <img src="docs/images/tasks.png" width="32%" alt="Today's tasks, with one open for editing">
+  <img src="docs/images/calendar.png" width="32%" alt="The Calendar's week view with lessons and timed tasks">
+  <img src="docs/images/timeline.png" width="32%" alt="A project's timeline with plan and actual bars">
 </p>
-
-## What's new in 0.6.2
-
-- Changed: **Calendar and Timetable are one Calendar now.** One switcher holds **Month**, **Week**, **3 days**, **Day** and **Agenda**, next to Countdowns and Time zones. Month and Agenda list tasks by date; Week, 3 days and Day are the time grid with lessons, weekly slots and timed tasks (what the Timetable view was). Switching keeps the date you were looking at. Old saved layouts and links still work: the Timetable's saved view, the "Timetable" page in widgets and links, and a calendar left on Week or Day all land on the right view.
-- Changed: **the Calendar's toolbar is the same everywhere and says what it does.** Back, **Today**, forward, one **Add** button, and a **More** menu (unscheduled tasks, second time zone, holidays and days off, classes, timetable settings) instead of seven unlabelled icons. Inside Classes a labelled **Calendar** button goes back. The quick day strip is only shown on phones.
-- Fixed: **Templates could not be reached from Notes on a computer.** The Notes / Templates switcher was hidden whenever a note was open, which on a computer is always. It now stays (it is only hidden on a phone while a note fills the screen), and the Notes page has a **New note from a template** button.
-- Fixed: **keyboard shortcuts showed up on hover and were hard to see otherwise.** Key caps now sit on the sidebar pages, the search box and buttons with words on them all the time and never appear on hover; an icon button names its shortcut at the end of its tooltip, so hovering shows only the tooltip. Turning the setting off removes both.
-- Fixed: **headings now match their tabs.** The Timeline tab opened a page headed "Gantt", Habits one headed "Habit", Board one headed "Boards"; every page is headed with its tab's name (Calendar's date range sits under the switcher).
-- Fixed: **tapping a section in Settings made the strip of sections jump.** Settings is now a list of sections on the left (a strip on a phone that stays where it is) beside one scrolling pane; the strip is no longer inside the part that scrolls.
-- New: **search in Settings.** Type in the box at the top: every setting answers with its section and what it does; picking one opens the section and flashes the setting.
-- New: **search everything.** Press **/** or **Ctrl + K**, or click the search box in the sidebar. Tasks, notes, templates, lists, projects, tags, habits, countdowns, time zones, boards, timetable slots, pages, commands and settings all answer from one place, grouped, with the words you typed marked; **↑ ↓** choose, **Enter** opens, and "See all tasks" hands the words to the Tasks page's own search. The old sidebar box only searched tasks.
-- Small: the Habits widget, page and tab are all "Habits"; the command palette says "Timeline" where it said "Gantt".
-- Fixed (rebuilt, not just hardened): widgets that still showed "Can't load widget". This could not be reproduced without a device, so the cause is a best reading of how home screens apply a widget, and the widgets were rebuilt around it: every list widget is a small header plus **one small layout per row** added to a list box (no more 7–10 rows hidden inside one big layout), every view is found by its id (nothing is looked up by name, which a minified release build can break), nothing scrolls sideways like a marquee (that went through a call some launchers refuse), the box is cleared before rows are added, and the data file is found in the app's own folder first. If a widget still cannot be drawn it shows the small plain card with the reason. The Kotlin was compiled against the Android API here and the layouts are checked by `npm test`, but it has not been run on a phone: please say if a widget still fails and which one.
-- Changed: the Timetable widget gets room and teacher on their own lines and drops the week arrows only on a very narrow widget; the Calendar widget shows the weeks that fit; month names shorten on a narrow widget.
-- Nothing about the sync file or encryption changed (still schema 6); the Calendar merge and the search only change how things are shown, and the layout choices stay on the device.
-
-Earlier releases are listed in [CHANGELOG.md](CHANGELOG.md).
-
-## What was new in 0.6.1
-
-- Fixed: **the time was missing on phones.** One style rule hid the clock on every screen narrower than 820 px, so only the sync cloud was left. The date and time show again beside the cloud (as "Wed 4 Nov" on a phone), and tapping the clock opens Time zones; its tip lists the time in each of your saved places.
-- Fixed: the **Shift + L** key hint on the "+" beside Lists was drawn inside a button too small for it and sliced off by the sidebar. Small icon buttons no longer carry key caps (the tooltip names the shortcut instead), and a test checks that no hint leaves the window or the sidebar.
-- Fixed: **no more sideways wobble.** Lists and panels that scroll up and down no longer move left and right (or stretch at the edge), and strips that scroll sideways (view switcher, boards, tabs, the time-zone grid) no longer drag the page up and down.
-- Changed: **less clutter, one place for each job.** The 13 views are grouped into five sections. **Tasks** holds the List, Board, Matrix and Timeline; **Notes** holds Notes and Templates; **Calendar** holds the Month, Timetable, Countdowns and Time zones; **Habits** holds Habits and Focus; Projects stays on its own. A slim switcher under each page's header moves between its views, a section reopens on the view you used last, and the phone tab bar now shows all five sections instead of four plus "More". Nothing was removed: every view keeps its shortcuts, links, widgets and saved data.
-- Changed: keys **1–5** go to the sections, **V** / **Shift + V** step through the views of the section you are in, and the command palette still lists every view by name. Settings → Layout lists the sections, lets you hide single views and reorder sections (drag the section buttons too).
-- Time zones are now part of the clock and the Calendar: open them from the clock, from Calendar → Time zones, or from the timetable's second-zone button.
-- Fixed (hardened): widgets showing "Can't load widget". This could not be reproduced without a device, so every way a home screen can refuse a widget was closed: a widget that cannot be drawn now shows a small plain card with the reason and opens OpenTick when tapped (before it fell back to a layout of unfilled white shapes); the widgets start from one small initial and preview layout that cannot fail; the Focus widget's resize limit was larger than its width; widget views and layouts are kept by name in release builds; the background service always puts up a notification in time and can no longer take the app (and its widgets) down; and a test now checks every widget call reaches a view of the right type.
-- Nothing about the sync file or encryption changed (still schema 6); layout choices stay on the device. A new test goes through every kind of data you can make (including countdowns, time zones, boards and templates), syncs it between two devices with encryption on, and checks nothing is readable in the file.
-
-Earlier releases are listed in [CHANGELOG.md](CHANGELOG.md).
-
-## What was new in 0.6.0
-
-- Fixed: stepping the timetable widget to next week and beyond showed "Can't load widget" on Android. The widget now gets four weeks of days, its steps are kept inside the data it holds (and shift when the data is older than today), the arrows gain week steps, and a widget that cannot be drawn falls back to a plain message instead of failing. The cause could not be reproduced without an Android device, so this hardens every path that could fail.
-- Less cramped: Settings → Appearance → Spacing (Roomy is the new default, Standard is the old look, Compact fits more), the details panel waits until you pick a task, key hints show on hover, the view grid shows two rows with a More button, and the timetable has a one-line hint.
-- New: **Countdowns**. To a date or an exact moment, in your own time or a fixed zone, yearly repeat, reminders, icon and colour, linked to lists, projects and tags. They show in a strip on those pages and on Today, and any task can start one.
-- New: **Time zones**. Save the places you work with and see one day as a row of hours per zone, with working hours shaded and the shared hours marked. Make a task or a countdown from the chosen moment. The timetable can show a second zone beside the hours; a task keeps the zone it was planned in.
-- New: **Boards**. Kanban boards with headings of your own (add, rename, recolour, reorder, limit, "done" headings that finish cards), scoped to everything, a list, a project or a tag. Drag with a mouse, press and hold on a touch screen, Alt + arrows, or the card's menu.
-- New: **Connect other apps** (Settings → Integrations, off by default). One documented interface (pairing, permissions, x-callback links on Android and the installed web app, postMessage, change feed) so companion apps can read or add tasks, tick them off and log focus time; see `docs/INTEGRATION.md`.
-- New: **Countdowns widgets**. A Countdowns mini-window on desktop (Settings → Widgets) and a Countdowns home-screen widget on Android. The Android widget works out days and hours from the clock each time it is drawn, so they stay right between refreshes.
-- New: `opentick://` links now work on **desktop and iOS** as well (Linux and Windows register the scheme when Connect other apps is on; macOS and iOS declare it in their Info.plist). Links reach the running app through its existing single-instance socket, so a second copy never starts.
-- Changed: **a task's time zone is now real.** A task planned in "New York 09:00" keeps that moment. Travel, and your own date and time shift; the plan, the reminder and a repeat's zone wall-time stay put (a daily 09:00 New York task is still 09:00 there after daylight saving ends). Changing the zone is not an edit, so nothing is synced when you merely travel.
-- Countdowns, time zones and boards sync with everything else and are encrypted with it. The sync file is now schema 6; older versions refuse to overwrite it instead of dropping the new data.
-
-Earlier releases are listed in [CHANGELOG.md](CHANGELOG.md).
-
-## What was new in 0.5.3
-
-- Docker is now part of every release. The release page has a Docker section with the image as downloads (`OpenTick_<version>_docker-amd64.tar.gz`, `-arm64`, `-armv7`, `-i386`) that load with `docker load`, a compose file pinned to that version, and the `docker run` command. Before, the image only went to the container registry and never showed on the Releases page.
-- The Docker image is pushed to the registry only after the GitHub Release exists, so `latest` never moves for a release that did not happen. The image is started and checked (`/healthz`, the app and `/eink/`) before a release is made, and a warning says how to fix it if the registry package is still private.
-- Fixed: pushing a version tag started two release workflows at once, each making its own release and each submitting to the Microsoft Store. The old `Build OpenTick` workflow is gone; Release is the only one.
-- Fixed: two workflows deployed GitHub Pages and cancelled each other. There is one now.
-- Fixed: the Snap Store upload failed whenever the release had both a 64-bit and an ARM64 Snap, and refused pre-release tags such as `v0.6.0-beta.1`. It now uploads every Snap.
-- Fixed: the Microsoft Store publisher failed when its secrets were not set. Like the other stores, it now skips with a warning.
-- Fixed: the browser tests in CI crashed before running because the runner had neither Pillow nor the PDF tools (`pdfinfo`, `pdftotext`). CI now installs them and checks they are present, and a test fails if a browser test ever needs something CI does not install.
-- Removed workflows that duplicated others: `build.yml`, `deploy-web.yml`, `update-scoop-bucket.yml` and `test-snap.yml`.
-- Every workflow now starts with a plain-language header (what it does, when it runs, which secrets it needs) and comments on each step. `docs/RELEASING.md` lists them all.
-
-Earlier releases are listed in [CHANGELOG.md](CHANGELOG.md).
-
-## What was new in 0.5.2
-
-- Internal maintenance.
-
-Earlier releases are listed in [CHANGELOG.md](CHANGELOG.md).
-
-## What was new in 0.5.1
-
-- Fixed: on phones the Day / 3 days / Week switch in the timetable was pushed off the screen. The toolbar now wraps and the switch has its own row.
-- Tooltips on every button: hover with a mouse, press and hold on a touch screen (letting go does not press the button), or Tab to it. Settings → Accessibility → Button tooltips turns them off.
-- E-ink mode for e-paper tablets and readers (Settings → Appearance → E-ink display): black on white with outlines instead of colour, no animation, larger targets, marks instead of colour, and page up / down buttons. It starts on automatically in the e-ink Android app and the web version at `/eink/`.
-- Android: the background service now runs as a real foreground service whenever "Run in the background" is on, so OpenTick is listed under Active apps (before, it only started when a lesson was coming up). It shows your next lesson or reminder, asks for notification permission, and restarts after a reboot, an update or a swipe from recents.
-- One workflow now builds, packs, signs and publishes everything when you push a version tag (`git push origin v0.5.1`), and the release description says what is new.
-- Windows: installer (NSIS) and MSI for 64-bit, installer for 32-bit and ARM64, portable zips, and an MSIX (and a bundle) for the Microsoft Store.
-- Linux: AppImage, .deb and .rpm for 64-bit and ARM64, plus the Snap (the Snap upload no longer fails on `chmod`).
-- macOS: one universal .dmg for Apple Silicon and Intel. iOS: an .ipa, built when the Apple signing secrets are set (Apple only lets signed apps be installed).
-- Android: universal APK, one APK per CPU (arm64-v8a, armeabi-v7a, x86, x86_64 for old and 32-bit phones), an App Bundle, and an e-ink APK.
-- Docker image (`ghcr.io/jebbycodes/opentick`, 64-bit, ARM and 32-bit) and a self-hosting web zip.
-- Checksums (`SHA256SUMS.txt`) and build-provenance attestations for every file.
-- `npm run version:sync` now updates every file that carries the version (Cargo.lock, snap, MSIX manifest, F-Droid recipe, README, CHANGELOG, fastlane).
-
-Earlier releases are listed in [CHANGELOG.md](CHANGELOG.md).
-
-## What was new in 0.5.0
-
-**Reminders and the background service**
-- **Reminders any time before a task**: as many as you like per task, any amount (minutes, hours, days, weeks) or an exact date and time. Lessons and timetable slots get custom lead times too, plus optional quiet hours and a morning summary.
-- **Background service on every platform**: Android schedules alarms (restored after a reboot); desktop keeps a tray icon, can close to the tray, start when you sign in and notify while the window is hidden; iOS schedules local notifications; the web app uses its service worker. Settings → Notifications.
-- **Persistent timetable notification (Android)**: shows the lesson you are in or the next one with a countdown, expands to the whole day, and uses the room as its icon. The desktop tray shows the same.
-
-**Tasks**
-- **End a repeat on a date**, a **custom repeat rule** (every N days/weeks/months/years or chosen weekdays) and **exceptions**: a different time (or length) for one date, or skip it.
-- **School options are collapsible** in the task panel (collapsed by default; remembered per task, and a setting decides the default).
-
-**Timetable and calendar**
-- **Room and teacher are always visible** on lessons, in the grid, agenda, widgets and notifications; long text scrolls instead of being cut off.
-- **Holidays**: named, coloured date ranges that show as a band in the calendar and timetable, and hide the class timetable on those days. Manage them from the calendar or timetable toolbar.
-- **Widgets**: the timetable widget shows start and end times, room and teacher on every row, and you can step through the next days.
-
-**Five sections (0.6.1)**: Projects, Tasks (List, Board, Matrix, Timeline), Notes (Notes, Templates), Calendar (Month, Timetable, Countdowns, Time zones) and Habits (Habits, Focus). Press `1`–`5` for a section and `V` / `Shift+V` to change its view. Press the clock to open Time zones.
-
-**Countdowns, Time zones, Boards and connecting apps**
-- **Countdowns** to a date or an exact moment (in your own time or a fixed zone), yearly repeats and reminders, tied to lists, projects and tags.
-- **Time zones**: saved places as rows of hours with working hours and the shared hours marked; make a task or countdown from the chosen moment; a second zone beside the timetable hours.
-- **Boards**: kanban with headings you name, scoped to everything, a list, a project or a tag.
-- **Connect other apps** (off by default): one documented interface for companion apps. See [docs/INTEGRATION.md](docs/INTEGRATION.md).
-- All of it syncs and is encrypted with the rest of your data.
-
-**Templates (new page)**
-- Write a template with `{{variables}}` (with `{{name|fallback}}`, built-ins like `{{today}}` and `{{note:Title}}`), choose the questions it asks (text, long text, number, date, choice, yes/no or another note as the answer), fill it in step by step with a live preview, then copy it, save it as a note or make a task. Templates have tags, a list and a project, and show up there too.
-
-**Keyboard, mouse and accessibility**
-- **Keyboard shortcuts everywhere** on computers, shown as key caps beside buttons, with a searchable cheat sheet (press `?`). Switched off on phones and tablets.
-- **Right-click menus** that mirror each ⋯ button (tasks, lists, projects, tags, notes, templates, calendar days, timetable blocks).
-- **Settings reorganised into tabs**, with new quality-of-life options (defaults for new tasks, confirm before delete, message duration) and a full **Accessibility** section: high contrast, bold text, a dyslexia-friendly font, text spacing, underlined links, do not rely on colour, greyscale, larger pointer and tap targets, strong focus outline, text labels on icon buttons, reduced motion and transparency.
-- **Privacy policy** inside the app (Settings → About & privacy).
-- The notes “details” button now shows a count instead of an unexplained dot.
-
-**Sync and encryption**: templates, holidays, repeat ends, exceptions and reminders sync with everything else and are encrypted when encryption is on. Device settings (accessibility, shortcuts, background service) stay on the device.
-
-**F-Droid**: the repository now carries Fastlane metadata (`fastlane/metadata/android`) and a draft F-Droid build recipe (`docs/fdroid/`).
+<p align="center">
+  <img src="docs/images/pins.png" width="49%" alt="Right-click a tab or page title to pin it next to the sections">
+  <img src="docs/images/sound.png" width="49%" alt="Settings: choose your own reminder sound">
+</p>
+<p align="center">
+  <img src="docs/images/watch.png" width="60%" alt="The smartwatch layout on round watch screens: Now, Tasks and Next">
+</p>
 
 ## Download
 Get the latest version from [GitHub Releases](https://github.com/JebbyCodes/OpenTick/releases/latest), or choose a platform-specific option below.
@@ -196,8 +82,10 @@ Every release lists these with sizes, and a `SHA256SUMS.txt` to check them again
 | Linux ARM (Raspberry Pi 4/5, ARM laptops) | `_aarch64.AppImage`, `_arm64.deb`, `.aarch64.rpm` or the ARM64 Snap |
 | Android phone or tablet | `_android-universal.apk` works everywhere. Smaller: `_android-arm64-v8a.apk` (modern), `_android-armeabi-v7a.apk` (older, 32-bit), `_android-x86_64.apk` / `_android-x86.apk` (Intel, emulators) |
 | Android e-ink device | `_android-eink-universal.apk` (see [E-ink](#e-ink)) |
+| Wear OS watch (Pixel Watch, Galaxy Watch 4 and later, TicWatch…) | `_android-watch-universal.apk` (see [Smartwatches](#smartwatches)) |
+| Samsung Tizen watch (Galaxy Watch 3 and earlier) | `_tizen-unsigned.wgt`: you sign it yourself first (see [Smartwatches](#smartwatches)) |
 | iPhone / iPad | `.ipa` (only when the maintainers' Apple signing is set up; see [docs/RELEASING.md](docs/RELEASING.md)) |
-| A server, NAS or any old machine with a browser | Docker, or `_web.zip` |
+| A server, NAS or any old machine with a browser | Docker, or `_web.zip` (`_web-eink.zip` and `_web-watch.zip` are the e-ink and smartwatch editions) |
 
 Android 7 or newer, Windows 10 or newer and macOS 10.15 or newer are needed. Windows 7/8 and 32-bit Linux are not supported by Tauri 2's web view; use the Docker image or the web app there. Obtainium users can add `apkFilterRegEx` = `universal` (or `arm64-v8a`) to pick one APK from each release.
 
@@ -207,9 +95,28 @@ Android 7 or newer, Windows 10 or newer and macOS 10.15 or newer are needed. Win
 docker run -d -p 8080:8080 --name opentick ghcr.io/jebbycodes/opentick:latest
 ```
 
-Open http://localhost:8080 (the e-ink edition is at `/eink/`). Images exist for 64-bit and 32-bit x86, ARM64 and ARMv7. Your data stays in your browser; the container only serves the app. [`docker/compose.example.yml`](docker/compose.example.yml) is a ready-made compose file.
+Open http://localhost:8080 (the e-ink edition is at `/eink/`, the smartwatch edition at `/watch/`). Images exist for 64-bit and 32-bit x86, ARM64 and ARMv7. Your data stays in your browser; the container only serves the app. [`docker/compose.example.yml`](docker/compose.example.yml) is a ready-made compose file.
 
 Every [release](https://github.com/JebbyCodes/OpenTick/releases) also has the image as plain downloads, so you can install without the registry: `OpenTick_<version>_docker-amd64.tar.gz` (also `arm64`, `armv7`, `i386`) loaded with `gunzip -c <file> | docker load`, and a compose file pinned to that version (`OpenTick_<version>_docker-compose.yml`).
+
+## What's new in 0.7.0
+
+**App**
+- New: **pin any page next to the sections.** Right-click (or press and hold on a touch screen) a page title or a tab, for example open Calendar and right-click **Classes**, and choose **Pin "Classes" to the sidebar** (to the tab bar on a phone). It appears beside Projects, Tasks, Notes, Calendar and Habits. It is a shortcut: the tab stays where it was. Right-click or press and hold a pinned button to open, move or unpin it. You can pin up to 10 pages: any view (Board, Matrix, Timeline, Templates, Countdowns, Time zones, Focus …), a way of looking at the Calendar (Month, Week, 3 days, Day, Agenda) or a page of Classes (Exams, Homework …). Settings → General → Layout lists the pins and lets you reorder them, and the command palette can pin and unpin the page you are on.
+- New: **your own reminder sound.** Settings → Sound & focus → Reminder sound: choose an MP3, WAV, OGG or M4A file (up to 5 MB and 30 seconds). It replaces the built-in chime for reminders, the focus timer and the test notification, at the volume you set for sounds. Notifications that the system shows by itself (the Android background service, or the desktop app while its window is closed) use the system's own sound, which an app cannot replace; the setting says so.
+- New: **check for updates, off by default.** Settings → About & privacy → Updates has **Check now** (one request when you press it) and **Check for updates automatically** (once a day while OpenTick is open, and it tells you once per new version). Nothing is downloaded or installed: it opens the release page. The only request goes to GitHub's public latest-release address for this project and carries nothing about you or your data. If you installed OpenTick from a store or package manager, update it there.
+- New: **smartwatch layout.** Six full-screen pages for a small round or square screen (Now, Tasks, Next, Habits, Focus, More): tick tasks off, add one by typing or dictating, see today's timetable, check habits in, run the focus timer, sync and lock. It is the same app and the same data. Settings → Appearance → Smartwatch layout (Automatic / On / Off, and the screen shape); it turns on by itself in the watch builds and on watches that identify themselves, and `?watch` on the address tries it in any browser.
+- Changed: the Help page has sections for pinned pages, the reminder sound, updates and the smartwatch layout, and the privacy policy says what the update check sends and when.
+
+**Smartwatches and releases**
+- New: **watch editions for every release.** `OpenTick_<version>_android-watch-universal.apk` for Wear OS 3 or newer (Pixel Watch, Galaxy Watch 4 and later, TicWatch and others), `OpenTick_<version>_tizen-unsigned.wgt` for Samsung's older Tizen watches (it is not signed: Samsung requires each installer to sign it with their own certificate), `OpenTick_<version>_web-watch.zip` for your own server, and `/watch/` on the hosted site and in the Docker image. The two watch packages are built by a new workflow, `build-watch.yml`, and are optional: if one fails, the release is still made without it and says so. `docs/WATCHES.md` explains each platform, how to install, and what cannot be done (Apple Watch, Garmin, Fitbit and Zepp watches each need an app written for them; their reminders can still arrive through the phone's notifications).
+- Changed: **the README now keeps only the latest release's notes**, with older releases listed in CHANGELOG.md. The downloads are directly under the screenshots, and the screenshots are new. `npm run bump` no longer piles the previous release into the README.
+
+**Sync and encryption**
+- The sync file is unchanged (still schema 6), so older and newer versions keep syncing with each other. Pinned pages, the reminder sound, the update setting and the watch layout are settings of the device: they are never part of the sync file. They are sealed with the other settings when device encryption is on.
+- The reminder sound file is stored in the same encrypted store as attachments: sealed when encryption is on, re-sealed when it is turned on, off or re-keyed, and removed when the settings are reset. Tests cover turning encryption on and off with a sound chosen, and a watch syncing with a phone through an encrypted file.
+
+Earlier releases are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## E-ink
 
@@ -218,13 +125,26 @@ For e-paper tablets and readers (Boox, reMarkable-style browsers, Kindle browser
 - **Android:** `_android-eink-universal.apk` from a release starts in e-ink mode (it can be turned off in Settings).
 - **Web:** open `/eink/` on the hosted site, in the Docker image, or in `_web-eink.zip`. Any other browser can add `?eink` to the address.
 
+## Smartwatches
+
+The **smartwatch layout** is the same app, data, sync and encryption drawn for a small round or square screen: six full-screen pages you swipe between (Now, Tasks, Next, Habits, Focus, More) with a big tick for each task, Add by typing or dictating, the day's timetable, habit check-ins and the focus timer.
+
+- **Wear OS 3 or newer** (Pixel Watch, Galaxy Watch 4 and later, TicWatch and others): `_android-watch-universal.apk` from a release, installed with `adb`.
+- **Samsung's older Tizen watches:** `_tizen-unsigned.wgt`. Samsung only runs apps signed with the installer's own certificate, so it is published unsigned. This one is experimental.
+- **Web:** open `/watch/` on the hosted site, in the Docker image, or in `_web-watch.zip`. Any other browser can add `?watch` to the address, or choose Settings → Appearance → **Smartwatch layout**.
+- **Not possible:** Apple Watch, Garmin, Fitbit and Zepp watches need an app written for each of them. Reminders can still reach them as the phone's notifications.
+
+[docs/WATCHES.md](docs/WATCHES.md) has the install steps and an honest list of what has and has not been tried.
+
 ## Features
 
 - **Tasks and lists:** priorities, tags, sections, subtasks, recurring tasks, reminders, attachments and batch editing.
 - **Quick add:** natural-language dates, times, repeats, priorities, tags, lists and class markers.
 - **Planning views:** calendar, kanban board, projects dashboard, Eisenhower matrix and Gantt chart.
+- **Your own layout:** right-click (or press and hold) any page title or tab to pin it next to the sections.
 - **Timetable and Classes:** recurring weekly slots, lessons, A/B weeks, days off, exams and homework.
 - **Habits and focus:** streaks, history charts, and a Pomodoro timer with session tracking.
+- **Reminders:** several per task, in the background on every platform, with a sound of your choosing.
 - **Markdown notes:** preview, checklists, note links, attachments and import/export.
 - **Customisation:** themes, custom CSS themes, colours, banners, adjustable panels and keyboard shortcuts.
 - **Widgets:** desktop mini-window, Android home-screen widgets (tasks, lists, projects, notes, calendar, timetable, matrix, habits, countdowns, focus) and a compact web widget.
@@ -232,6 +152,7 @@ For e-paper tablets and readers (Boox, reMarkable-style browsers, Kindle browser
 - **Optional encryption:** AES-256-GCM encryption for selected local data, backups and cloud sync, protected by a passphrase and recovery key.
 - **Flexible sync:** WebDAV or a JSON file in a folder synced by another app; additional Git and S3-compatible providers are available.
 - **Import and export:** JSON backups and imports from several task and note formats.
+- **Updates on your terms:** an optional update check, off by default; nothing is ever downloaded or installed for you.
 
 ## Platforms
 
@@ -241,9 +162,10 @@ For e-paper tablets and readers (Boox, reMarkable-style browsers, Kindle browser
 | Windows | Installer, MSI, portable zip or Store package; 64-bit, 32-bit and ARM64. |
 | macOS | Universal `.dmg` (Apple Silicon and Intel). |
 | Linux | AppImage, `.deb`, `.rpm` or Snap; 64-bit and ARM64. |
-| Android | Universal APK, per-CPU APKs (including 32-bit ARM), an App Bundle and an e-ink APK. |
+| Android | Universal APK, per-CPU APKs (including 32-bit ARM), an App Bundle, an e-ink APK and a Wear OS APK. |
 | iOS | `.ipa` built with Apple signing configured, or build from source in Xcode. |
 | E-ink | Android e-ink APK, the `/eink/` web edition, or E-ink display in Settings. |
+| Smartwatch | Wear OS APK, an unsigned Tizen package, the `/watch/` web edition, or Smartwatch layout in Settings. |
 
 ## Build from source
 
@@ -326,13 +248,14 @@ Browser tests (Python + Playwright with Chromium) run with `npm run test:browser
 - `scripts/android/` — widget and service installer, signing, version check, APK naming
 - `scripts/release/` — `bump-version.mjs` (`npm run bump` / `version:sync`), release notes, asset collection
 - `scripts/legal/` — licence and privacy-policy generators
-- `scripts/assets/`, `scripts/ci/` — icon generation; the workflow linter
+- `scripts/assets/`, `scripts/ci/` — icon generation and the README screenshots (`readme-screenshots.py`); the workflow linter
+- `scripts/watch/` — the Tizen smartwatch package (`make-tizen-wgt.mjs`)
 - `packaging/msix/` — Microsoft Store package: manifest, assets, `build-msix.ps1`, `bundle-msix.ps1`
 - `snap/` — `snapcraft.yaml` (builds from source) and `ci/` + `local/` (wraps the CI-built `.deb`)
 - `Dockerfile`, `docker/` — the self-hosting image
 - `.github/workflows/` — `ci`, `release`, `build-*`, `publish-*`, `deploy-pages` (see [docs/RELEASING.md](docs/RELEASING.md))
-- `docs/` — privacy policy, F-Droid recipe, release guide
-- `build-app.mjs` — creates the self-contained web build (`--eink` for the e-ink edition, `--out <dir>`)
+- `docs/` — privacy policy, F-Droid recipe, release guide, smartwatch guide
+- `build-app.mjs` — creates the self-contained web build (`--eink` for the e-ink edition, `--watch` for the smartwatch edition, `--out <dir>`)
 - `package.json` — project version and commands
 
 ## Contributing

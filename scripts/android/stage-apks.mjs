@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Gives the APKs / AABs Tauri leaves in gen/android/app/build/outputs the names the release uses, and fails if one that must exist is missing.
-//   node scripts/android/stage-apks.mjs --version 0.5.1 --out staged [--edition eink] [--require universal,arm64]
+//   node scripts/android/stage-apks.mjs --version 0.5.1 --out staged [--edition eink|watch] [--require universal,arm64]
 // Tauri's product flavours are named after the ABI folder: universal, arm64, arm, x86, x86_64.
 import { readdirSync, statSync, copyFileSync, mkdirSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';

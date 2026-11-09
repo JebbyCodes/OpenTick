@@ -231,6 +231,7 @@ const PREF_DEF = {
   svc: { on: true, tray: true, autostart: false, persist: true, keep: true },
   tips: { on: true },
   eink: { mode: 'auto', pager: true },
+  watch: { mode: 'auto', shape: 'auto' }, // the smartwatch layout (watch.js)
   cd: { sort: 'soon', show: 'upcoming', list: '', project: '', tag: '' },
   tz: { start: 8, end: 18, base: '' },
   bridge: { on: false, apps: {}, openUrl: '' },
@@ -256,7 +257,9 @@ function migrate(r) {
   r.settings.gantt = { scale: 'week', mode: 'both', zoom: 1, nameW: 290, cols: ['plan', 'actual'], hatch: true, progress: true, tray: true, trayW: 220, lanes: true, ...(r.settings.gantt || {}) };
   // layout is per device: panel widths, which panels are hidden, folded sidebar sections, sidebar views
   for (const k of Object.keys(PREF_DEF)) r.settings[k] = { ...PREF_DEF[k], ...(r.settings[k] && typeof r.settings[k] === 'object' ? r.settings[k] : {}) };
-  r.settings.ui = { sideW: 300, detailW: 380, side: true, detail: true, trayW: 236, tray: true, fold: {}, hidePages: [], pageOrder: [], scale: 1, schoolOpen: false, density: 'roomy', autoDetail: true, ...(r.settings.ui || {}) };
+  r.settings.ui = { sideW: 300, detailW: 380, side: true, detail: true, trayW: 236, tray: true, fold: {}, hidePages: [], pageOrder: [], scale: 1, schoolOpen: false, density: 'roomy', autoDetail: true, pins: [], ...(r.settings.ui || {}) };
+  // pinned views (pins.js): short keys, kept in order, each once; anything else is dropped. A layout choice, so per device and never synced.
+  r.settings.ui.pins = Array.isArray(r.settings.ui.pins) ? [...new Set(r.settings.ui.pins.filter(k => typeof k === 'string' && /^(page:[a-z]{2,12}|cal:[a-z0-9]{2,8}|school(:[a-z]{2,8})?)$/.test(k)))].slice(0, 10) : [];
   if (r.settings.ui.compact && !(r.settings.ui.densityV >= 1)) r.settings.ui.density = 'compact'; r.settings.ui.densityV = 1; // the old "compact" switch became the density choice
   if (!r.settings.bg || typeof r.settings.bg !== 'object') r.settings.bg = { on: !/Android/i.test(typeof navigator !== 'undefined' ? navigator.userAgent || '' : ''), animate: true, style: 'accent', shape: 'blobs', intensity: 60, speed: 100 };
   { const sc = r.settings.ui.scale == null || r.settings.ui.scale === '' ? NaN : Number(r.settings.ui.scale); r.settings.ui.scale = Number.isFinite(sc) ? Math.min(1.5, Math.max(0.8, Math.round(sc * 20) / 20)) : 1; }
@@ -269,7 +272,11 @@ function migrate(r) {
   r.history = Array.isArray(r.history) ? r.history : []; // this device's log of changes (never synced)
   r.settings.cal = { view: 'month', ...(r.settings.cal || {}) };
   r.settings.clock = { on: true, h24: false, sec: false, ...(r.settings.clock || {}) };
-  r.settings.sound = { on: true, vol: 0.7, haptic: true, ...(r.settings.sound || {}) };
+  r.settings.sound = { on: true, vol: 0.7, haptic: true, custom: null, ...(r.settings.sound || {}) };
+  { const c = r.settings.sound.custom; r.settings.sound.custom = c && typeof c === 'object' && typeof c.name === 'string' && c.name ? { name: c.name.slice(0, 120), type: String(c.type || '').slice(0, 60), size: Math.max(0, +c.size || 0), at: +c.at || 0 } : null; } // the chosen reminder sound: a name and a size here, the audio itself only in this device's IndexedDB (csound.js)
+  { const u = r.settings.upd && typeof r.settings.upd === 'object' ? r.settings.upd : {}, ver = v => (typeof v === 'string' && /^[0-9A-Za-z.+-]{1,30}$/.test(v) ? v : ''); // the update check (update.js): off unless the person turned it on
+    r.settings.upd = { auto: u.auto === true, last: Number.isFinite(+u.last) && +u.last > 0 ? +u.last : 0, ok: u.ok === true, seen: ver(u.seen), found: ver(u.found) }; }
+  { const w = r.settings.watch && typeof r.settings.watch === 'object' ? r.settings.watch : {}; r.settings.watch = { mode: ['auto', 'on', 'off'].includes(w.mode) ? w.mode : 'auto', shape: ['auto', 'round', 'square'].includes(w.shape) ? w.shape : 'auto' }; }
   if (r.settings.banners == null) r.settings.banners = true;
   r.settings.notes = { view: 'auto', scope: '', group: false, ...(r.settings.notes || {}) };
   r.settings.pomo = { focus: 25, short: 5, long: 15, faceDown: false, ...(r.settings.pomo || {}) };

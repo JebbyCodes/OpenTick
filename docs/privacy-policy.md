@@ -22,7 +22,7 @@ Your locally stored application data remains under your control. You can export 
 
 Uninstalling OpenTick may not remove every file containing application data. Back up any important information before uninstalling or resetting the application.
 
-Settings such as theme, accessibility options, keyboard hints and background-service choices are stored on the device only and are never synced.
+Settings such as theme, accessibility options, keyboard hints, pinned views, the update-check choice and background-service choices are stored on the device only and are never synced. If you choose your own reminder sound, the audio file is kept on the device only, like an attachment: it is never synced, never sent anywhere, and is removed when you choose the built-in sound again or reset the settings.
 
 ## 4. Optional sync and backups
 
@@ -34,7 +34,7 @@ Sync credentials (such as a password or token) are kept on your device only and 
 
 You can protect your data with a passphrase in Settings → Encryption. When enabled, the data stored on this device, in automatic backups, and in sync files is encrypted with AES-256-GCM using a key derived from your passphrase. Without the passphrase (or the recovery key you were shown) the data cannot be read, and the developer cannot recover it for you.
 
-Countdowns, saved time zones and board headings are part of the same data: they are stored, backed up and synced like your tasks, and are encrypted with them when encryption is on.
+Attachments and a custom reminder sound are stored in the device's own database and are encrypted with the same key when encryption is on. Countdowns, saved time zones and board headings are part of the same data: they are stored, backed up and synced like your tasks, and are encrypted with them when encryption is on.
 
 When encryption is on, home-screen widgets, the tray menu and background notifications show only generic text, unless you choose to allow a readable summary for them.
 
@@ -60,7 +60,9 @@ OpenTick does not request access to your contacts, location, camera, microphone 
 
 ## 8. Network connections and third-party services
 
-OpenTick makes network requests only when you ask it to: for example to sync with the provider you configured, or to load an embedded video, audio or web player that you put in a note. Those services are governed by their own privacy policies.
+OpenTick makes network requests only when you ask it to: for example to sync with the provider you configured, to load an embedded video, audio or web player that you put in a note, or to check for a newer version (see below). Those services are governed by their own privacy policies.
+
+**Update check.** It is off by default. If you turn on Settings → About & privacy → "Check for updates automatically", OpenTick asks GitHub's public release information for this project (api.github.com) whether a newer release exists, at most once a day while the app is open. "Check now" sends one such request, only when you press it. The request contains nothing about you, your data or your settings; as with any web request, GitHub can see the IP address it comes from and a generic client name, and handles that under its own privacy policy. OpenTick uses the answer only to show the version number and a link to the release page, and never downloads or installs anything by itself.
 
 Third-party services that you access independently, including GitHub when viewing the project's website or reporting an issue, are governed by their own privacy policies.
 

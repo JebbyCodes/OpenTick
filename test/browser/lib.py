@@ -6,7 +6,7 @@ from playwright.sync_api import sync_playwright
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DIST = os.environ.get('DIST', str(ROOT / 'dist' / 'index.html'))
 
-def launch(p, mobile=False, w=None, h=None, init=None, **kw):
+def launch(p, mobile=False, w=None, h=None, init=None, ready='#main', dist=None, **kw):
     b = p.chromium.launch()
     if mobile:
         ctx = b.new_context(viewport={'width': w or 390, 'height': h or 780}, has_touch=True, is_mobile=True, device_scale_factor=2, **kw)
@@ -16,7 +16,7 @@ def launch(p, mobile=False, w=None, h=None, init=None, **kw):
     pg = ctx.new_page(); errs = []
     pg.on('pageerror', lambda e: errs.append(str(e)))
     pg.on('console', lambda m: errs.append('console.' + m.type + ': ' + m.text) if m.type == 'error' else None)
-    pg.goto('file://' + DIST); pg.wait_for_selector('#main'); pg.errs = errs
+    pg.goto('file://' + (dist or DIST)); pg.wait_for_selector(ready); pg.errs = errs
     return b, ctx, pg
 
 def touch(cdp, typ, x=None, y=None):

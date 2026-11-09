@@ -1,0 +1,118 @@
+name: Build / Smartwatch
+
+# =====================================================================================================================================
+#  Build / Smartwatch: the watch edition of OpenTick as installable packages
+# =====================================================================================================================================
+#  The watch edition is the same app with a different face (full-screen pages for a small round or square screen, see docs/WATCHES.md).
+#  Two jobs run side by side:
+#
+#    Wear OS   a signed Android APK that installs on Wear OS watches (Pixel Watch, Galaxy Watch 4 and later, TicWatch, Fossil Gen 6...)
+#    Tizen     an UNSIGNED .wgt web app for Samsung's older Tizen watches (Galaxy Watch, Watch Active, Watch3, Gear S3). Tizen apps must
+#              be signed with the developer's own Samsung certificate, which this repository does not hold, so whoever installs it signs it
+#              first (docs/WATCHES.md has the steps)
+#
+#  The website editions (/watch/ on the site and in the Docker image, and OpenTick_<v>_web-watch.zip) are built by Deploy / Website,
+#  Build / Docker and Build / Web, not here.
+#
+#  These two builds are OPTIONAL for a release: if one fails, the release is still made and the missing file is reported as a warning
+#  (Release treats them the way it treats iOS). The Wear OS build needs the same three Android signing secrets as Build / Android.
+#
+#  Artifacts: pkg-android-watch (the APK) and pkg-tizen (the .wgt).
+#  Called by: Release (with the version). By hand: Actions -> Build / Smartwatch -> Run workflow.
+# =====================================================================================================================================
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Version being built (x.y.z); used in file names
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version being built (x.y.z); used in file names
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  wearos:
+    name: Wear OS APK
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js and install npm packages
+        uses: ./.github/actions/setup-node
+
+      # Java, the Android SDK and NDK, Rust, the generated Android project (marked as a Wear OS app) and release signing.
+      - name: Set up the Android build
+        uses: ./.github/actions/setup-android
+        with:
+          key-base64: ${{ secrets.ANDROID_KEY_BASE64 }}
+          key-password: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          key-alias: ${{ secrets.ANDROID_KEY_ALIAS }}
+          watch: 'true'
+
+      # build-app.mjs reads OPENTICK_WATCH and builds the watch edition; Wear OS watches use 64-bit ARM, and the older ones 32-bit ARM.
+      - name: Build the Wear OS APK
+        env:
+          OPENTICK_WATCH: '1'
+        run: npx tauri android build --apk --target aarch64 armv7
+
+      - name: Check that the Android version matches package.json
+        run: node scripts/android/check-android-version.mjs --generated
+
+      - name: Give the file its release name and verify the signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/android/stage-apks.mjs --version "${{ inputs.version }}" --out staged --edition watch --require universal
+          for f in staged/*.apk; do
+            "$ANDROID_BUILD_TOOLS/apksigner" verify --print-certs "$f" | head -3
+          done
+          ls -l staged
+
+      - name: Upload the file (artifact pkg-android-watch)
+        uses: actions/upload-artifact@v7
+        with:
+          name: pkg-android-watch
+          path: staged/*
+          if-no-files-found: error
+          retention-days: 14
+
+  tizen:
+    name: Tizen package (unsigned)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js and install npm packages
+        uses: ./.github/actions/setup-node
+
+      - name: Build the watch edition and package it as a .wgt
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/watch/make-tizen-wgt.mjs --version "${{ inputs.version }}" --out staged
+          wgt="staged/OpenTick_${{ inputs.version }}_tizen-unsigned.wgt"
+          # a quick look inside: the package must carry its config, the icon and the app, and say it is the watch edition
+          unzip -l "$wgt"
+          unzip -p "$wgt" config.xml | grep -q 'tizen:profile name="wearable"'
+          unzip -p "$wgt" index.html > "$RUNNER_TEMP/index.html"
+          grep -q '"watch":true' "$RUNNER_TEMP/index.html"
+
+      - name: Upload the file (artifact pkg-tizen)
+        uses: actions/upload-artifact@v7
+        with:
+          name: pkg-tizen
+          path: staged/*.wgt
+          if-no-files-found: error
+          retention-days: 14

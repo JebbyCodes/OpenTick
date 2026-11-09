@@ -1,4 +1,4 @@
-# docker compose -f docker/compose.example.yml up -d      then open http://localhost:8080  (e-ink edition: http://localhost:8080/eink/)
+# docker compose -f docker/compose.example.yml up -d      then open http://localhost:8080  (e-ink edition: /eink/, smartwatch edition: /watch/)
 services:
   opentick:
     image: ghcr.io/jebbycodes/opentick:latest

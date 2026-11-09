@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 // Gathers everything the build jobs made into one flat folder for the GitHub Release, checks nothing expected is missing, and writes SHA256SUMS.txt.
 //   node scripts/release/collect-assets.mjs --from release-assets --to release-files --version 0.5.1
-// Required files fail the release when absent; optional ones (32-bit, ARM, iOS, x86 phones…) only raise a warning, so a flaky
+// Required files fail the release when absent; optional ones (32-bit, ARM, iOS, x86 phones, the smartwatch packages…) only raise a warning, so a flaky
 // secondary target never blocks a release, but is never silently forgotten either.
 import { readdirSync, statSync, copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
-export const EXT = /\.(apk|aab|ipa|exe|msi|msix|msixbundle|deb|rpm|AppImage|dmg|snap|zip|nupkg|tar\.gz|yml)$/i;
+export const EXT = /\.(apk|aab|ipa|exe|msi|msix|msixbundle|deb|rpm|AppImage|dmg|snap|zip|nupkg|wgt|tar\.gz|yml)$/i;
 // [label, test(version)] — what a complete release holds
 const R = (re) => v => new RegExp(re.replace(/\{v\}/g, v.replace(/\./g, '\\.')));
 export const REQUIRED = [
@@ -22,6 +22,7 @@ export const REQUIRED = [
   ['Android 32-bit ARM APK', R('^OpenTick_{v}_android-armeabi-v7a\\.apk$')], ['Android App Bundle', R('^OpenTick_{v}\\.aab$')],
   ['Android e-ink APK', R('^OpenTick_{v}_android-eink-universal\\.apk$')],
   ['Website zip', R('^OpenTick_{v}_web\\.zip$')], ['E-ink website zip', R('^OpenTick_{v}_web-eink\\.zip$')],
+  ['Smartwatch website zip', R('^OpenTick_{v}_web-watch\\.zip$')],
   ['Docker image, 64-bit Intel / AMD', R('^OpenTick_{v}_docker-amd64\\.tar\\.gz$')], ['Docker image, 64-bit ARM', R('^OpenTick_{v}_docker-arm64\\.tar\\.gz$')],
   ['Docker compose file', R('^OpenTick_{v}_docker-compose\\.yml$')],
 ];
@@ -31,6 +32,7 @@ export const OPTIONAL = [
   ['Linux ARM64 AppImage', R('^OpenTick_{v}_aarch64\\.AppImage$')], ['Linux ARM64 .deb', R('^OpenTick_{v}_arm64\\.deb$')], ['Linux ARM64 .rpm', R('^OpenTick-{v}-\\d+\\.aarch64\\.rpm$')], ['Linux ARM64 Snap', R('^opentick_{v}_arm64\\.snap$')],
   ['Android x86_64 APK', R('^OpenTick_{v}_android-x86_64\\.apk$')], ['Android x86 APK', R('^OpenTick_{v}_android-x86\\.apk$')],
   ['iOS .ipa (needs Apple secrets)', R('^OpenTick_{v}_ios\\.ipa$')],
+  ['Wear OS watch APK', R('^OpenTick_{v}_android-watch-universal\\.apk$')], ['Tizen watch package (unsigned .wgt)', R('^OpenTick_{v}_tizen-unsigned\\.wgt$')],
   ['Docker image, 32-bit ARM', R('^OpenTick_{v}_docker-armv7\\.tar\\.gz$')], ['Docker image, 32-bit Intel', R('^OpenTick_{v}_docker-i386\\.tar\\.gz$')],
 ];
 export function missing(names, version) {

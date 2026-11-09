@@ -17,7 +17,8 @@ const FULL = [
   `OpenTick_${V}_universal.dmg`, `OpenTick_${V}_amd64.AppImage`, `OpenTick_${V}_amd64.deb`, `OpenTick-${V}-1.x86_64.rpm`, `opentick_${V}_amd64.snap`,
   `OpenTick_${V}_aarch64.AppImage`, `OpenTick_${V}_arm64.deb`, `OpenTick-${V}-1.aarch64.rpm`, `opentick_${V}_arm64.snap`,
   `OpenTick_${V}_android-universal.apk`, `OpenTick_${V}_android-arm64-v8a.apk`, `OpenTick_${V}_android-armeabi-v7a.apk`, `OpenTick_${V}_android-x86_64.apk`, `OpenTick_${V}_android-x86.apk`,
-  `OpenTick_${V}_android-eink-universal.apk`, `OpenTick_${V}.aab`, `OpenTick_${V}_ios.ipa`, `OpenTick_${V}_web.zip`, `OpenTick_${V}_web-eink.zip`,
+  `OpenTick_${V}_android-eink-universal.apk`, `OpenTick_${V}.aab`, `OpenTick_${V}_ios.ipa`, `OpenTick_${V}_web.zip`, `OpenTick_${V}_web-eink.zip`, `OpenTick_${V}_web-watch.zip`,
+  `OpenTick_${V}_android-watch-universal.apk`, `OpenTick_${V}_tizen-unsigned.wgt`,
   `OpenTick_${V}_docker-amd64.tar.gz`, `OpenTick_${V}_docker-arm64.tar.gz`, `OpenTick_${V}_docker-armv7.tar.gz`, `OpenTick_${V}_docker-i386.tar.gz`, `OpenTick_${V}_docker-compose.yml`,
 ];
 let m = missing(FULL, V); assert.deepEqual(m, { required: [], optional: [] }, 'a complete release has nothing missing: ' + JSON.stringify(m));
@@ -25,6 +26,10 @@ m = missing(FULL.filter(n => !/x86-setup|arm64\.snap|ios|docker-armv7/.test(n)),
 assert.deepEqual(m.required, [], 'optional targets never block a release'); assert.equal(m.optional.length, 4);
 m = missing(FULL.filter(n => !/docker-arm64|docker-compose/.test(n)), V);
 assert.deepEqual(m.required, ['Docker image, 64-bit ARM', 'Docker compose file'], 'a release without its Docker files is incomplete');
+m = missing(FULL.filter(n => !/android-watch|tizen/.test(n)), V);
+assert.deepEqual(m.required, [], 'the Wear OS and Tizen packages are optional: they never block a release'); assert.equal(m.optional.length, 2);
+m = missing(FULL.filter(n => !/web-watch/.test(n)), V);
+assert.deepEqual(m.required, ['Smartwatch website zip'], 'the watch website zip is built with the other websites, so it is required');
 m = missing(FULL.filter(n => !/\.msixbundle|android-universal/.test(n)), V);
 assert.deepEqual(m.required, ['Windows MSIX bundle', 'Android universal APK'], 'a missing required file is named');
 assert.ok(missing([`OpenTick_0.0.1_x64-setup.exe`], V).required.includes('Windows 64-bit installer'), 'a file from another version does not count');
@@ -47,6 +52,7 @@ assert.equal(stagedName('x/apk/arm/release/app-arm-release.apk', V), `OpenTick_$
 assert.equal(stagedName('x/apk/x86_64/release/app-x86_64-release.apk', V), `OpenTick_${V}_android-x86_64.apk`);
 assert.equal(stagedName('x/bundle/universalRelease/app-universal-release.aab', V), `OpenTick_${V}.aab`);
 assert.equal(stagedName('x/apk/universal/release/app-universal-release.apk', V, 'eink'), `OpenTick_${V}_android-eink-universal.apk`);
+assert.equal(stagedName('x/apk/universal/release/app-universal-release.apk', V, 'watch'), `OpenTick_${V}_android-watch-universal.apk`, 'the Wear OS APK has its own name');
 assert.equal(flavourOf('x/apk/mystery/app.apk'), null);
 
 /* ---- the workflow files ---- */
@@ -62,6 +68,7 @@ const EXPECTED_WORKFLOWS = [
   'build-docker.yml',
   'build-ios.yml',
   'build-snap.yml',
+  'build-watch.yml',
   'build-web.yml',
   'ci.yml',
   'deploy-pages.yml',
@@ -187,6 +194,16 @@ assert.ok(
 );
 
 assert.ok(rel.includes('attest-build-provenance'));
+
+/* ---- the smartwatch packages are part of the release, but never hold it back ---- */
+assert.ok(/\n  watch:\n[^\n]*\n    needs: prepare\n    uses: \.\/\.github\/workflows\/build-watch\.yml/.test(rel), 'Release builds the smartwatch packages');
+assert.ok(/needs: \[prepare, tests, desktop, android, web, docker, snap, msix-bundle, ios, watch\]/.test(rel) && !/needs\.watch\.result == 'success'/.test(rel), 'the release waits for the watch builds but does not need them to succeed (like iOS)');
+assert.ok(notes.includes('#### Smartwatch') && notes.includes('_tizen-unsigned.wgt') && notes.includes('not signed') && notes.includes('_android-watch-universal.apk'), 'the release description explains the watch downloads');
+assert.ok(notes.includes('/watch/') && notes.includes('_web-watch.zip'), 'the watch website is listed');
+const wbuild = wf('build-watch.yml');
+assert.ok(wbuild.includes("watch: 'true'") && wbuild.includes('OPENTICK_WATCH') && wbuild.includes('--edition watch') && wbuild.includes('make-tizen-wgt.mjs') && wbuild.includes('name: pkg-android-watch') && wbuild.includes('name: pkg-tizen'), 'Build / Smartwatch makes the Wear OS APK and the Tizen package');
+for (const f of ['deploy-pages.yml', 'build-web.yml']) assert.ok(wf(f).includes('--watch --out'), f + ' builds the watch edition');
+assert.ok(wf('build-docker.yml').includes('/watch/') && rd('Dockerfile').includes('--watch --out site/watch') && rd('docker/nginx.conf').includes('location /watch/'), 'the Docker image serves /watch/ and the release checks it');
 
 assert.ok(
   rel.includes('version:check') &&

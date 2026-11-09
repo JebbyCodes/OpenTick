@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.7.0
+
+**App**
+- New: **pin any page next to the sections.** Right-click (or press and hold on a touch screen) a page title or a tab, for example open Calendar and right-click **Classes**, and choose **Pin "Classes" to the sidebar** (to the tab bar on a phone). It appears beside Projects, Tasks, Notes, Calendar and Habits. It is a shortcut: the tab stays where it was. Right-click or press and hold a pinned button to open, move or unpin it. You can pin up to 10 pages: any view (Board, Matrix, Timeline, Templates, Countdowns, Time zones, Focus …), a way of looking at the Calendar (Month, Week, 3 days, Day, Agenda) or a page of Classes (Exams, Homework …). Settings → General → Layout lists the pins and lets you reorder them, and the command palette can pin and unpin the page you are on.
+- New: **your own reminder sound.** Settings → Sound & focus → Reminder sound: choose an MP3, WAV, OGG or M4A file (up to 5 MB and 30 seconds). It replaces the built-in chime for reminders, the focus timer and the test notification, at the volume you set for sounds. Notifications that the system shows by itself (the Android background service, or the desktop app while its window is closed) use the system's own sound, which an app cannot replace; the setting says so.
+- New: **check for updates, off by default.** Settings → About & privacy → Updates has **Check now** (one request when you press it) and **Check for updates automatically** (once a day while OpenTick is open, and it tells you once per new version). Nothing is downloaded or installed: it opens the release page. The only request goes to GitHub's public latest-release address for this project and carries nothing about you or your data. If you installed OpenTick from a store or package manager, update it there.
+- New: **smartwatch layout.** Six full-screen pages for a small round or square screen (Now, Tasks, Next, Habits, Focus, More): tick tasks off, add one by typing or dictating, see today's timetable, check habits in, run the focus timer, sync and lock. It is the same app and the same data. Settings → Appearance → Smartwatch layout (Automatic / On / Off, and the screen shape); it turns on by itself in the watch builds and on watches that identify themselves, and `?watch` on the address tries it in any browser.
+- Changed: the Help page has sections for pinned pages, the reminder sound, updates and the smartwatch layout, and the privacy policy says what the update check sends and when.
+
+**Smartwatches and releases**
+- New: **watch editions for every release.** `OpenTick_<version>_android-watch-universal.apk` for Wear OS 3 or newer (Pixel Watch, Galaxy Watch 4 and later, TicWatch and others), `OpenTick_<version>_tizen-unsigned.wgt` for Samsung's older Tizen watches (it is not signed: Samsung requires each installer to sign it with their own certificate), `OpenTick_<version>_web-watch.zip` for your own server, and `/watch/` on the hosted site and in the Docker image. The two watch packages are built by a new workflow, `build-watch.yml`, and are optional: if one fails, the release is still made without it and says so. `docs/WATCHES.md` explains each platform, how to install, and what cannot be done (Apple Watch, Garmin, Fitbit and Zepp watches each need an app written for them; their reminders can still arrive through the phone's notifications).
+- Changed: **the README now keeps only the latest release's notes**, with older releases listed in CHANGELOG.md. The downloads are directly under the screenshots, and the screenshots are new. `npm run bump` no longer piles the previous release into the README.
+
+**Sync and encryption**
+- The sync file is unchanged (still schema 6), so older and newer versions keep syncing with each other. Pinned pages, the reminder sound, the update setting and the watch layout are settings of the device: they are never part of the sync file. They are sealed with the other settings when device encryption is on.
+- The reminder sound file is stored in the same encrypted store as attachments: sealed when encryption is on, re-sealed when it is turned on, off or re-keyed, and removed when the settings are reset. Tests cover turning encryption on and off with a sound chosen, and a watch syncing with a phone through an encrypted file.
+
 ## 0.6.2
 
 **App**
@@ -36,7 +53,7 @@
 **Sync and encryption**
 - Nothing about the sync file or encryption changed (still schema 6); layout choices stay on the device. A new test goes through every kind of data you can make (including countdowns, time zones, boards and templates), syncs it between two devices with encryption on, and checks nothing is readable in the file.
 
-## 0.6.0 (unreleased)
+## 0.6.0
 
 **App**
 - Fixed: stepping the timetable widget to next week and beyond showed "Can't load widget" on Android. The widget now gets four weeks of days, its steps are kept inside the data it holds (and shift when the data is older than today), the arrows gain week steps, and a widget that cannot be drawn falls back to a plain message instead of failing. The cause could not be reproduced without an Android device, so this hardens every path that could fail.
@@ -87,16 +104,30 @@
 
 ## 0.5.0
 
-See "What's new in 0.5.0" in [README.md](README.md#whats-new-in-050) for the full list.
+**Reminders and the background service**
+- **Reminders any time before a task**: as many as you like per task, any amount (minutes, hours, days, weeks) or an exact date and time. Lessons and timetable slots get custom lead times too, plus optional quiet hours and a morning summary.
+- **Background service on every platform**: Android schedules alarms (restored after a reboot); desktop keeps a tray icon, can close to the tray, start when you sign in and notify while the window is hidden; iOS schedules local notifications; the web app uses its service worker. Settings → Notifications.
+- **Persistent timetable notification (Android)**: shows the lesson you are in or the next one with a countdown, expands to the whole day, and uses the room as its icon. The desktop tray shows the same.
 
-- Several reminders per task: any time before (minutes to weeks) or at an exact date and time; custom lead times for lessons and slots; quiet hours; morning summary.
-- Background service: Android alarms (restored after reboot) and a persistent timetable notification with the room as its icon; desktop tray, close to tray, start at sign-in and reminders while hidden; iOS scheduled notifications; web service-worker notifications.
-- Repeats: end on a date, custom rule, and per-date exceptions (different time, or skip).
-- Holidays: coloured bands in the calendar and timetable that hide the class timetable.
-- Room and teacher always visible on lessons (scrolling when long), in the grid, agenda, widgets and notifications; timetable widget shows start/end and the next days.
-- Templates page with `{{variables}}`, questions, notes as answers, tags/list/project links.
-- Keyboard shortcuts with key-cap hints, right-click menus, tabbed settings, many quality-of-life options and a full Accessibility section, in-app privacy policy.
-- School options in the task panel collapse (collapsed by default, configurable).
-- Sync format 5: templates and the new task fields sync and are encrypted.
-- Fixed: the notes details button no longer shows an unexplained dot (it shows a count).
-- F-Droid: Fastlane metadata and a draft build recipe in `docs/fdroid/`.
+**Tasks**
+- **End a repeat on a date**, a **custom repeat rule** (every N days/weeks/months/years or chosen weekdays) and **exceptions**: a different time (or length) for one date, or skip it.
+- **School options are collapsible** in the task panel (collapsed by default; remembered per task, and a setting decides the default).
+
+**Timetable and calendar**
+- **Room and teacher are always visible** on lessons, in the grid, agenda, widgets and notifications; long text scrolls instead of being cut off.
+- **Holidays**: named, coloured date ranges that show as a band in the calendar and timetable, and hide the class timetable on those days. Manage them from the calendar or timetable toolbar.
+- **Widgets**: the timetable widget shows start and end times, room and teacher on every row, and you can step through the next days.
+
+**Templates (new page)**
+- Write a template with `{{variables}}` (with `{{name|fallback}}`, built-ins like `{{today}}` and `{{note:Title}}`), choose the questions it asks (text, long text, number, date, choice, yes/no or another note as the answer), fill it in step by step with a live preview, then copy it, save it as a note or make a task. Templates have tags, a list and a project, and show up there too.
+
+**Keyboard, mouse and accessibility**
+- **Keyboard shortcuts everywhere** on computers, shown as key caps beside buttons, with a searchable cheat sheet (press `?`). Switched off on phones and tablets.
+- **Right-click menus** that mirror each ⋯ button (tasks, lists, projects, tags, notes, templates, calendar days, timetable blocks).
+- **Settings reorganised into tabs**, with new quality-of-life options (defaults for new tasks, confirm before delete, message duration) and a full **Accessibility** section: high contrast, bold text, a dyslexia-friendly font, text spacing, underlined links, do not rely on colour, greyscale, larger pointer and tap targets, strong focus outline, text labels on icon buttons, reduced motion and transparency.
+- **Privacy policy** inside the app (Settings → About & privacy).
+- The notes “details” button now shows a count instead of an unexplained dot.
+
+**Sync and encryption** (sync format 5): templates, holidays, repeat ends, exceptions and reminders sync with everything else and are encrypted when encryption is on. Device settings (accessibility, shortcuts, background service) stay on the device.
+
+**F-Droid**: the repository now carries Fastlane metadata (`fastlane/metadata/android`) and a draft F-Droid build recipe (`docs/fdroid/`).

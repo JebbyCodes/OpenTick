@@ -34,6 +34,7 @@ async function wipeAll(o = {}) {
   S.history = [];
   replaceAll(d);
   if (o.files !== false) await filesWipe();
+  if (o.settings && typeof csoundWipe === 'function') await csoundWipe(); // the settings go back to their defaults, and so does the sound
   S.fired = {}; histNote('delete', 'Everything was deleted'); save(); flush();
   U.nav = 'today'; U.page = 'tasks'; U.sel = null; U.noteSel = null; U.q = ''; U.tagSel = []; U.bsel = null;
   if (typeof applyTheme === 'function') applyTheme();

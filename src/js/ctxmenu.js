@@ -45,6 +45,7 @@ function ctxTask(id) {
 function ctxItems(target) {
   const g = sel => target.closest(sel);
   let el;
+  { const pin = typeof pinCtxItems === 'function' ? pinCtxItems(target) : null; if (pin) return pin; } // a view tab, a page title or a pinned button: pin / unpin (pins.js)
   if ((el = g('.task[data-id]:not(.virt),.card[data-id],.kncard[data-id],.blk.tk[data-id],.chip[data-act=open][data-id],.tri[data-id],.bl[data-id]'))) { return ctxTask(el.dataset.id); }
   if ((el = g('.virt[data-id]'))) return ctxTask(el.dataset.id);
   if ((el = g('.navrow[data-lid]'))) {

@@ -21,9 +21,9 @@ const refresh = () => { renderSide(); renderMain(); renderDetail(); };
 /* ---------- small animations ----------
    Rendering rebuilds the DOM, so an animation is queued with fx(selector, name) and played on the fresh elements by
    fxFlush() at the end of renderMain / renderDetail. Everything is switched off by prefers-reduced-motion. */
-const motionOK = () => !(typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) && (!S || !S.settings || S.settings.motion !== 'off') && !(typeof einkOn === 'function' && einkOn());
+const motionOK = () => !(typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) && (!S || !S.settings || S.settings.motion !== 'off') && !(typeof einkOn === 'function' && einkOn()) && !(typeof watchOn === 'function' && watchOn());
 // Settings → Animations: the whole interface reads data-motion (normal / calm / off) from the page root
-function motionApply() { if (typeof document !== 'undefined' && document.documentElement && document.documentElement.setAttribute) document.documentElement.setAttribute('data-motion', (typeof einkOn === 'function' && einkOn()) ? 'off' : (S.settings && S.settings.motion) || 'normal'); }
+function motionApply() { if (typeof document !== 'undefined' && document.documentElement && document.documentElement.setAttribute) document.documentElement.setAttribute('data-motion', ((typeof einkOn === 'function' && einkOn()) || (typeof watchOn === 'function' && watchOn())) ? 'off' : (S.settings && S.settings.motion) || 'normal'); }
 const rowSel = id => ['.task', '.card', '.tri', '.chip', '.blk', '.gt-r'].map(c => `${c}[data-id="${id}"]`).join(',');
 function fx(sel, name = 'pop') { if (motionOK()) U.fx.push({ sel, name, at: Date.now() }); }
 function fxPlay(el, name) {
@@ -280,10 +280,10 @@ ${tasksSettingsHtml()}
 
 <details class="gtd" style="margin-top:12px"><summary>Sidebar views</summary><div id="sbv">${uiSidebarSettings()}</div></details>
 `)
-  + sec('appearance', `<div id="thsec">${themeSectionHtml()}</div>${scaleSetting()}${densitySetting()}${typeof einkSettingsHtml === 'function' ? einkSettingsHtml() : ''}<div class="dgrid" style="margin-top:10px"><button data-m="bgfx">${ic('sparkles', 18)}<span><b>Background effects</b><small>${bgNorm(s.bg).on ? 'On · ' + (BG_STYLES.find(x => x[0] === bgNorm(s.bg).style) || [])[1] : 'Off'} — soft moving shapes behind the app</small></span></button></div><div class="form" style="margin-top:10px"><label>Animations<select data-sx="motion">${opts([['normal', 'Normal'], ['calm', 'Calm (subtle)'], ['off', 'Off']], s.motion || 'normal')}</select></label></div>`)
+  + sec('appearance', `<div id="thsec">${themeSectionHtml()}</div>${scaleSetting()}${densitySetting()}${typeof einkSettingsHtml === 'function' ? einkSettingsHtml() : ''}${typeof watchSettingsHtml === 'function' ? watchSettingsHtml() : ''}<div class="dgrid" style="margin-top:10px"><button data-m="bgfx">${ic('sparkles', 18)}<span><b>Background effects</b><small>${bgNorm(s.bg).on ? 'On · ' + (BG_STYLES.find(x => x[0] === bgNorm(s.bg).style) || [])[1] : 'Off'} — soft moving shapes behind the app</small></span></button></div><div class="form" style="margin-top:10px"><label>Animations<select data-sx="motion">${opts([['normal', 'Normal'], ['calm', 'Calm (subtle)'], ['off', 'Off']], s.motion || 'normal')}</select></label></div>`)
   + sec('notifications', notifSettingsHtml())
   + sec('access', a11ySettingsHtml())
-  + sec('sound', `<h4 class="mh">Sound</h4><div class="snd"><div class="mrow tight"><label class="chkl"><input type="checkbox" data-snd="on"${s.sound.on !== false ? ' checked' : ''}> Sound effects</label><label class="chkl"><input type="checkbox" data-snd="haptic"${s.sound.haptic !== false ? ' checked' : ''}> Vibrate on phones</label></div><label class="vol">${ic('volume', 16)}<input type="range" min="0" max="1" step="0.05" data-snd="vol" value="${s.sound.vol}" aria-label="Volume"></label><div class="mrow tight">${Object.entries(SOUNDS).map(([k, v]) => `<button class="sbtn" data-play="${k}" title="Play this sound"><span class="pi">${ic('play', 13)}</span>${esc(v.label)}</button>`).join('')}</div></div>
+  + sec('sound', `<h4 class="mh">Sound</h4><div class="snd"><div class="mrow tight"><label class="chkl"><input type="checkbox" data-snd="on"${s.sound.on !== false ? ' checked' : ''}> Sound effects</label><label class="chkl"><input type="checkbox" data-snd="haptic"${s.sound.haptic !== false ? ' checked' : ''}> Vibrate on phones</label></div><label class="vol">${ic('volume', 16)}<input type="range" min="0" max="1" step="0.05" data-snd="vol" value="${s.sound.vol}" aria-label="Volume"></label><div class="mrow tight">${Object.entries(SOUNDS).map(([k, v]) => `<button class="sbtn" data-play="${k}" title="Play this sound"><span class="pi">${ic('play', 13)}</span>${esc(v.label)}</button>`).join('')}</div></div>${csoundSettingsHtml()}
 <h4 class="mh">Focus timer</h4><div class="form"><label>Focus (min)<input type="number" min="1" max="180" data-p="focus" value="${s.pomo.focus}"></label>
 <label>Short break (min)<input type="number" min="1" max="60" data-p="short" value="${s.pomo.short}"></label>
 <label>Long break (min)<input type="number" min="1" max="120" data-p="long" value="${s.pomo.long}"></label></div>`)
@@ -302,6 +302,7 @@ ${tasksSettingsHtml()}
   + sec('integrations', bridgeSettingsHtml())
   + sec('about', `<h4 class="mh">Help &amp; about</h4><div class="dgrid"><button data-m="help">${ic('book-open', 18)}<span><b>Help &amp; user guide</b><small>How everything works · printable</small></span></button><button data-m="aboutdlg">${ic('info', 18)}<span><b>About OpenTick</b><small>v${esc(APP_VERSION)} · source, licences &amp; credits</small></span></button></div>
 <div class="about">${logoHtml(40)}<div><b>OpenTick</b> <span class="ver">v${esc(APP_VERSION)}</span><br><span class="hint">${OTMETA.built ? 'Built ' + esc(OTMETA.built) + ' · ' : ''}Your data lives on this device. Turn on Sync to share it between devices, or export a JSON backup. Theme, sound and view settings stay per device.</span></div></div>
+${updSettingsHtml()}
 ${privacySettingsHtml()}`)
   + `</div></div><div class="mact"><button class="pri" data-m="ok">Done</button></div>`, m => { if (typeof prefTabShow === 'function') prefTabShow(m); if (!narrow(820) && $('#setq', m)) $('#setq', m).focus();
     loadSnaps(m); scaleBind(m);
@@ -309,6 +310,7 @@ ${privacySettingsHtml()}`)
       const el = e.target;
       if (el.dataset.bnr) { S.settings.banners = el.checked; save(); return; }
       if (el.dataset.ck) { S.settings.clock[el.dataset.ck] = el.checked; save(); clockPaint(); return; }
+      if (el.dataset.upd === 'auto') { updToggle(el.checked); return; }
       if (el.dataset.snd) { const k = el.dataset.snd; S.settings.sound[k] = el.type === 'checkbox' ? el.checked : +el.value; save(); if (k === 'vol' || (k === 'on' && el.checked)) sfx('done', true); return; }
       if (el.dataset.pg) { const h = S.settings.ui.hidePages, ks = el.dataset.pg === 'calendar' ? ['calendar', 'timetable'] : [el.dataset.pg]; /* the Calendar's week and day are part of it */ for (const k of ks) { if (el.checked) S.settings.ui.hidePages = S.settings.ui.hidePages.filter(x => x !== k); else if (!S.settings.ui.hidePages.includes(k)) S.settings.ui.hidePages.push(k); } save(); const b = $('#sbv', m); if (b) b.innerHTML = uiSidebarSettings(); return; }
       if (el.dataset.sx) { S.settings[el.dataset.sx] = el.value; if (el.dataset.sx === 'motion') motionApply(); save(); return; }
@@ -318,11 +320,16 @@ ${privacySettingsHtml()}`)
     };
     m.onclick = async e => {
       const pl = e.target.closest('[data-play]'); if (pl) { sfx(pl.dataset.play, true); playBtn(pl); return; }
+      const cs = e.target.closest('[data-csnd]'); if (cs) { csoundAction(cs); return; }
+      const up = e.target.closest('[data-updact]'); if (up) { e.preventDefault(); updAction(up); return; }
       const rs = e.target.closest('[data-snaprs]'), sd = e.target.closest('[data-snapdl]');
       if (rs) { if (await askConfirm('Restore this backup? Your current data is backed up first, so you can come back.', 'Restore')) { try { await snapRestore(rs.dataset.snaprs); closeModal(); U.nav = 'today'; render(); toast('Backup restored'); } catch (err) { toast(err.message); } } return; }
       if (sd) { snapDownload(sd.dataset.snapdl); return; }
       const smv = e.target.closest('[data-secmv]');
       if (smv) { uiMoveSection(smv.dataset.secmv, +smv.dataset.d); const b = $('#sbv', m); if (b) b.innerHTML = uiSidebarSettings(); return; }
+      const pmv = e.target.closest('[data-pinmv]'), prm = e.target.closest('[data-pinrm]');
+      if (pmv) { pinMove(pmv.dataset.pinmv, +pmv.dataset.d); return; }
+      if (prm) { pinToggle(prm.dataset.pinrm); return; }
       const mvb = e.target.closest('[data-pgmv]');
       if (mvb) { uiMovePage(mvb.dataset.pgmv, +mvb.dataset.d); const b = $('#sbv', m); if (b) b.innerHTML = uiSidebarSettings(); return; }
       const th = e.target.closest('[data-th]');
@@ -840,6 +847,8 @@ const ACT = {
   ...KB_ACT,
   ...HOL_ACT,
   ...SC_ACT,
+  ...PIN_ACT,
+  ...WATCH_ACT,
   ...BATCH_ACT,
   ...HABIT_ACT,
   ...HELP_ACT,
@@ -1260,7 +1269,7 @@ function appStart() {
   uiInit();
   render();
   mqStart();
-  checkReminders();
+  checkReminders(); setTimeout(csoundLoad, 1200); // the reminder sound the person chose is decoded ahead of time
   setInterval(checkReminders, 20000);
   skHintsStart();
   setInterval(clockPaint, 1000); setInterval(editedSweep, 20000); setTimeout(filesGC, 25000);
@@ -1270,13 +1279,14 @@ function appStart() {
   if (S.settings.pomo.faceDown) { try { if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission !== 'function') fdEnable(); else if (typeof DeviceOrientationEvent !== 'undefined') { window.addEventListener('deviceorientation', fdHandler); FD.on = true; } } catch (e) { /* no sensor */ } }
   startSync();
   if (!WIDGET) setTimeout(() => { try { tzWatch(); } catch (e) { /* later */ } }, 600); // did the device change zone while OpenTick was closed?
+  if (!WIDGET) updStart(); // does nothing unless the person turned the update check on
   if (!WIDGET) { setTimeout(widgetPull, 900); window.addEventListener('focus', widgetPull); widgetPush(); bgStart(); }
 }
 // the data is open again (unlocked after a lock, or switched to another vault): show it, and bring the reminders and sync back
 function appResume() {
   if (!WIDGET) homeApply();
   motionApply(); a11yApply(); applyTheme(); applyScale(null, { quiet: true }); bgApply(); uiApply(); clockPaint(); paintDock();
-  render(); checkReminders(); widgetPush(true); bgSync(true);
+  render(); checkReminders(); csoundLoad(true); widgetPush(true); bgSync(true);
   if (Sync.on) setTimeout(() => syncNow(), 400);
 }
 // a change made in another window of the app (a mini widget, a second tab) arrives through storage; encrypted data is opened first
@@ -1295,6 +1305,7 @@ window.addEventListener('storage', e => {
 });
 window.addEventListener('pagehide', flush);
 widgetWire();
+watchWire();
 document.addEventListener('visibilitychange', () => { if (Vault.locked) return; if (document.hidden) widgetPush(true); else widgetPull(); if (!document.hidden) { wlSync(); checkReminders(); if (!document.activeElement || !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) render(); } });
 vaultStart(appStart); // no encryption: straight in. Encrypted: the lock screen first (or a quiet unlock), then appStart().
 if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !window.__TAURI__) navigator.serviceWorker.register('sw.js').catch(() => {});

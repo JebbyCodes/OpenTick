@@ -3,8 +3,8 @@ name: Build / Web
 # =====================================================================================================================================
 #  Build / Web: the app as a static website, zipped for self-hosting
 # =====================================================================================================================================
-#  Makes two zips: the normal app and the e-ink edition. Unzip either one into any web server's folder (nginx, Apache, a Raspberry Pi,
-#  a NAS...) and open it. Nothing else is needed: the app keeps its data in the browser and syncs over WebDAV.
+#  Makes three zips: the normal app, the e-ink edition and the smartwatch edition. Unzip any of them into a web server's folder (nginx,
+#  Apache, a Raspberry Pi, a NAS...) and open it. Nothing else is needed: the app keeps its data in the browser and syncs over WebDAV.
 #  The same files are what Deploy / Website puts on GitHub Pages, and what the Docker image serves.
 #
 #  Artifact: pkg-web.   Called by: Release.   By hand: Actions -> Build / Web -> Run workflow.
@@ -39,7 +39,7 @@ jobs:
       - name: Set up Node.js and install npm packages
         uses: ./.github/actions/setup-node
 
-      - name: Build both editions and zip them
+      - name: Build all three editions and zip them
         shell: bash
         env:
           VERSION: ${{ inputs.version }}
@@ -47,10 +47,13 @@ jobs:
           set -euo pipefail
           node build-app.mjs --out site
           node build-app.mjs --eink --out site-eink
-          for d in site site-eink; do test -s "$d/index.html"; done
+          node build-app.mjs --watch --out site-watch
+          for d in site site-eink site-watch; do test -s "$d/index.html"; done
+          grep -q '"watch":true' site-watch/index.html
           mkdir -p staged
           (cd site && zip -qr "../staged/OpenTick_${VERSION}_web.zip" .)
           (cd site-eink && zip -qr "../staged/OpenTick_${VERSION}_web-eink.zip" .)
+          (cd site-watch && zip -qr "../staged/OpenTick_${VERSION}_web-watch.zip" .)
           ls -l staged
 
       - name: Upload the files (artifact pkg-web)

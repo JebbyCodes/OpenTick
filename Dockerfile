@@ -1,6 +1,7 @@
 # OpenTick as a website you host yourself. OpenTick keeps its data in the browser and syncs by WebDAV, so there is no database or server code:
 # this is just the built app behind nginx.   docker run -p 8080:8080 ghcr.io/jebbycodes/opentick   then open http://localhost:8080
 #   /        the normal app          /eink/   the e-ink edition (black and white, no animation, page buttons)
+#   /watch/  the smartwatch edition (full-screen pages for a small round or square screen)
 # Built for linux/amd64, arm64, arm/v7 and 386 (older and 32-bit machines, Raspberry Pi, NAS boxes).
 
 # the build runs on the builder's own CPU (fast, no emulation); only the tiny final image is per-architecture
@@ -10,7 +11,8 @@ COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY . .
 RUN node build-app.mjs --out site \
- && node build-app.mjs --eink --out site/eink
+ && node build-app.mjs --eink --out site/eink \
+ && node build-app.mjs --watch --out site/watch
 
 FROM nginxinc/nginx-unprivileged:stable-alpine
 ARG VERSION=dev

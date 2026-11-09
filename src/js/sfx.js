@@ -16,7 +16,7 @@ const SOUNDS = {
   streak: { label: 'Streak', n: [[523.25, 0, .12, 'triangle', .8, 1], [659.25, .09, .12, 'triangle', .8, 1], [783.99, .18, .14, 'triangle', .8, 1], [1046.5, .28, .55, 'sine', 1, 1], [1318.5, .36, .5, 'sine', .4, 1]], buzz: [10, 40, 10, 40, 24] },
   error: { label: 'Error', n: [[196, 0, .11, 'square', .35], [174.6, .12, .16, 'square', .35]], buzz: [40, 40, 40] },
 };
-const sfxDuration = k => (SOUNDS[k] ? Math.max(0.2, ...SOUNDS[k].n.map(n => n[1] + n[2])) : 0.3) + 0.1; // seconds a cue lasts, so a play button can show "playing" for as long
+const sfxDuration = k => (k === 'chime' && typeof CS !== 'undefined' && CS.buf && csMeta() ? CS.buf.duration : SOUNDS[k] ? Math.max(0.2, ...SOUNDS[k].n.map(n => n[1] + n[2])) : 0.3) + 0.1; // seconds a cue lasts, so a play button can show "playing" for as long
 const sfxCfg = () => (S.settings && S.settings.sound) || { on: true, vol: 0.7, haptic: true };
 function sfxCtx() {
   try {
@@ -32,6 +32,7 @@ function sfxCtx() {
   } catch (e) { return null; }
 }
 function sfxPlay(name) {
+  if (name === 'chime' && typeof csoundPlay === 'function' && csoundPlay()) return true; // the sound the person chose (csound.js), when there is one
   const def = SOUNDS[name], ctx = sfxCtx(); if (!def || !ctx) return false;
   const now = ctx.currentTime + 0.01, vol = Math.max(0, Math.min(1, +sfxCfg().vol)) ** 1.6 * 0.4;
   SFX.master.gain.setValueAtTime(vol, now);

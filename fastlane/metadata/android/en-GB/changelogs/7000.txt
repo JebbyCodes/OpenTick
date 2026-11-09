@@ -1,0 +1,5 @@
+• Pin any page next to the sections: right-click (or press and hold) a page title or tab
+• Choose your own reminder sound
+• Optional update check, off by default
+• Smartwatch layout (Wear OS and Tizen packages)
+• Sync format unchanged

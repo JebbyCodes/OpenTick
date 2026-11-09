@@ -12,6 +12,7 @@ function prefApplied(path) {
   if (path.startsWith('ui.')) { uiApply(); if (path === 'ui.density' || path === 'ui.autoDetail') { S.settings.ui.compact = S.settings.ui.density === 'compact'; renderDetail(); } }
   else if (path.startsWith('a11y.')) a11yApply();
   else if (path.startsWith('eink.')) { motionApply(); a11yApply(); }
+  else if (path.startsWith('watch.')) watchApply();
   else if (path.startsWith('keys.')) skHintsRefresh();
   else if (path.startsWith('svc.') && typeof bgSync === 'function') bgSync(true);
   else if ((path.startsWith('quiet.') || path.startsWith('digest.')) && typeof bgSync === 'function') bgSync(true);
@@ -125,16 +126,16 @@ function prefTabShow(m, tapped) {
 /* search: every setting is an entry (its label, the small print under it and its section's name and keywords); a result switches to the
    section and flashes the setting. The entries are read from the page each time, so they always match what is there. */
 const SET_ALIAS = {
-  general: 'start screen home week monday sunday clock time 24-hour banners sidebar views default list priority reminder tasks',
-  appearance: 'theme dark light colours colors font size zoom scale density spacing animation motion background effects e-ink eink',
+  general: 'start screen home week monday sunday clock time 24-hour banners sidebar views default list priority reminder tasks pin pinned views shortcuts layout sections order',
+  appearance: 'theme dark light colours colors font size zoom scale density spacing animation motion background effects e-ink eink smartwatch watch wear os round square wrist',
   notifications: 'reminders alerts notify notifications push banner',
   access: 'accessibility contrast reduce motion large text tap targets screen reader dyslexia',
-  sound: 'sound volume vibrate haptic focus pomodoro timer break chime',
+  sound: 'sound volume vibrate haptic focus pomodoro timer break chime custom notification sound ringtone reminder tone audio file mp3',
   keys: 'keyboard shortcuts keys hotkeys hints key caps',
   data: 'data sync backup export import encryption vault passphrase delete wipe webdav git s3 restore snapshot',
   widgets: 'widgets home screen android floating window',
   integrations: 'integrations bridge api link tools connect',
-  about: 'about privacy policy help guide version licence license credits',
+  about: 'about privacy policy help guide version licence license credits update updates upgrade new version release check for updates automatically',
 };
 const SET_ITEM = 'h4.mh, label, .a11y-r, .dgrid > button, details > summary, .vrow.vsh, .about';
 const SET_OUTER = 'label, .a11y-r, .dgrid > button, summary';

@@ -6,6 +6,7 @@ name: Deploy / Website
 #  What ends up online
 #    /                       the normal web app
 #    /eink/                  the e-ink edition (black and white, no animation, page buttons)
+#    /watch/                 the smartwatch edition (full-screen pages for a small round or square screen)
 #    /privacy-policy.html    the privacy policy, built from docs/privacy-policy.md
 #
 #  When it runs: on every push to `main`, or by hand (Actions -> Deploy / Website -> Run workflow).
@@ -43,16 +44,18 @@ jobs:
       - name: Set up Node.js and install npm packages
         uses: ./.github/actions/setup-node
 
-      - name: Build both editions and the privacy policy
+      - name: Build all three editions and the privacy policy
         shell: bash
         run: |
           set -euo pipefail
           node build-app.mjs --out site              # the normal app at the root
           node build-app.mjs --eink --out site/eink  # the e-ink edition under /eink/
+          node build-app.mjs --watch --out site/watch  # the smartwatch edition under /watch/
           test -f docs/privacy-policy.md
           npx --yes marked --gfm --output site/privacy-policy.html docs/privacy-policy.md
           test -f site/index.html
           test -f site/eink/index.html
+          test -f site/watch/index.html
           echo "The site contains:"
           find site -maxdepth 2 -type f | sort
 

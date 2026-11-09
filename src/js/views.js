@@ -272,6 +272,8 @@ function render() {
   { const s = typeof secOf === 'function' ? secOf(U.page) : null; if (s) (U.secLast = U.secLast || {})[s] = U.page; } // a section reopens on the view you last used in it
   document.body.classList.toggle('on-help', U.page === 'help'); // the print rules for the Help page are keyed on this
   if (typeof WIDGET !== 'undefined' && WIDGET) return renderWidget();
+  if (typeof watchOn === 'function' && watchOn()) return watchRender(); // the smartwatch layout (watch.js) draws its own pages
+  if (typeof watchLeave === 'function') watchLeave();
   if (U.gFull && U.page !== 'gantt') { U.gFull = false; document.body.classList.remove('gtfull'); try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) { /* not in full screen */ } }
   if (U.nFull && (U.page !== 'notes' || !U.noteSel)) { U.nFull = false; document.body.classList.remove('nfull'); }
   document.body.classList.toggle('pg-notes', U.page === 'notes' || U.page === 'history'); // the Notes page uses the whole width: no details panel
@@ -281,7 +283,8 @@ function render() {
 function renderTabbar() {
   const el = $('#tabbar'); if (!el) return;
   const items = sectionsShown();
-  el.innerHTML = items.map(([k, n, i]) => `<button class="${secOf(U.page) === k ? 'on' : ''}" data-act="page" data-page="${sectionTarget(k)}" data-sec="${k}">${ic(i, 22)}<small>${n}</small></button>`).join('') + `<button data-act="burger">${ic('menu', 22)}<small>More</small></button>`;
+  const pinOn = !!pinActive();
+  el.innerHTML = items.map(([k, n, i]) => `<button class="${secOf(U.page) === k && !pinOn ? 'on' : ''}" data-act="page" data-page="${sectionTarget(k)}" data-sec="${k}">${ic(i, 22)}<small>${n}</small></button>`).join('') + pinsHtml('bar') + `<button data-act="burger">${ic('menu', 22)}<small>More</small></button>`;
 }
 function renderTimetable() { schoolOn() ? renderSchool() : renderTimetablePlan(); }
 function renderMain() { if (typeof WIDGET !== 'undefined' && WIDGET) return renderWidget(); ({ home: renderHome, tasks: renderTasks, notes: renderNotes, templates: renderTemplates, calendar: renderCal, timetable: renderTimetable, gantt: renderGantt, matrix: renderMatrix, habits: renderHabits, help: renderHelp, focus: renderFocus, history: renderHistory, countdowns: renderCountdowns, zones: renderZones, kanban: renderKanbanPage })[U.page](); fxFlush(); if (typeof batchPaint === 'function') batchPaint(); }
@@ -291,7 +294,7 @@ function renderSide() {
   const on = k => U.page === 'tasks' && ((U.nav === k && !U.q) || (k.startsWith('tag:') && U.tagSel.includes(k.slice(4)))) ? ' on' : '';
   const item = (key, label, icon, color, count, extra = '') => `<button class="nav${on(key)}" data-act="nav" data-nav="${esc(key)}"${extra}><span class="ni"${color ? ` style="color:${color}"` : ''}>${ic(icon, 18)}</span><span class="nl">${esc(label)}</span>${count ? `<span class="cnt">${count}</span>` : ''}</button>`;
   const sec = (k, title, add = '') => `<div class="sec"><button class="sech" data-act="fold" data-k="${k}" aria-expanded="${!folded(k)}">${ic(folded(k) ? 'right' : 'down', 14)}<span>${title}</span></button>${add}</div>`;
-  const tags = allTags();
+  const tags = allTags(), pinOn = !!pinActive(); // a pinned view that is showing takes the highlight from its section
   // lists as a tree: a caret folds the sublists, the dots open the list menu (always visible on the selected list / on touch screens)
   const hiddenUnder = new Set(), rows = [];
   for (const { l, depth, kids } of listTree()) {
@@ -312,7 +315,7 @@ function renderSide() {
   $('#side').innerHTML = `
 <div class="brand">${logoHtml(28)}<span class="bn"><b>OpenTick</b><small class="ver" title="Version ${esc(APP_VERSION)}">v${esc(APP_VERSION)}</small></span><button class="ib" data-act="uitoggle" data-k="side" title="${S.settings.ui.side ? 'Hide sidebar' : 'Dock sidebar'}">${ic('panel-left', 18)}</button><button class="ib" data-act="settings" title="Settings">${ic('sliders', 18)}</button></div>
 <div class="search">${ic('search', 16)}<input id="q" placeholder="Search everything" aria-label="Search everything: tasks, notes, templates, settings" autocomplete="off" readonly>${U.q ? `<button class="ib sm" data-act="qclear" title="Clear this search" aria-label="Clear this search">${ic('x', 14)}</button>` : ''}</div>
-<div class="pages">${pagesGrid().map(([k, n, i]) => `<button class="pg${secOf(U.page) === k ? ' on' : ''}" data-act="page" data-page="${sectionTarget(k)}" data-sec="${k}" title="${n} — drag to reorder" draggable="true">${ic(i, 20)}<small>${n}</small></button>`).join('')}${pagesMoreBtn()}</div>
+<div class="pages">${pagesGrid().map(([k, n, i]) => `<button class="pg${secOf(U.page) === k && !pinOn ? ' on' : ''}" data-act="page" data-page="${sectionTarget(k)}" data-sec="${k}" title="${n} — drag to reorder" draggable="true">${ic(i, 20)}<small>${n}</small></button>`).join('')}${pinsHtml('side')}${pagesMoreBtn()}</div>
 <div class="scroll">
 ${SMART.map(([k, n, i]) => item(k, n, i, null, openCount(k))).join('')}
 ${sec('lists', 'Lists', `<button class="ib sm" data-act="addlist" title="New list" aria-label="New list">${ic('plus', 14)}</button>`)}

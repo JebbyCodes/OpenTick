@@ -15,7 +15,7 @@ name: Build / Docker
 #    OpenTick_<v>_docker-i386.tar.gz      32-bit Intel                (very old PCs)                      optional
 #    OpenTick_<v>_docker-compose.yml      a ready-made compose file pinned to this exact version
 #
-#  The amd64 job also starts the image and checks that the website answers (normal app and /eink/), so a broken image fails the release
+#  The amd64 job also starts the image and checks that the website answers (normal app, /eink/ and /watch/), so a broken image fails the release
 #  here and not on somebody's server.
 #
 #  What it does NOT do: push anything to a registry. That happens in Publish / Docker, which Release runs only AFTER the GitHub Release
@@ -121,6 +121,9 @@ jobs:
           echo "--- /eink/ (e-ink edition, must be switched on by default)"
           curl -fsS -o "$RUNNER_TEMP/eink.html" http://127.0.0.1:8080/eink/
           grep -q '"eink":true' "$RUNNER_TEMP/eink.html"
+          echo "--- /watch/ (smartwatch edition, must be switched on by default)"
+          curl -fsS -o "$RUNNER_TEMP/watch.html" http://127.0.0.1:8080/watch/
+          grep -q '"watch":true' "$RUNNER_TEMP/watch.html"
           echo "The image works."
           docker rm -f opentick-test >/dev/null
 
@@ -168,7 +171,7 @@ jobs:
           #
           #   docker compose -f OpenTick_${VERSION}_docker-compose.yml up -d
           #
-          # then open http://localhost:8080   (the e-ink edition is at http://localhost:8080/eink/)
+          # then open http://localhost:8080   (the e-ink edition is at http://localhost:8080/eink/, the smartwatch edition at /watch/)
           #
           # OpenTick keeps its data in your browser and syncs over WebDAV, so there is no database and nothing to back up on the server.
           # This file is pinned to ${VERSION}. To follow new releases automatically, change the tag to :latest.

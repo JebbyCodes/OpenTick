@@ -1,7 +1,7 @@
 // One version everywhere, and the build wires the logo + version in.
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
-import { versions, problems as relProblems, changelogSection, changelogBullets, fastlaneText, msixFour } from '../scripts/release/bump-version.mjs';
+import { versions, problems as relProblems, changelogSection, changelogBullets, fastlaneText, msixFour, readmeSection, readmeNotes, readmeVersion, EARLIER } from '../scripts/release/bump-version.mjs';
 import { build, readVersion } from '../build-app.mjs';
 const v = versions(), set = new Set(Object.values(v));
 assert.equal(set.size, 1, 'all manifests share one version: ' + JSON.stringify(v));
@@ -11,6 +11,17 @@ const cl = '# Changelog\n\n## 0.6.0\n\n**App**\n- One **bold** `thing`.\n- [Two]
 assert.deepEqual(changelogBullets(changelogSection(cl, '0.6.0')), ['One **bold** `thing`.', '[Two](http://x).'], 'the section is cut at the next heading');
 assert.equal(changelogSection(cl, '9.9.9'), null); assert.equal(fastlaneText(changelogSection(cl, '0.6.0')), '• One bold thing.\n• Two.\n', 'plain text, one bullet per line');
 assert.ok(Buffer.byteLength(fastlaneText('- ' + 'x'.repeat(2000))) <= 500, 'F-Droid allows 500 bytes');
+// the README keeps only the latest release's notes: a new version replaces the old section, and nothing is piled up
+const rd0 = '# T\n\n## Download\n\nx\n\n## What\'s new in 0.6.0\n\n- Old thing.\n\n' + EARLIER + '\n\n## E-ink\n\ntext\n';
+const sec = readmeSection(rd0); assert.equal(sec.version, '0.6.0');
+const rd1 = rd0.slice(0, sec.start) + readmeNotes('0.7.0', changelogSection(cl.replace('## 0.6.0', '## 0.7.0'), '0.7.0')) + rd0.slice(sec.end);
+assert.equal(readmeVersion(rd1), '0.7.0'); assert.ok(!rd1.includes('Old thing') && !rd1.includes('What was new'), 'the previous release is not carried over');
+assert.ok(rd1.includes('**App**\n- One **bold** `thing`.') && rd1.includes(EARLIER + '\n\n## E-ink\n'), 'the CHANGELOG section is copied as it is, with its headings, and the rest of the README follows');
+assert.equal(readmeSection('# no notes here\n'), null); assert.equal(readmeSection('## What\'s new in 1.0.0\n\n- x\n'), null, 'without the "Earlier releases" line the section is not recognised, so nothing is overwritten');
+const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
+assert.ok(readme.indexOf('<img src="docs/images/tasks.png"') < readme.indexOf('## Download') && readme.indexOf('## Download') < readme.indexOf("## What's new in"), 'screenshots, then the downloads, then the latest notes');
+assert.ok(!/## What was new in/.test(readme), 'the README holds only the latest release notes');
+for (const m of readme.matchAll(/(?:src|href)="(docs\/images\/[^"]+)"|\]\((docs\/[^)#]+)\)/g)) assert.ok(existsSync(new URL('../' + (m[1] || m[2]), import.meta.url)), 'README file exists: ' + (m[1] || m[2]));
 build();
 const html = readFileSync(new URL('../dist/index.html', import.meta.url), 'utf8');
 assert.ok(html.includes(`"version":"${readVersion()}"`), 'version injected into the page');

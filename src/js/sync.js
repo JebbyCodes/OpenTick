@@ -425,6 +425,7 @@ function paintSync() {
   const b = $('#syncb'); if (b && b.outerHTML !== undefined) b.outerHTML = syncBadge();
   if (typeof paintDock === 'function') paintDock();
   const m = $('#sy-status'); if (m) m.innerHTML = syncStatusText();
+  if (typeof watchOn === 'function' && watchOn() && WT.page === 'more') watchRender(); // the watch's More page shows the sync state
 }
 
 /* ---------- connect / disconnect / pick file ---------- */

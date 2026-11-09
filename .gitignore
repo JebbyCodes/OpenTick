@@ -11,6 +11,7 @@ release-files/
 release-notes.md
 site/
 site-eink/
+site-watch/
 snapbuild/
 src-tauri/gen/android/keystore.properties
 *.jks

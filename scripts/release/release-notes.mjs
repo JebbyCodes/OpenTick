@@ -23,18 +23,19 @@ export const RULES = [
   ['Linux', 'ARM64 AppImage', /_aarch64\.AppImage$/], ['Linux', 'ARM64 Debian / Ubuntu (.deb)', /_arm64\.deb$/], ['Linux', 'ARM64 Fedora / openSUSE (.rpm)', /\.aarch64\.rpm$/], ['Linux', 'ARM64 Snap', /_arm64\.snap$/],
   ['Android', 'Any phone (universal .apk)', /_android-universal\.apk$/], ['Android', 'Modern phones, 64-bit ARM (.apk)', /_android-arm64-v8a\.apk$/], ['Android', 'Older phones, 32-bit ARM (.apk)', /_android-armeabi-v7a\.apk$/],
   ['Android', 'Intel / emulator 64-bit (.apk)', /_android-x86_64\.apk$/], ['Android', 'Intel 32-bit (.apk)', /_android-x86\.apk$/], ['Android', 'E-ink devices (.apk)', /_android-eink-universal\.apk$/], ['Android', 'App Bundle for stores (.aab)', /\.aab$/],
+  ['Smartwatch', 'Wear OS watches (.apk)', /_android-watch-universal\.apk$/], ['Smartwatch', 'Samsung Tizen watches, unsigned (.wgt)', /_tizen-unsigned\.wgt$/],
   ['iOS', 'iPhone / iPad (.ipa)', /\.ipa$/],
   ['Docker', '64-bit Intel / AMD image (.tar.gz)', /_docker-amd64\.tar\.gz$/], ['Docker', '64-bit ARM image (.tar.gz)', /_docker-arm64\.tar\.gz$/],
   ['Docker', '32-bit ARM image, ARMv7 (.tar.gz)', /_docker-armv7\.tar\.gz$/], ['Docker', '32-bit Intel image (.tar.gz)', /_docker-i386\.tar\.gz$/],
   ['Docker', 'Compose file for this version (.yml)', /_docker-compose\.yml$/],
-  ['Web / self-hosting', 'Static website (.zip)', /_web\.zip$/], ['Web / self-hosting', 'E-ink website (.zip)', /_web-eink\.zip$/],
+  ['Web / self-hosting', 'Static website (.zip)', /_web\.zip$/], ['Web / self-hosting', 'E-ink website (.zip)', /_web-eink\.zip$/], ['Web / self-hosting', 'Smartwatch website (.zip)', /_web-watch\.zip$/],
   ['Packages', 'Chocolatey (.nupkg)', /\.nupkg$/],
 ];
 // Docker's text needs the version and the registry address, so it is built from the tag
 const dockerNote = tag => {
   const v = tag.replace(/^v/, ''), image = `ghcr.io/${REPO.split('/')[0].toLowerCase()}/opentick`;
   return `**From the registry** (one tag covers every CPU; Docker picks the right one):\n\n\`\`\`sh\ndocker run -d -p 8080:8080 --name opentick ${image}:${v}\n\`\`\`\n\n`
-    + `Open http://localhost:8080 (the e-ink edition is at \`/eink/\`). \`${image}:latest\` always follows the newest stable release. Registry page: https://github.com/${REPO}/pkgs/container/opentick\n\n`
+    + `Open http://localhost:8080 (the e-ink edition is at \`/eink/\`, the smartwatch edition at \`/watch/\`). \`${image}:latest\` always follows the newest stable release. Registry page: https://github.com/${REPO}/pkgs/container/opentick\n\n`
     + `**Without registry access:** download the file for your CPU, then \`gunzip -c OpenTick_${v}_docker-<cpu>.tar.gz | docker load\` and run it as above. Not sure which CPU? Run \`uname -m\`: x86_64 is **amd64**, aarch64 is **arm64**, armv7l is **armv7**, i686 is **i386**. `
     + `The compose file starts it with \`docker compose -f OpenTick_${v}_docker-compose.yml up -d\`.`;
 };
@@ -44,6 +45,7 @@ const NOTES = {
   Linux: 'The AppImage runs anywhere: `chmod +x` it and run it. There is no 32-bit desktop build (the Tauri web view does not support it): use the Docker image or the web app on those machines.',
   Android: 'Android 7 or newer. Not sure which? Take **universal**. 32-bit phones need the `armeabi-v7a` file. The e-ink build starts in [e-ink mode](https://github.com/' + REPO + '#e-ink); it can be switched off in Settings.',
   Docker: dockerNote,
+  Smartwatch: 'The **Wear OS** file is for Wear OS 3 or newer (Pixel Watch, Galaxy Watch 4 and later, TicWatch and others): install it with `adb install` or a side-loading app. The **Tizen** file is for Samsung\'s older Tizen watches and is **not signed**: sign it with your own Samsung certificate before installing. Apple Watch, Garmin, Fitbit and Zepp cannot run this app; see [docs/WATCHES.md](https://github.com/' + REPO + '/blob/main/docs/WATCHES.md) for what they can do instead.',
   iOS: 'Built and signed with the maintainers\' Apple developer account, so it installs only on devices that account has registered (or through TestFlight). Without that, build it yourself: see docs/RELEASING.md.',
 };
 const fmtSize = n => (n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB');
@@ -68,7 +70,7 @@ export function buildNotes({ tag, files, changelog }) {
   const h = [];
   h.push(`## What's new in ${v}\n\n${body || '_No release notes were written for this version._'}`);
   if (files.length) h.push(`## Downloads\n${downloadsTable(files, tag)}`);
-  h.push(`## Also available\n\n- **Microsoft Store**, **Chocolatey** (\`choco install opentick\`), **Scoop**, **Winget**: Windows\n- **Snap Store** (\`sudo snap install opentick\`): Linux\n- **Web app**: https://${REPO.split('/')[0].toLowerCase()}.github.io/${REPO.split('/')[1]}/ ([e-ink version](https://${REPO.split('/')[0].toLowerCase()}.github.io/${REPO.split('/')[1]}/eink/))`);
+  h.push(`## Also available\n\n- **Microsoft Store**, **Chocolatey** (\`choco install opentick\`), **Scoop**, **Winget**: Windows\n- **Snap Store** (\`sudo snap install opentick\`): Linux\n- **Web app**: https://${REPO.split('/')[0].toLowerCase()}.github.io/${REPO.split('/')[1]}/ ([e-ink version](https://${REPO.split('/')[0].toLowerCase()}.github.io/${REPO.split('/')[1]}/eink/), [smartwatch version](https://${REPO.split('/')[0].toLowerCase()}.github.io/${REPO.split('/')[1]}/watch/))`);
   h.push(`## Verify your download\n\nEvery file is listed in \`SHA256SUMS.txt\` (\`sha256sum -c SHA256SUMS.txt\`) and carries a signed build-provenance attestation: \`gh attestation verify <file> --repo ${REPO}\`.`);
   return h.join('\n\n') + '\n';
 }
