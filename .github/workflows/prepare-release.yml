@@ -1,0 +1,193 @@
+name: Prepare release
+
+# =====================================================================================================================================
+#  Prepare release: step one of a release, done from the Actions tab instead of a terminal
+# =====================================================================================================================================
+#  What it does (the same thing `npm run bump -- X.Y.Z` does on your own computer):
+#    1. checks the version you typed is a proper version number and that nothing already uses it (no such tag, no such branch)
+#    2. runs `npm run bump -- X.Y.Z`: the version in every file, the CHANGELOG section, the README's "What's new", the F-Droid notes
+#    3. runs `npm run version:check` to prove every file now agrees
+#    4. pushes a branch  release/vX.Y.Z  and opens a pull request with a checklist (the CHANGELOG still has to be written)
+#    5. starts CI on that branch (a pull request opened with the built-in token does not start CI by itself)
+#
+#  How to use it:   Actions -> Prepare release -> Run workflow -> type the version (for example 0.8.1).
+#  Then: write the CHANGELOG on the branch, merge the pull request, and tag the merge:   git tag vX.Y.Z && git push origin vX.Y.Z
+#  The tag starts the Release workflow (see docs/RELEASING.md). Tick "Dry run" to see what would change without pushing anything.
+#
+#  One setting is needed once: Settings -> Actions -> General -> Workflow permissions -> tick "Allow GitHub Actions to create and approve
+#  pull requests". Without it the branch is still pushed and the run says exactly which link to open to make the pull request by hand.
+#
+#  This workflow never starts from a tag and never builds anything: Release is the only workflow that does.
+# =====================================================================================================================================
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The new version, such as 0.8.1 or 0.9.0-beta.1 (without a leading v)
+        type: string
+        required: true
+      dry_run:
+        description: Dry run - show what would change but push nothing
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Two runs at once would fight over the same branch.
+concurrency:
+  group: prepare-release
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    name: Bump the version and open a pull request
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write        # push the release branch
+      pull-requests: write   # open the pull request
+      actions: write         # start CI on the branch
+    env:
+      VERSION_INPUT: ${{ inputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # the tag check below needs the existing tags
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # The version is read from an environment variable and never pasted into the script text, so what is typed cannot run as a command.
+      - name: Check the version number
+        id: v
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${VERSION_INPUT#v}"
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error title=Not a version number::'$VERSION_INPUT' is not a version like 0.8.1 or 0.9.0-beta.1."
+            exit 1
+          fi
+          current="$(node -p "require('./package.json').version")"
+          if [ "$version" = "$current" ]; then
+            echo "::error title=Nothing to change::package.json already says $current."
+            exit 1
+          fi
+          # the core numbers must not go backwards (a pre-release such as 0.9.0-beta.1 -> 0.9.0 is fine)
+          if node -e '
+            const n = v => v.replace(/-.*$/, "").split(".").map(Number), a = n(process.argv[1]), b = n(process.argv[2]);
+            for (let i = 0; i < 3; i++) { if (a[i] > b[i]) process.exit(0); if (a[i] < b[i]) process.exit(1); }
+            process.exit(0);
+          ' "$version" "$current"; then :; else
+            echo "::warning title=Lower version::$version is lower than the current $current. Carry on only if that is what you meant."
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null 2>&1; then
+            echo "::error title=Tag exists::The tag v$version already exists. Pick a new version."
+            exit 1
+          fi
+          branch="release/v$version"
+          if git ls-remote --exit-code --heads origin "refs/heads/$branch" >/dev/null 2>&1; then
+            echo "::error title=Branch exists::The branch $branch already exists. Merge or delete it first."
+            exit 1
+          fi
+          { echo "version=$version"; echo "current=$current"; echo "branch=$branch"; } >> "$GITHUB_OUTPUT"
+          echo "Preparing $version (now $current) on branch $branch"
+
+      - name: Set the version everywhere
+        shell: bash
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          set -euo pipefail
+          npm run --silent bump -- "$VERSION"
+
+      - name: Check that every file agrees
+        run: npm run --silent version:check
+
+      - name: Show what changed
+        id: diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git status --short
+          {
+            echo "### Files changed by the version bump"
+            echo
+            echo '```'
+            git diff --stat
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          todo=false
+          if grep -q 'TODO: describe what is new' CHANGELOG.md; then todo=true; fi
+          echo "todo=$todo" >> "$GITHUB_OUTPUT"
+
+      - name: Push a release branch
+        if: ${{ inputs.dry_run != true }}
+        shell: bash
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+          BRANCH: ${{ steps.v.outputs.branch }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git add -A
+          git commit -m "Release $VERSION" -m "Made by the Prepare release workflow: every file that carries the version now says $VERSION."
+          git push origin "$BRANCH"
+
+      - name: Open the pull request
+        if: ${{ inputs.dry_run != true }}
+        shell: bash
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+          BRANCH: ${{ steps.v.outputs.branch }}
+          BASE: ${{ github.ref_name }}
+          TODO: ${{ steps.diff.outputs.todo }}
+          REPO: ${{ github.repository }}
+          SERVER: ${{ github.server_url }}
+        run: |
+          set -euo pipefail
+          {
+            echo "Version bump to **$VERSION**, made by the *Prepare release* workflow. Every file that carries the version was updated and checked."
+            echo
+            echo "### Before merging"
+            echo "- [ ] \`CHANGELOG.md\` describes what is new in $VERSION (the release refuses to publish while it still says TODO)"
+            echo "- [ ] \`npm run version:sync\` was run after editing it, so the README's *What's new* and the F-Droid notes match"
+            echo "- [ ] CI is green on this branch"
+            echo "- [ ] Optional: Actions -> Release -> Run workflow on this branch (leave *publish* off) for a full dry run"
+            echo
+            echo "### After merging"
+            echo "\`\`\`sh"
+            echo "git switch $BASE && git pull"
+            echo "git tag v$VERSION && git push origin v$VERSION"
+            echo "\`\`\`"
+            echo "Pushing the tag starts the *Release* workflow."
+            echo
+            echo "See docs/RELEASING.md for the whole process."
+          } > pr-body.md
+          if gh pr create --base "$BASE" --head "$BRANCH" --title "Release $VERSION" --body-file pr-body.md; then
+            echo "The pull request is open." >> "$GITHUB_STEP_SUMMARY"
+          else
+            link="$SERVER/$REPO/compare/$BASE...$BRANCH?expand=1"
+            echo "::warning title=Pull request not created::The branch $BRANCH was pushed, but GitHub refused to open the pull request. Tick Settings -> Actions -> General -> 'Allow GitHub Actions to create and approve pull requests', or open it yourself: $link"
+            { echo "The branch \`$BRANCH\` was pushed, but the pull request could not be opened automatically."; echo; echo "Open it here: $link"; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ "$TODO" = "true" ]; then
+            echo "::notice title=CHANGELOG still to write::CHANGELOG.md has a TODO line for $VERSION. Edit it on the branch before the release."
+          fi
+
+      # A pull request made with the built-in token does not start CI; a manual start does.
+      - name: Start CI on the branch
+        if: ${{ inputs.dry_run != true }}
+        shell: bash
+        env:
+          BRANCH: ${{ steps.v.outputs.branch }}
+        run: |
+          gh workflow run ci.yml --ref "$BRANCH" || echo "::warning::Could not start CI on $BRANCH. Start it by hand (Actions, then CI, then Run workflow)."

@@ -480,7 +480,7 @@ async function gtMore() {
     tip.hidden = false; const w = tip.offsetWidth || 260, h = tip.offsetHeight || 120;
     tip.style.left = Math.max(8, Math.min(e.clientX / Z.z + 16, zvw() - w - 8)) + 'px'; tip.style.top = Math.max(8, Math.min(e.clientY / Z.z + 16, window.innerHeight / Z.z - h - 8)) + 'px';
   });
-  document.addEventListener('pointerleave', hide, true); document.addEventListener('scroll', hide, true); document.addEventListener('pointerdown', hide, true);
+  document.addEventListener('pointerleave', hide, true); document.addEventListener('scroll', e => { if (!(e.target && e.target.classList && e.target.classList.contains('mq-on'))) hide(); }, true); document.addEventListener('pointerdown', hide, true);
 })();
 
 /* ---------- keyboard: Ctrl/Cmd + P prints the chart ---------- */

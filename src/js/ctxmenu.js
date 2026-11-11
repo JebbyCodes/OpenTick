@@ -54,7 +54,6 @@ function ctxItems(target) {
   }
   if ((el = g('.navrow.proj'))) { const b = el.querySelector('[data-nav^="project:"]'); const id = b ? b.dataset.nav.slice(8) : ''; if (id) return [{ label: 'Open', icon: 'layers', run: () => setNav('project:' + id) }, { label: 'Edit project…', icon: 'sliders', run: () => ACT.projmenu({ dataset: { pid: id } }) }, { label: 'Banner…', icon: 'image', run: () => openBannerDialog('project', id) }]; }
   if ((el = g('[data-act=nav][data-nav^="tag:"]'))) { const tag = el.dataset.nav.slice(4); return [{ label: 'Show this tag', icon: 'tag', run: () => setNav('tag:' + tag) }, { label: 'Colour and name…', icon: 'sliders', run: () => tagMenu(tag) }]; }
-  if ((el = g('.pages .pg[data-sec]'))) { const pg = el.dataset.page, sec = el.dataset.sec; return [{ label: 'Open', icon: 'eye', run: () => ACT.page({ dataset: { page: pg } }) }, { label: 'Hide this section', icon: 'x', run: () => { const h = S.settings.ui.hidePages; for (const k of SECTIONS.find(s => s[0] === sec)[3]) if (!h.includes(k)) h.push(k); save(); if (secOf(U.page) === sec) { U.page = sec === 'tasks' ? 'home' : 'tasks'; } render(); toast('Hidden. Settings → Layout brings it back.'); } }]; }
   if ((el = g('.nti[data-id]'))) {
     const id = el.dataset.id, n = noteById(id); if (!n) return null;
     const pick = k => () => { U.noteSel = id; renderMain(); NOTE_ACT.notemenu({ dataset: { pickk: k } }); };
@@ -92,4 +91,4 @@ document.addEventListener('keydown', e => {
 }, true);
 document.addEventListener('mousedown', e => { if (CTX && !(e.target.closest && e.target.closest('.ctx'))) ctxClose(); }, true);
 document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('.ctx-i'); if (b && CTX) { e.preventDefault(); ctxRun(+b.dataset.n); } else if (CTX) ctxClose(); }, true);
-window.addEventListener('blur', ctxClose); window.addEventListener('resize', ctxClose); window.addEventListener('scroll', ctxClose, true);
+window.addEventListener('blur', ctxClose); window.addEventListener('resize', ctxClose); window.addEventListener('scroll', e => { if (e.target && e.target.classList && e.target.classList.contains('mq-on')) return; ctxClose(); }, true); // (a long name sliding sideways is not the page moving away from the menu)

@@ -1,0 +1,33 @@
+{
+  "opentick": "pack",
+  "format": 1,
+  "id": "home-maintenance",
+  "name": "Home maintenance",
+  "version": "1.0.0",
+  "author": "OpenTick",
+  "description": "The jobs a home needs now and then, with when each was last done.",
+  "license": "CC0-1.0",
+  "homepage": "https://github.com/JebbyCodes/OpenTick",
+  "sections": [
+    {
+      "name": "Home upkeep",
+      "icon": "home",
+      "color": "#d4850c",
+      "title": "Job",
+      "view": "list",
+      "checkable": true,
+      "sort": { "f": "last", "dir": "asc" },
+      "group": "",
+      "fields": [
+        { "key": "area", "name": "Area", "type": "select", "opts": ["Kitchen", "Bathroom", "Garden", "Garage", "Whole home"] },
+        { "key": "last", "name": "Last done", "type": "date" },
+        { "key": "every", "name": "Every (months)", "type": "number" }
+      ],
+      "entries": [
+        { "title": "Test the smoke alarms", "vals": { "area": "Whole home", "every": 1 } },
+        { "title": "Clean the gutters", "vals": { "area": "Garden", "every": 6 } },
+        { "title": "Descale the kettle", "vals": { "area": "Kitchen", "every": 3 } }
+      ]
+    }
+  ]
+}

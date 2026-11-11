@@ -1,0 +1,35 @@
+{
+  "opentick": "pack",
+  "format": 1,
+  "id": "study-planner",
+  "name": "Study planner",
+  "version": "1.0.0",
+  "author": "OpenTick",
+  "description": "Topics to learn and revise, with how confident you feel and when to look at them again.",
+  "license": "CC0-1.0",
+  "homepage": "https://github.com/JebbyCodes/OpenTick",
+  "sections": [
+    {
+      "name": "Study planner",
+      "icon": "graduation",
+      "color": "#4772fa",
+      "title": "Topic",
+      "view": "list",
+      "checkable": false,
+      "sort": { "f": "review", "dir": "asc" },
+      "group": "status",
+      "fields": [
+        { "key": "subject", "name": "Subject", "type": "text" },
+        { "key": "status", "name": "Status", "type": "select", "opts": ["To learn", "Learning", "Revising", "Confident"] },
+        { "key": "conf", "name": "Confidence", "type": "rating" },
+        { "key": "review", "name": "Review on", "type": "date" },
+        { "key": "res", "name": "Resource", "type": "url" }
+      ],
+      "entries": [
+        { "title": "Photosynthesis: the light reactions", "vals": { "subject": "Biology", "status": "Learning", "conf": 2 }, "notes": "Draw the Z-scheme from memory." },
+        { "title": "Integration by parts", "vals": { "subject": "Maths", "status": "Revising", "conf": 4 } },
+        { "title": "The causes of the First World War", "vals": { "subject": "History", "status": "To learn" } }
+      ]
+    }
+  ]
+}

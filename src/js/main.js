@@ -268,7 +268,7 @@ async function loadSnaps(m) {
   box.innerHTML = (list.length ? list.map(x => `<div class="snap"><span><b>${esc(fmt(x.at))}</b><small>${x.tag ? 'Before deleting everything · ' : ''}${x.tasks < 0 ? 'Encrypted' : `${x.tasks} task${x.tasks === 1 ? '' : 's'}${x.sealed ? ' · encrypted' : ''}`}</small></span><button data-snaprs="${esc(x.key)}">Restore</button><button class="ib" data-snapdl="${esc(x.key)}" title="Download this backup" aria-label="Download this backup">${ic('download', 15)}</button></div>`).join('') : '<p class="hint">The first automatic backup is made a few seconds after you open the app.</p>')
     + `<div class="snapfoot"><button data-m="snapnow">${ic('refresh', 14)} Back up now</button><span class="hint">One copy a day, the last ${SNAP_KEEP} kept, on this device only.</span></div>`;
 }
-const SET_TABS = [['general', 'General', 'sliders'], ['appearance', 'Appearance', 'sparkles'], ['notifications', 'Notifications', 'bell'], ['access', 'Accessibility', 'eye'], ['sound', 'Sound & focus', 'volume'], ['keys', 'Keyboard', 'code'], ['data', 'Data & sync', 'cloud'], ['widgets', 'Widgets', 'layers'], ['integrations', 'Integrations', 'link'], ['about', 'About & privacy', 'info']];
+const SET_TABS = [['general', 'General', 'sliders'], ['appearance', 'Appearance', 'sparkles'], ['notifications', 'Notifications', 'bell'], ['access', 'Accessibility', 'eye'], ['sound', 'Sound & focus', 'volume'], ['keys', 'Keyboard', 'code'], ['sections', 'Sections & packs', 'package'], ['data', 'Data & sync', 'cloud'], ['widgets', 'Widgets', 'layers'], ['integrations', 'Integrations', 'link'], ['about', 'About & privacy', 'info']];
 function openSettings(tab) {
   const s = S.settings; if (typeof tab === 'string') U.setTab = tab; if (!SET_TABS.some(t => t[0] === U.setTab)) U.setTab = 'general';
   const sec = (id, html) => `<section class="stab" data-tab="${id}" role="tabpanel"${U.setTab === id ? '' : ' hidden'}>${html}</section>`;
@@ -288,6 +288,7 @@ ${tasksSettingsHtml()}
 <label>Short break (min)<input type="number" min="1" max="60" data-p="short" value="${s.pomo.short}"></label>
 <label>Long break (min)<input type="number" min="1" max="120" data-p="long" value="${s.pomo.long}"></label></div>`)
   + sec('keys', keysSettingsHtml())
+  + sec('sections', packsSettingsHtml())
   + sec('data', `<h4 class="mh">Data, sync &amp; backup</h4><div class="dgrid">
 <button data-m="vault">${ic(vaultOn() ? 'lock' : 'shield', 18)}<span><b>Encryption</b><small>${!vaultAvail() ? 'Needs https or the app' : vaultOn() ? 'On · ' + esc(vScopeLine(Vault.cfg)) + (Vault.key ? '' : ' · locked') : 'Off — protect your data with a passphrase'}</small></span></button>
 <button data-m="sync">${ic('cloud', 18)}<span><b>Sync</b><small>${Sync.on ? 'On · ' + esc((PROVIDERS[Sync.cfg.provider] || {}).label || '') : 'Off — WebDAV, Git, S3 or a file'}</small></span></button>
@@ -312,7 +313,8 @@ ${privacySettingsHtml()}`)
       if (el.dataset.ck) { S.settings.clock[el.dataset.ck] = el.checked; save(); clockPaint(); return; }
       if (el.dataset.upd === 'auto') { updToggle(el.checked); return; }
       if (el.dataset.snd) { const k = el.dataset.snd; S.settings.sound[k] = el.type === 'checkbox' ? el.checked : +el.value; save(); if (k === 'vol' || (k === 'on' && el.checked)) sfx('done', true); return; }
-      if (el.dataset.pg) { const h = S.settings.ui.hidePages, ks = el.dataset.pg === 'calendar' ? ['calendar', 'timetable'] : [el.dataset.pg]; /* the Calendar's week and day are part of it */ for (const k of ks) { if (el.checked) S.settings.ui.hidePages = S.settings.ui.hidePages.filter(x => x !== k); else if (!S.settings.ui.hidePages.includes(k)) S.settings.ui.hidePages.push(k); } save(); const b = $('#sbv', m); if (b) b.innerHTML = uiSidebarSettings(); return; }
+      if (el.dataset.showsec) { const s = secsAll().find(x => x[0] === el.dataset.showsec); if (s) { S.settings.ui.hidePages = S.settings.ui.hidePages.filter(x => !s[3].includes(x) && !(s[0] === 'calendar' && x === 'timetable')); save(); renderSide(); renderTabbar(); const b = $('#sbv', m); if (b) b.innerHTML = uiSidebarSettings(); } return; }
+      if (el.dataset.pg) { const h = S.settings.ui.hidePages, ks = el.dataset.pg === 'calendar' ? ['calendar', 'timetable'] : [el.dataset.pg]; /* the Calendar's week and day are part of it */ for (const k of ks) { if (el.checked) S.settings.ui.hidePages = S.settings.ui.hidePages.filter(x => x !== k); else if (!S.settings.ui.hidePages.includes(k)) S.settings.ui.hidePages.push(k); } save(); renderSide(); renderTabbar(); const b = $('#sbv', m); if (b) b.innerHTML = uiSidebarSettings(); return; }
       if (el.dataset.sx) { S.settings[el.dataset.sx] = el.value; if (el.dataset.sx === 'motion') motionApply(); save(); return; }
       if (el.dataset.s) { S.settings[el.dataset.s] = +el.value; }
       if (el.dataset.p) { S.settings.pomo[el.dataset.p] = Math.max(1, Math.min(180, +el.value || 25)); if (!P.run) pSet(P.mode); }
@@ -325,8 +327,8 @@ ${privacySettingsHtml()}`)
       const rs = e.target.closest('[data-snaprs]'), sd = e.target.closest('[data-snapdl]');
       if (rs) { if (await askConfirm('Restore this backup? Your current data is backed up first, so you can come back.', 'Restore')) { try { await snapRestore(rs.dataset.snaprs); closeModal(); U.nav = 'today'; render(); toast('Backup restored'); } catch (err) { toast(err.message); } } return; }
       if (sd) { snapDownload(sd.dataset.snapdl); return; }
-      const smv = e.target.closest('[data-secmv]');
-      if (smv) { uiMoveSection(smv.dataset.secmv, +smv.dataset.d); const b = $('#sbv', m); if (b) b.innerHTML = uiSidebarSettings(); return; }
+      const nmv = e.target.closest('[data-navmv]'), smv = e.target.closest('[data-secmv]'); // the arrows beside a section or a pinned view: one list, one order
+      if (nmv || smv) { if (nmv) navMove(nmv.dataset.navmv, +nmv.dataset.d); else uiMoveSection(smv.dataset.secmv, +smv.dataset.d); renderSide(); renderTabbar(); const b = $('#sbv', m); if (b) b.innerHTML = uiSidebarSettings(); return; }
       const pmv = e.target.closest('[data-pinmv]'), prm = e.target.closest('[data-pinrm]');
       if (pmv) { pinMove(pmv.dataset.pinmv, +pmv.dataset.d); return; }
       if (prm) { pinToggle(prm.dataset.pinrm); return; }
@@ -337,6 +339,7 @@ ${privacySettingsHtml()}`)
       const b = e.target.closest('[data-m]');
       if (!b) { if (e.target.classList.contains('mback')) { closeModal(); render(); } return; }
       const a = b.dataset.m;
+      if (typeof packsSettingsAct === 'function' && packsSettingsAct(a, b, m)) return;
       if (a === 'ok') { closeModal(); render(); }
       else if (a === 'vault') { closeModal(); openVault(); }
       else if (a === 'export') exportData();
@@ -372,9 +375,9 @@ function addCtx() {
   return {};
 }
 function quickAdd(text, ctx = {}) {
-  const p = parseQuick(text, S.lists, new Date(), { subjects: scOf('subject') }), kind = p.kind || ctx.kind || '', sj = p.subjectId || ctx.subjectId || '';
+  const p = parseQuick(text, S.lists, new Date(), { subjects: scOf('subject'), contacts: S.contacts }), kind = p.kind || ctx.kind || '', sj = p.subjectId || ctx.subjectId || '', cids = [...new Set([...(ctx.contactIds || []), ...p.contactIds])];
   const dur = p.dur || ctx.dur || (kind === 'exam' && p.time ? 60 : 0);
-  const t = newTask({ title: p.title, due: p.due || ctx.due || null, time: p.time, ...(dur ? { dur } : {}), priority: p.priority || ctx.priority || 0, tags: [...new Set([...(ctx.tags || []), ...p.tags])], listId: p.listId || ctx.listId || (kind ? scWorkList() : (S.settings.tasks.defList && S.lists.some(l => l.id === S.settings.tasks.defList) ? S.settings.tasks.defList : 'inbox')), repeat: p.repeat, ...(p.repeat && p.until ? { until: p.until } : {}), section: ctx.section || null, ...(kind ? { kind } : {}), ...(sj ? { subjectId: sj } : {}), ...(ctx.lessonId ? { lessonId: ctx.lessonId } : {}) });
+  const t = newTask({ title: p.title, due: p.due || ctx.due || null, time: p.time, ...(dur ? { dur } : {}), priority: p.priority || ctx.priority || 0, tags: [...new Set([...(ctx.tags || []), ...p.tags])], listId: p.listId || ctx.listId || (kind ? scWorkList() : (S.settings.tasks.defList && S.lists.some(l => l.id === S.settings.tasks.defList) ? S.settings.tasks.defList : 'inbox')), repeat: p.repeat, ...(p.repeat && p.until ? { until: p.until } : {}), section: ctx.section || null, ...(kind ? { kind } : {}), ...(sj ? { subjectId: sj } : {}), ...(ctx.lessonId ? { lessonId: ctx.lessonId } : {}), ...(cids.length ? { contactIds: cids } : {}) });
   prefNewTask(t, p); S.tasks.push(t); save(); sfx('add'); fx(rowSel(t.id), 'enter'); return t;
 }
 function reorder(dragId, beforeId) {
@@ -523,8 +526,8 @@ ${scOf('subject').length ? `<label class="only-task">Class (optional)<select id=
       if (more && st.kind === 'slot') { closeModal(); openSlot(null, { title: st.title, days: st.days, start: st.start, end: st.end, color: st.color }); return; }
       if (!st.title) { toast('Give it a title'); $('#tc-title').focus(); return; }
       if (st.kind === 'task' || st.kind === 'exam') {
-        const exam = st.kind === 'exam', p = parseQuick(st.title, S.lists, new Date(), { subjects: scOf('subject') }), sj = p.subjectId || ($('#tc-subj') || {}).value || '', room = exam ? $('#tc-room').value.trim() : '';
-        const t = newTask({ title: p.title, due: st.date, time: st.start, dur: toMin(st.end) - toMin(st.start), priority: p.priority, tags: p.tags, listId: p.listId || (exam || p.kind ? scWorkList() : 'inbox'), ...(exam || p.kind ? { kind: exam ? 'exam' : p.kind } : {}), ...(sj ? { subjectId: sj } : {}), ...(room ? { room } : {}) });
+        const exam = st.kind === 'exam', p = parseQuick(st.title, S.lists, new Date(), { subjects: scOf('subject'), contacts: S.contacts }), sj = p.subjectId || ($('#tc-subj') || {}).value || '', room = exam ? $('#tc-room').value.trim() : '';
+        const t = newTask({ title: p.title, due: st.date, time: st.start, dur: toMin(st.end) - toMin(st.start), priority: p.priority, tags: p.tags, listId: p.listId || (exam || p.kind ? scWorkList() : 'inbox'), ...(exam || p.kind ? { kind: exam ? 'exam' : p.kind } : {}), ...(sj ? { subjectId: sj } : {}), ...(room ? { room } : {}), ...(p.contactIds.length ? { contactIds: p.contactIds } : {}) });
         S.tasks.push(t); if (more) U.sel = t.id; save(); closeModal(); sfx('add'); U.ttDate = pYmd(st.date); refresh();
       } else {
         if (!st.days.length) { toast('Pick at least one day'); return; }
@@ -741,7 +744,9 @@ const ACT = {
   tagtoggle: el => { const g = el.dataset.tag; U.tagSel = U.tagSel.includes(g) ? U.tagSel.filter(x => x !== g) : [...U.tagSel, g]; sfx('tick'); renderSide(); renderMain(); },
   tagmode: el => { U.tagMode = el.dataset.v; renderMain(); },
   tagclear: () => { U.tagSel = []; renderSide(); renderMain(); },
-  page: el => { if (U.bsel) { U.bsel = null; document.body.classList.remove('batch'); } U.page = el.dataset.page; U.sel = null; document.body.classList.remove('drawer'); fx('#main > *:not(.top):not(.vtabs)', 'fade'); render(); },
+  // Calendar's own pages. The week grid and Classes share the page 'timetable' (the setting tt.mode says which one shows), so going to that page by a
+  // section button, a view tab or a key always means the grid: Classes is reached by its own tab or pin (scmode), never by pressing Calendar.
+  page: el => { if (U.bsel) { U.bsel = null; document.body.classList.remove('batch'); } if (!el.keepPin) U.pinKey = null; U.page = el.dataset.page; if ((U.page === 'timetable' || el.dataset.sec === 'calendar' /* pressing Calendar leaves Classes, whichever Calendar view it lands on */) && typeof schoolOn === 'function' && schoolOn()) S.settings.tt.mode = 'plan'; U.sel = null; document.body.classList.remove('drawer'); fx('#main > *:not(.top):not(.vtabs)', 'fade'); render(); },
   burger: () => document.body.classList.add('drawer'),
   scrim: () => { document.body.classList.remove('drawer'); closeDetail(); },
   open: el => { U.sel = el.dataset.id; $$('.sel').forEach(x => x.classList.remove('sel')); $$(`[data-act="open"][data-id="${U.sel}"]`).forEach(x => x.classList.add('sel')); renderDetail(); },
@@ -843,6 +848,8 @@ const ACT = {
   ...TPL_ACT,
   ...BR_ACT,
   ...CD_ACT,
+  ...CT_ACT,
+  ...XS_ACT,
   ...TZ_ACT,
   ...KB_ACT,
   ...HOL_ACT,
@@ -932,6 +939,7 @@ document.addEventListener('click', e => {
   const fl = e.target.closest('.fl[data-file]'); if (fl) { e.preventDefault(); const own = [['task', U.sel], ['note', U.noteSel]].find(([k, id]) => id && filesOf(fileOwner(k, id)).some(f => f.id === fl.dataset.file)); if (own) fileView(own[0], own[1], fl.dataset.file); else toast('That file is not attached here'); return; }
   const eb = e.target.closest('[data-ed]'); if (eb) { edSetMode(eb.dataset.ed, eb.dataset.mode); return; } // Write / Split / Preview on the Notes page
   const el = e.target.closest('[data-act]'); if (!el) return;
+  if (el.dataset.act !== 'pingo') U.pinKey = null; // any other way of going somewhere makes the section, not a pin, the lit button
   const fn = ACT[el.dataset.act]; if (fn) fn(el, e);
 });
 
@@ -1076,6 +1084,7 @@ function mdFormat(kind, ta) {
   else if (kind === 'h') lines(/^#{1,6}\s/, '## ', /^#{1,6}\s+/);
   else if (kind === 'hr') insert('---\n', 4, 0);
   else if (kind === 'table') insert('| Column | Column |\n|---|---|\n|  |  |\n', 2, 6);
+  else if (kind === 'mention') { ctMentionPick(ta); return; } // pick a person from Contacts; @[Name] goes in at the caret
   ta.value = v; ta.setSelectionRange(a, b); ta.focus();
   ta.dispatchEvent(new Event('input', { bubbles: true })); // the editor's own input handler stores the text, so every editor behaves the same
 }

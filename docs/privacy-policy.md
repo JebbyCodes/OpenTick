@@ -1,6 +1,6 @@
 # OpenTick Privacy Policy
 
-**Last updated:** 3 November 2026
+**Last updated:** 11 November 2026
 
 ## 1. Introduction
 
@@ -12,7 +12,7 @@ OpenTick is designed to work locally on your device without requiring an account
 
 OpenTick is designed not to collect or transmit your personal information to the developer. It has no analytics, advertising, crash reporting or telemetry.
 
-Information you enter into the application, such as tasks, notes, templates, countdowns, saved time zones, boards, projects, timetables, holidays, habits, attachments and other productivity data, is stored locally on your device.
+Information you enter into the application, such as tasks, notes, templates, countdowns, saved time zones, boards, projects, timetables, holidays, habits, attachments, contacts (the names, email addresses, phone numbers, available hours and other details of people you choose to add), the sections you create yourself and their entries, and other productivity data, is stored locally on your device.
 
 OpenTick does not require you to provide a name, email address, or other account details to use its core functionality.
 
@@ -35,6 +35,8 @@ Sync credentials (such as a password or token) are kept on your device only and 
 You can protect your data with a passphrase in Settings → Encryption. When enabled, the data stored on this device, in automatic backups, and in sync files is encrypted with AES-256-GCM using a key derived from your passphrase. Without the passphrase (or the recovery key you were shown) the data cannot be read, and the developer cannot recover it for you.
 
 Attachments and a custom reminder sound are stored in the device's own database and are encrypted with the same key when encryption is on. Countdowns, saved time zones and board headings are part of the same data: they are stored, backed up and synced like your tasks, and are encrypted with them when encryption is on.
+
+**Contacts, your own sections and packs.** Contacts hold information about other people that you type in yourself (and the teachers you add to Classes appear there too). They, the sections you create and their entries are part of your data in every way described above: stored on your device, included in backups and exports, synced only to the place you choose, and encrypted when encryption is on. Opening a person's email address or phone number hands it to your device's mail or phone app; OpenTick sends nothing itself. A *pack* is a small file of sections and colours that you can export or add from a file or pasted text. A pack contains no code and cannot read your data; exporting one never includes the people linked to your entries, and adding one makes no network request. Please add other people's details only where you have a reason to keep them, and remove them if they ask.
 
 When encryption is on, home-screen widgets, the tray menu and background notifications show only generic text, unless you choose to allow a readable summary for them.
 

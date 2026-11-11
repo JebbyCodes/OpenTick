@@ -2,6 +2,7 @@
    picker that lists, projects, tasks, notes, habits and timetable slots all share. An icon is either one of these names or any emoji.
    Added to the IC table that views.js defines, so ic('rocket') works everywhere. */
 Object.assign(IC, {
+  contact: '<path d="M4 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><circle cx="12" cy="10" r="3"/><path d="M7.5 17a4.5 4.5 0 0 1 9 0"/><path d="M2 7h2M2 12h2M2 17h2"/>',
   moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
   umbrella: '<path d="M23 12a11.05 11.05 0 0 0-22 0zm-5 7a3 3 0 0 1-6 0v-7"/>',
   key: '<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>',
@@ -97,7 +98,7 @@ Object.assign(IC, {
 // categories for the picker: [name, [icon names]]
 const ICON_CATS = [
   ['Essentials', ['list', 'inbox', 'star', 'flag', 'heart', 'bookmark', 'bell', 'clock', 'calendar', 'tag', 'check-circle', 'target', 'zap', 'flame', 'sparkles', 'home', 'folder', 'layers', 'clipboard', 'checklist', 'archive', 'sticky', 'hash', 'eye', 'thumbs']],
-  ['Work', ['briefcase', 'building', 'users', 'user', 'mail', 'phone', 'message', 'laptop', 'code', 'terminal', 'database', 'server', 'tool', 'package', 'truck', 'send', 'at', 'award', 'trophy', 'bars', 'pie', 'trending', 'settings']],
+  ['Work', ['briefcase', 'building', 'users', 'user', 'contact', 'mail', 'phone', 'message', 'laptop', 'code', 'terminal', 'database', 'server', 'tool', 'package', 'truck', 'send', 'at', 'award', 'trophy', 'bars', 'pie', 'trending', 'settings']],
   ['Study', ['graduation', 'backpack', 'book', 'book-open', 'pencil', 'ruler', 'calculator', 'flask', 'atom', 'palette', 'landmark', 'globe', 'notes', 'file-text', 'lightbulb', 'teacher', 'homework', 'exam']],
   ['Money & shopping', ['dollar', 'wallet', 'card', 'bag', 'cart', 'gift', 'ticket']],
   ['Health & food', ['dumbbell', 'bike', 'droplet', 'pill', 'smile', 'activity', 'bed', 'utensils', 'coffee', 'wine', 'cake', 'leaf']],

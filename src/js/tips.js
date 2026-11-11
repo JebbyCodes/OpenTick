@@ -68,7 +68,7 @@ document.addEventListener('pointerout', e => {
 }, true);
 document.addEventListener('pointerdown', e => { if (e.pointerType !== 'touch') tipHide(); }, true);
 document.addEventListener('wheel', () => { if (TIP.cand) tipHide(); }, { passive: true, capture: true });
-document.addEventListener('scroll', () => { if (TIP.cand || TIP.el) tipHide(); }, true);
+document.addEventListener('scroll', e => { if (e.target && e.target.classList && e.target.classList.contains('mq-on')) return; /* a name sliding sideways is not the page moving */ if (TIP.cand || TIP.el) tipHide(); }, true);
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && (TIP.cand || TIP.el)) tipHide(); }, true);
 
 /* keyboard: focus */

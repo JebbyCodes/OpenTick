@@ -136,7 +136,7 @@ const J = JSON.stringify;
   // a task moved on a board changes the task, so it syncs with the task
   const t = A.newTask({ title: 'card' }); S.tasks.push(t); A.save(); A.flush(); const u0 = t.u; clock.t += 5000; t.kb = { [bb.id]: bb.cols[1].id }; A.save(); A.flush(); assert.ok(t.u > u0, 'moving a card stamps the task');
   // the file: written with the new schema, read back, and an older file (without the collections) still loads
-  const pl = JSON.parse(A.buildPayload().text); assert.equal(pl.schema, 6); assert.ok(Array.isArray(pl.countdowns) && Array.isArray(pl.zones) && Array.isArray(pl.boards));
+  const pl = JSON.parse(A.buildPayload().text); assert.equal(pl.schema, 7); assert.ok(Array.isArray(pl.countdowns) && Array.isArray(pl.zones) && Array.isArray(pl.boards));
   const old = A.parsePayload(J({ app: 'opentick', schema: 5, tasks: [], lists: [] })); assert.equal(J(old.countdowns), '[]'); assert.equal(J(old.boards), '[]'); assert.equal(J(old.zones), '[]');
   // counts and the export / wipe list know about them
   S.countdowns.push(A.cdNormalise({ id: 'k', name: 'K', date: '2026-12-25' })); assert.match(A.dataCountsText(A.dataCounts(S)), /countdown/);

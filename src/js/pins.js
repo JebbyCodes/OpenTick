@@ -1,4 +1,4 @@
-/* OpenTick pinned views: any view tab or page title can be added next to the sections (Projects, Tasks, Notes, Calendar, Habits …).
+/* OpenTick pinned views: any view tab or page title can be added next to the sections (Projects, Tasks, Notes, Calendar, Habits, Contacts …).
    Right-click a tab or a page's title on a computer, or press and hold it on a touch screen, and choose "Pin … to the sidebar" (the tab bar on a
    phone). The pin is a shortcut: the tab stays where it was. Right-click or press and hold the pinned button to move or unpin it.
 
@@ -7,11 +7,15 @@
      cal:<mode>         one way of looking at the Calendar: cal:month, cal:week, cal:3day, cal:day, cal:agenda
      school             the Classes page (called whatever it was renamed to)
      school:<tab>       one page of Classes: school:exam, school:hw, school:subj …
+   Where a pin sits among the buttons is not part of the pin: sections and pins are one list, in one order (ui.js: navKeys), so a pin can be
+   put between any two sections, with the arrows in Settings → Layout, with Move earlier / later in the menu, or by dragging.
+   A pinned button is lit only when you got there with it. If you press the section it belongs to (Calendar, for a pinned Week or Classes) that
+   section is the lit one and the pin is not, even though you may land on the very view that is pinned.
    Nothing here touches the data, so nothing about sync or encryption changes: the list lives in the settings, which are sealed with the rest
    of the data when device encryption is on and are never part of the sync file. */
 const PIN_MAX = 10;
 const PIN_RE = /^(page:[a-z]{2,12}|cal:[a-z0-9]{2,8}|school(:[a-z]{2,8})?)$/;
-const PIN = { drag: null, press: null, timer: 0, fired: false };
+const PIN = { press: null, timer: 0, fired: false };
 const pinList = () => { const u = S.settings.ui; return Array.isArray(u.pins) ? u.pins : (u.pins = []); };
 const pinTouch = () => typeof ctxTouch === 'function' && ctxTouch();
 const pinWhere = () => (pinTouch() || (typeof narrow === 'function' && narrow(820)) ? 'tab bar' : 'sidebar');
@@ -26,7 +30,7 @@ function pinInfo(key) {
   if (kind === 'page') {
     if (!arg || !VIEW_TAB[arg] || arg === 'home' || arg === 'calendar' || arg === 'timetable') return null;
     const label = arg === 'tasks' ? 'Task list' : VIEW_TAB[arg][0], sec = SECTIONS.find(s => s[3].includes(arg));
-    return { key, label, icon: VIEW_TAB[arg][1], tip: (sec && sec[1] !== label ? sec[1] + ' › ' : '') + label, active: () => U.page === arg, go: () => ACT.page({ dataset: { page: arg } }) };
+    return { key, label, icon: VIEW_TAB[arg][1], tip: (sec && sec[1] !== label ? sec[1] + ' › ' : '') + label, active: () => U.page === arg, go: () => ACT.page({ dataset: { page: arg }, keepPin: true }) };
   }
   if (kind === 'cal') {
     const c = CAL_MODES.find(x => x[0] === arg); if (!c) return null;
@@ -37,8 +41,9 @@ function pinInfo(key) {
   return { key, label: t[1], icon: t[2], tip: scName() + ' › ' + t[1], active: () => pinInSchool() && pinSchoolTab() === arg, go: () => { U.scTab = arg; ACT.scmode({ dataset: { m: 'school' } }); } };
 }
 const pinsShown = () => pinList().map(pinInfo).filter(Boolean);
-// the pin that matches where you are now (the section's own button then stays quiet, so only one button is lit)
-const pinActive = () => pinsShown().find(p => p.active()) || null;
+// the pin you got to by pressing it, while you are still on its view (the section's own button then stays quiet, so only one button is lit).
+// U.pinKey is set by pinGo and cleared as soon as you go anywhere by another way (a section, a tab, a key, the palette).
+const pinActive = () => { const k = U.pinKey; if (!k) return null; const p = pinsShown().find(x => x.key === k); return p && p.active() ? p : null; };
 // the key for the page you are on, used by a page's title and the command palette: only pages that are a view of their own
 function pinHere() {
   if (U.page === 'timetable') return schoolOn() ? 'school' : 'cal:' + (typeof ttView === 'function' ? ttView() : 'week');
@@ -60,55 +65,49 @@ function pinRefresh() { if (typeof renderSide === 'function') renderSide(); if (
 function pinToggle(key) {
   const p = pinInfo(key); if (!p) return false;
   const ks = pinList(), i = ks.indexOf(key);
-  if (i >= 0) { ks.splice(i, 1); save(); pinRefresh(); toast(`Unpinned “${p.label}”`); return false; }
+  if (i >= 0) { ks.splice(i, 1); S.settings.ui.navOrder = (S.settings.ui.navOrder || []).filter(k => k !== 'pin:' + key); /* pinning it again puts it last */ save(); pinRefresh(); toast(`Unpinned “${p.label}”`); return false; }
   if (ks.length >= PIN_MAX) { toast(`You can pin up to ${PIN_MAX} views. Unpin one first.`); return false; }
   ks.push(key); save(); pinRefresh(); sfx('add'); toast(`Pinned “${p.label}” next to the other sections. ${pinTouch() ? 'Press and hold' : 'Right-click'} it to unpin.`);
   return true;
 }
-function pinMove(key, d) {
-  const ks = pinList(), i = ks.indexOf(key), j = i + d; if (i < 0 || j < 0 || j >= ks.length) return;
-  [ks[i], ks[j]] = [ks[j], ks[i]]; save(); pinRefresh();
-}
-function pinReorder(from, to) {
-  const ks = pinList(), i = ks.indexOf(from), j = ks.indexOf(to); if (i < 0 || j < 0 || i === j) return;
-  ks.splice(i, 1); ks.splice(j, 0, from); save(); pinRefresh();
-}
+// moving a pin is moving a button: the pin sits in the same list as the sections
+function pinMove(key, d) { if (navMove('pin:' + key, d)) pinRefresh(); }
+function pinReorder(from, to) { if (navReorder('pin:' + from, 'pin:' + to)) pinRefresh(); }
 function pinGo(key) {
   const p = pinInfo(key); if (!p) return;
   if (U.bsel) { U.bsel = null; document.body.classList.remove('batch'); }
-  U.sel = null; document.body.classList.remove('drawer'); p.go();
+  U.sel = null; document.body.classList.remove('drawer'); U.pinKey = key; p.go();
 }
 const PIN_ACT = { pingo: el => pinGo(el.dataset.pin) };
 
 /* ---------- the buttons ---------- */
-// where = 'side' (the grid under the search box) or 'bar' (the phone's tab bar)
-function pinsHtml(where) {
-  const touch = pinTouch();
-  return pinsShown().map(p => {
-    const on = p.active();
-    return where === 'bar'
-      ? `<button class="pin${on ? ' on' : ''}" data-act="pingo" data-pin="${esc(p.key)}">${ic(p.icon, 22)}<small>${esc(p.label)}</small></button>`
-      : `<button class="pg pin${on ? ' on' : ''}" data-act="pingo" data-pin="${esc(p.key)}"${touch ? '' : ` title="${esc(p.tip)} (pinned) — drag to reorder, right-click to unpin" draggable="true"`}>${ic(p.icon, 20)}<small>${esc(p.label)}</small></button>`;
-  }).join('');
+// one pinned button; where = 'side' (the grid under the search box) or 'bar' (the phone's tab bar)
+function pinButtonHtml(p, where) {
+  const on = p.active() && U.pinKey === p.key, nk = 'pin:' + p.key;
+  return where === 'bar'
+    ? `<button class="pin${on ? ' on' : ''}" data-act="pingo" data-pin="${esc(p.key)}" data-nk="${esc(nk)}">${ic(p.icon, 22)}<small>${esc(p.label)}</small></button>`
+    : `<button class="pg pin${on ? ' on' : ''}" data-act="pingo" data-pin="${esc(p.key)}" data-nk="${esc(nk)}"${pinTouch() ? '' : ` title="${esc(p.tip)} (pinned) — drag to reorder, right-click to unpin" draggable="true"`}>${ic(p.icon, 20)}<small>${esc(p.label)}</small></button>`;
 }
+const pinsHtml = where => pinsShown().map(p => pinButtonHtml(p, where)).join('');
 
-/* ---------- Settings → Layout: the pinned views, in order ---------- */
+/* ---------- Settings → Layout ---------- */
+// the pins are listed with the sections, in their one order (ui.js: uiSidebarSettings); this is the line that explains how to add one
 function pinSettingsHtml() {
-  const ps = pinsShown();
-  return `<div class="vlist pinlist"><div class="vsec pinsec"><div class="vrow vsh"><b>${ic('pin', 16)} Pinned views</b></div>${ps.length ? ps.map((p, i) => `<div class="vrow vsub"><span class="pinrow">${ic(p.icon, 15)} ${esc(p.tip)}</span><span><button class="ib sm" data-pinmv="${esc(p.key)}" data-d="-1"${i ? '' : ' disabled'} title="Move up" aria-label="Move ${esc(p.label)} up">${ic('up', 14)}</button><button class="ib sm" data-pinmv="${esc(p.key)}" data-d="1"${i < ps.length - 1 ? '' : ' disabled'} title="Move down" aria-label="Move ${esc(p.label)} down">${ic('down', 14)}</button><button class="ib sm" data-pinrm="${esc(p.key)}" title="Unpin" aria-label="Unpin ${esc(p.label)}">${ic('x', 14)}</button></span></div>`).join('') : '<div class="vrow vsub"><span class="hint">Nothing pinned yet.</span></div>'}</div></div>`
-    + `<p class="hint">Right-click (or press and hold) any view tab or page title, such as Board, Week or ${esc(scName())}, and choose Pin to put it next to the sections. Pins are kept on this device.</p>`;
+  return `<p class="hint">Right-click (or press and hold) any view tab or page title, such as Board, Week or ${esc(typeof scName === 'function' ? scName() : 'Classes')}, and choose Pin to put it next to the sections. Pins are kept on this device.</p>`;
 }
 
 /* ---------- the menus ---------- */
+// the buttons of the grid and the tab bar (sections and pins alike): open, move, and hide or unpin
 function pinCtxItems(target) {
   if (!target || !target.closest) return null;
-  const own = target.closest('.pg[data-pin],#tabbar [data-pin]');
+  const own = target.closest('.pg[data-nk],#tabbar [data-nk]');
   if (own) {
-    const key = own.dataset.pin, p = pinInfo(key); if (!p) return null;
-    const ks = pinList(), i = ks.indexOf(key);
-    return [{ label: 'Open', icon: 'eye', run: () => pinGo(key) },
-      ...(i > 0 ? [{ label: 'Move earlier', icon: 'left', run: () => pinMove(key, -1) }] : []), ...(i >= 0 && i < ks.length - 1 ? [{ label: 'Move later', icon: 'right', run: () => pinMove(key, 1) }] : []),
-      { sep: true }, { label: `Unpin “${p.label}”`, icon: 'x', run: () => pinToggle(key) }];
+    const nk = own.dataset.nk, all = navShown(), i = all.indexOf(nk); if (i < 0) return null;
+    const move = [...(i > 0 ? [{ label: 'Move earlier', icon: 'left', run: () => { navMove(nk, -1); pinRefresh(); } }] : []), ...(i < all.length - 1 ? [{ label: 'Move later', icon: 'right', run: () => { navMove(nk, 1); pinRefresh(); } }] : [])];
+    if (nk.startsWith('pin:')) { const key = nk.slice(4), p = pinInfo(key); if (!p) return null; return [{ label: 'Open', icon: 'eye', run: () => pinGo(key) }, ...move, { sep: true }, { label: `Unpin “${p.label}”`, icon: 'x', run: () => pinToggle(key) }]; }
+    const sec = nk.slice(4), s = navSecOf(nk); if (!s) return null;
+    return [{ label: 'Open', icon: 'eye', run: () => ACT.page({ dataset: { page: sectionTarget(sec) } }) }, ...move, { sep: true },
+      { label: 'Hide this section', icon: 'x', run: () => { const h = S.settings.ui.hidePages; for (const k of s[3]) if (!h.includes(k)) h.push(k); save(); if (secOf(U.page) === sec) { U.page = sec === 'tasks' ? 'home' : 'tasks'; } render(); toast('Hidden. Settings → Layout brings it back.'); } }];
   }
   const key = pinKeyOf(target), p = key && pinInfo(key); if (!p) return null;
   return [{ label: pinList().includes(key) ? `Unpin “${p.label}”` : `Pin “${p.label}” to the ${pinWhere()}`, icon: 'pin', run: () => pinToggle(key) }];
@@ -117,7 +116,7 @@ function pinCtxItems(target) {
 /* ---------- touch: press and hold ----------
    A finger that moves before the hold counts is a scroll or a swipe and does nothing. The hold opens the same menu a right-click does and the
    lift that ends it is not a tap. This file is loaded before ctxmenu.js so that this click handler runs first. */
-const PIN_HOLD = '.pg[data-pin],#tabbar [data-pin],.vtabs [role=tab],.sc-tabs [data-act=sctab],header.top h1';
+const PIN_HOLD = '.pg[data-nk],#tabbar [data-nk],.vtabs [role=tab],.sc-tabs [data-act=sctab],header.top h1';
 document.addEventListener('pointerdown', e => {
   if (e.pointerType !== 'touch' || e.isPrimary === false || !e.target || !e.target.closest) return;
   clearTimeout(PIN.timer); PIN.press = null; PIN.fired = false;
@@ -144,18 +143,4 @@ document.addEventListener('click', e => { if (PIN.fired) { PIN.fired = false; e.
 document.addEventListener('mousedown', e => { if (PIN.fired) { e.preventDefault(); e.stopImmediatePropagation(); } }, true);
 document.addEventListener('contextmenu', e => { if (PIN.press || PIN.fired) e.preventDefault(); }, true); // the system's own text menu must not open over ours
 
-/* ---------- drag to reorder (mouse): pinned buttons only; the sections have their own handlers in ui.js ---------- */
-document.addEventListener('dragstart', e => {
-  const p = e.target.closest && e.target.closest('.pg[data-pin]');
-  if (p) { PIN.drag = p.dataset.pin; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'pin:' + PIN.drag); p.classList.add('drag'); }
-});
-document.addEventListener('dragover', e => {
-  const t = PIN.drag && e.target.closest && e.target.closest('.pg[data-pin]');
-  if (t) { e.preventDefault(); $$('.pg.over').forEach(x => x.classList.remove('over')); t.classList.add('over'); }
-});
-document.addEventListener('drop', e => {
-  if (!PIN.drag) return; const t = e.target.closest && e.target.closest('.pg[data-pin]');
-  if (t && t.dataset.pin !== PIN.drag) { e.preventDefault(); pinReorder(PIN.drag, t.dataset.pin); }
-  PIN.drag = null;
-});
-document.addEventListener('dragend', () => { PIN.drag = null; $$('.pg.over,.pg.drag').forEach(x => x.classList.remove('over', 'drag')); });
+/* Dragging a pinned button (or a section) to reorder is one handler for both: ui.js. */

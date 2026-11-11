@@ -9,6 +9,7 @@ const MD_URL = /^(?:https?:\/\/|mailto:|tel:)[^\s"'<>]*$/i;
 const MD_IMG = /^(?:ot-file:[\w-]+|https?:\/\/[^\s"'<>]*|data:image\/(?:png|jpe?g|gif|webp);base64,[A-Za-z0-9+/=]+)$/i;
 const MD_EMOJI = { smile: '😄', grin: '😁', joy: '😂', wink: '😉', heart: '❤️', thumbsup: '👍', '+1': '👍', '-1': '👎', tada: '🎉', fire: '🔥', star: '⭐', check: '✅', white_check_mark: '✅', x: '❌', warning: '⚠️', bulb: '💡', memo: '📝', book: '📖', calendar: '📅', clock: '🕒', rocket: '🚀', eyes: '👀', thinking: '🤔', pray: '🙏', clap: '👏', muscle: '💪', coffee: '☕', zap: '⚡', bug: '🐛', lock: '🔒', pushpin: '📌', question: '❓', sparkles: '✨' };
 let MD_NOTE = null, MD_DEPTH = 0; const MD_NSEEN = []; // MD_NOTE(title) -> { id, title, body, self } | null lets ![[Note]] show another note
+let MD_CONTACT = null; // MD_CONTACT(name) -> { id, name } | null turns @[Name] into a link to a contact (contacts.js)
 let MD_REFS = {}, MD_FN = null, MD_WIKI = null; // per-render state: link definitions, footnotes; MD_WIKI(title) -> { id, title } | null is set by the notes page
 const MD_ITEM = /^(\s*)([-*+]|\d{1,9}[.)])\s+(.*)$/;
 const MD_CHK = /^\[([ xX])\](?:\s+(.*))?$/;
@@ -60,6 +61,11 @@ function mdInline(src, noLinks) {
   t = t.replace(/\[\[([^\]\n|]+)(?:\|([^\]\n]*))?\]\]/g, (m, name, shown) => {
     const label = (shown || name).trim(), n = !noLinks && MD_WIKI ? MD_WIKI(name.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")) : null;
     return hold(n ? `<a class="wl" data-note="${esc(n.id)}">${label}</a>` : `<span class="wl miss">${label}</span>`);
+  });
+  // @[Name]: a mention of a contact (a link to their profile; plain text where links are not wanted, or when nobody has that name)
+  t = t.replace(/(^|[^\w@])@\[([^\]\n]{1,120})\](?!\()/g, (m, pre, name) => {
+    const raw = name.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'"), c = !noLinks && MD_CONTACT ? MD_CONTACT(raw) : null;
+    return pre + hold(c ? `<a class="ctm" data-ct="${esc(c.id)}" role="button" tabindex="0">@${name}</a>` : `<span class="ctm${noLinks ? '' : ' miss'}">@${name}</span>`);
   });
   // footnote references: [^id] (the text comes from a "[^id]: …" line)
   if (MD_FN) t = t.replace(/\[\^([^\]\s]+)\]/g, (m, id) => {

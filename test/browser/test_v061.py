@@ -40,7 +40,7 @@ with sync_playwright() as p:
     # ---- sections: five places in the sidebar, a switcher inside each
     pg.evaluate("U.page = 'tasks'; render()")
     names = pg.evaluate("[...document.querySelectorAll('#side .pages .pg')].map(b => b.innerText.trim())")
-    assert names == ['Projects', 'Tasks', 'Notes', 'Calendar', 'Habits'], names
+    assert names == ['Projects', 'Tasks', 'Notes', 'Calendar', 'Habits', 'Contacts'], names
     tabs = pg.evaluate("[...document.querySelectorAll('#main > .vtabs button')].map(b => b.innerText.trim())")
     assert tabs == ['List', 'Board', 'Matrix', 'Timeline'], tabs
     pg.click('#main > .vtabs button:has-text("Matrix")'); pg.wait_for_selector('.matrix')
@@ -57,7 +57,7 @@ with sync_playwright() as p:
     # ---- phone: the tab bar has the five sections, every page fits, the switcher scrolls sideways only
     b, ctx, pg = launch(p, mobile=True, w=360, h=740)
     tb = pg.evaluate("[...document.querySelectorAll('#tabbar button')].map(b => b.innerText.trim())")
-    assert tb == ['Projects', 'Tasks', 'Notes', 'Calendar', 'Habits', 'More'], tb
+    assert tb == ['Projects', 'Tasks', 'Notes', 'Calendar', 'Habits', 'Contacts', 'More'], tb
     pg.evaluate("U.page = 'calendar'; render()")
     r = pg.evaluate("(() => { const t = document.querySelector('#main > .vtabs'); const o = [...t.querySelectorAll('button')].map(b => b.getBoundingClientRect()); return { n: o.length, w: t.clientWidth, sw: t.scrollWidth, oy: getComputedStyle(t).overflowY, doc: document.documentElement.scrollWidth, vw: innerWidth } })()")
     assert r['n'] == 8 and r['sw'] > r['w'] and r['oy'] == 'hidden' and r['doc'] <= r['vw'] + 1, r  # Month, Week, 3 days, Day, Agenda + Countdowns, Time zones: the strip scrolls sideways, the page does not

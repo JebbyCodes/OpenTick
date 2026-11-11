@@ -41,12 +41,13 @@ function renderHome() {
 document.addEventListener('keydown', e => { const c = e.target && e.target.classList && e.target.classList.contains('pcard') ? e.target : null; if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); c.click(); } });
 
 /* ---------- the screen OpenTick opens on ---------- */
-const HOME_SCREENS = [['tasks:today', 'Today'], ['home', 'Projects (home screen)'], ['tasks:inbox', 'Inbox'], ['tasks:tomorrow', 'Tomorrow'], ['tasks:week', 'Next 7 Days'], ['tasks:all', 'All tasks'], ['notes', 'Notes'], ['templates', 'Templates'], ['calendar', 'Calendar'], ['timetable', 'Timetable'], ['gantt', 'Timeline'], ['matrix', 'Matrix'], ['habits', 'Habit'], ['focus', 'Focus']];
+const HOME_SCREENS = [['tasks:today', 'Today'], ['home', 'Projects (home screen)'], ['tasks:inbox', 'Inbox'], ['tasks:tomorrow', 'Tomorrow'], ['tasks:week', 'Next 7 Days'], ['tasks:all', 'All tasks'], ['notes', 'Notes'], ['templates', 'Templates'], ['calendar', 'Calendar'], ['timetable', 'Timetable'], ['gantt', 'Timeline'], ['matrix', 'Matrix'], ['habits', 'Habit'], ['focus', 'Focus'], ['contacts', 'Contacts']];
 function homeValid(v) {
   if (typeof v !== 'string') return false;
   if (HOME_SCREENS.some(x => x[0] === v)) return true;
   if (v.startsWith('tasks:list:')) return S.lists.some(l => l.id === v.slice(11));
   if (v.startsWith('tasks:project:')) return S.projects.some(p => p.id === v.slice(14));
+  if (v.startsWith('x-')) return S.csections.some(x => x.id === v); // a section you made
   return false;
 }
 function homeApply() { // sets the first page and nav from the setting (a deleted list or project falls back to Today)
@@ -55,5 +56,5 @@ function homeApply() { // sets the first page and nav from the setting (a delete
 }
 function homeSelectHtml() {
   const cur = homeValid(S.settings.home) ? S.settings.home : 'tasks:today', o = (v, n) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(n)}</option>`;
-  return `<select data-sx="home" aria-label="Start screen">${HOME_SCREENS.map(([v, n]) => o(v, n)).join('')}${S.lists.filter(l => l.id !== 'inbox').length ? `<optgroup label="A list">${S.lists.filter(l => l.id !== 'inbox').map(l => o('tasks:list:' + l.id, listLabel(l.id))).join('')}</optgroup>` : ''}${S.projects.length ? `<optgroup label="A project">${S.projects.map(p => o('tasks:project:' + p.id, p.name)).join('')}</optgroup>` : ''}</select>`;
+  return `<select data-sx="home" aria-label="Start screen">${HOME_SCREENS.map(([v, n]) => o(v, n)).join('')}${S.lists.filter(l => l.id !== 'inbox').length ? `<optgroup label="A list">${S.lists.filter(l => l.id !== 'inbox').map(l => o('tasks:list:' + l.id, listLabel(l.id))).join('')}</optgroup>` : ''}${S.csections.length ? `<optgroup label="A section of yours">${S.csections.map(x => o(x.id, x.name)).join('')}</optgroup>` : ''}${S.projects.length ? `<optgroup label="A project">${S.projects.map(p => o('tasks:project:' + p.id, p.name)).join('')}</optgroup>` : ''}</select>`;
 }

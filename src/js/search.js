@@ -67,6 +67,17 @@ function srchGroups(q, scope) {
   add('boards', 'items', 'Boards', 'columns', bds.map(b => ({ label: b.name, html: srchHl(b.name, words), icon: 'columns', hint: '', sub: 'Board', run: srchGo('kanban', () => { S.settings.ui.board = b.id; }) })), bds.length);
   const slots = S.slots.filter(s => srchHas(((s.title || '') + ' ' + (s.loc || '')).toLowerCase(), words));
   add('slots', 'items', 'Timetable', 'table', slots.map(s => ({ label: s.title, html: srchHl(s.title, words), icon: 'table', hint: '', sub: 'Weekly slot' + (s.loc ? ' · ' + s.loc : ''), run: () => { closeModal(); document.body.classList.remove('drawer'); calGo('week'); } })), slots.length);
+  // people, and the entries of the sections you made
+  if (typeof ctMatch === 'function') {
+    const people = S.contacts.filter(c => ctMatch(c, words.join(' '))).sort((a, b) => srchRank(a.name, words) - srchRank(b.name, words) || a.name.localeCompare(b.name));
+    add('people', 'items', 'People', 'contact', people.map(c => ({ label: c.name, html: srchHl(c.name, words), icon: 'contact', hint: ctSub(c) ? '' : 'Contact', sub: ctSub(c) || srchSnip((c.emails[0] || {}).v || c.notes, words, 80), run: () => { closeModal(); document.body.classList.remove('drawer'); U.page = 'contacts'; U.sel = null; render(); ctProfile(c.id); } })), people.length);
+  }
+  if (typeof csecEntries === 'function') {
+    const ents = [];
+    for (const s of S.csections) for (const e of xsEntries(s)) if (srchHas((e.title + ' ' + (e.notes || '') + ' ' + s.fields.map(f => xsPlain(f, e.vals[f.id])).join(' ')).toLowerCase(), words)) ents.push([s, e]);
+    ents.sort((a, b) => srchRank(a[1].title, words) - srchRank(b[1].title, words));
+    add('entries', 'items', 'Section entries', 'layers', ents.map(([s, e]) => ({ label: e.title || 'Untitled', html: srchHl(e.title || 'Untitled', words), icon: s.icon || 'layers', hint: s.name, sub: srchSnip(e.notes, words, 80), run: () => { closeModal(); document.body.classList.remove('drawer'); U.page = s.id; U.sel = null; render(); xsEditEntry(s, e); } })), ents.length);
+  }
   // pages, the calendar's views, and commands
   const pageRows = [
     ...sectionsShown().map(([k, n, i]) => ({ label: n, i, run: () => { closeModal(); document.body.classList.remove('drawer'); U.page = sectionTarget(k); U.sel = null; render(); }, sub: 'View' })),
@@ -75,7 +86,7 @@ function srchGroups(q, scope) {
     ...[['kanban', 'Board'], ['matrix', 'Matrix'], ['gantt', 'Timeline'], ['focus', 'Focus timer'], ['history', 'History']].map(([k, n]) => ({ label: n, i: (PAGES.find(p => p[0] === k) || [0, 0, 'eye'])[2], run: srchGo(k), sub: 'View' })),
   ].filter(r => srchHas(r.label.toLowerCase(), words));
   add('pages', 'app', 'Pages & views', 'eye', pageRows.map(r => ({ label: r.label, html: srchHl(r.label, words), icon: r.i, hint: '', sub: r.sub, run: r.run })), pageRows.length);
-  const cmds = paletteItems(q).filter(i => !['View', 'List', 'Project', 'Task', 'Note', 'Template', 'Theme'].includes(i.hint));
+  const cmds = paletteItems(q).filter(i => !['View', 'Section', 'List', 'Project', 'Task', 'Note', 'Template', 'Theme', 'Contact'].includes(i.hint));
   add('cmds', 'app', 'Commands', 'sliders', cmds.map(i => ({ label: i.label, html: srchHl(i.label, words), icon: 'chevron-right', hint: i.hint, sub: '', run: () => { closeModal(); i.run(); } })), cmds.length);
   const sets = SET_TABS.filter(([k, n]) => srchHas((n + ' ' + (SET_ALIAS[k] || '')).toLowerCase(), words));
   const setRows = sets.map(([k, n, i]) => ({ label: n, html: srchHl(n, words), icon: i, hint: 'Settings', sub: 'Open this section of Settings', run: () => { closeModal(); openSettings(k); } }));

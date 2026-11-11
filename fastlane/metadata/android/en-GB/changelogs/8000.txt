@@ -1,0 +1,6 @@
+• Fixed: Calendar lights up and opens itself when pinned views exist
+• Fixed: long names slide to their very end, and can be dragged by hand
+• New: Contacts with available hours, linked to tasks, notes and classes, @mentions
+• New: your own sections, and packs to share them
+• Pins can be ordered together with the sections
+• Sync file changed: update all your devices to 0.8.0

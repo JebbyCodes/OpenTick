@@ -8,7 +8,7 @@ MD_WIKI = name => { const n = noteByTitle(name); return n ? { id: n.id, title: n
 const NOTE_FMT = [
   ['bold', 'bold', 'Bold (Ctrl+B)'], ['italic', 'italic', 'Italic (Ctrl+I)'], ['strike', 'strike', 'Strikethrough'],
   ['code', 'code', 'Code'], ['link', 'link', 'Link (Ctrl+K)'], ['h', 'heading', 'Heading'], ['ul', 'list', 'Bulleted list'], ['ol', 'list-ol', 'Numbered list'],
-  ['task', 'check-square', 'Checklist'], ['quote', 'quote', 'Quote'], ['table', 'table', 'Insert a table'], ['img', 'image', 'Insert an image'], ['embed', 'embed', 'Embed a video, audio, PDF or music player (paste its link)'], ['nembed', 'sticky', 'Embed another note'], ['hr', 'minus', 'Divider'],
+  ['task', 'check-square', 'Checklist'], ['quote', 'quote', 'Quote'], ['table', 'table', 'Insert a table'], ['img', 'image', 'Insert an image'], ['embed', 'embed', 'Embed a video, audio, PDF or music player (paste its link)'], ['nembed', 'sticky', 'Embed another note'], ['mention', 'at', 'Mention a person from Contacts'], ['hr', 'minus', 'Divider'],
 ];
 const mdToolbar = target => NOTE_FMT.map(([k, l, tt]) => `<button class="fmt" data-act="nfmt" data-k="${k}" data-for="${target}" title="${tt}" aria-label="${esc(tt)}">${ic(l, 17)}</button>`).join('');
 const edModeSeg = (mode, pre) => `<div class="seg" role="tablist">${[['blocks', 'Edit', 'pencil'], ['write', 'Source', 'code'], ['split', 'Split', 'columns'], ['preview', 'Preview', 'eye']].map(([m, n, i]) => `<button class="${mode === m ? 'on' : ''}${m === 'split' ? ' hide-m' : ''}" data-ed="${pre}" data-mode="${m}" role="tab" aria-label="${n}" title="${{ blocks: 'Edit with blocks: type / for a menu', write: 'Edit the Markdown text', split: 'Markdown beside a live preview', preview: 'Read it' }[m]}"><span class="sg-i">${ic(i, 17)}</span><span class="sg-t">${n}</span></button>`).join('')}</div>`;
@@ -82,8 +82,8 @@ ${S.projects.length ? '<div class="scg">Projects</div>' + S.projects.map(p => ro
   }, 'wide');
 }
 // does the note have anything in its details (tags, a list or project, linked tasks, attachments)? a dot on the phone's details button says so
-const noteDetailCount = n => ((n.tags || []).length ? 1 : 0) + (n.listId ? 1 : 0) + (n.projectId ? 1 : 0) + ((n.files || []).length ? 1 : 0) + ((typeof linkedTasks === 'function' && linkedTasks(n).length) ? 1 : 0);
-const noteHasDetails = n => !!((n.tags || []).length || n.listId || n.projectId || (n.files || []).length || (typeof linkedTasks === 'function' && linkedTasks(n).length));
+const noteDetailCount = n => ((n.tags || []).length ? 1 : 0) + (n.listId ? 1 : 0) + (n.projectId ? 1 : 0) + ((n.files || []).length ? 1 : 0) + ((typeof linkedTasks === 'function' && linkedTasks(n).length) ? 1 : 0) + ((n.contactIds || []).length ? 1 : 0);
+const noteHasDetails = n => !!((n.tags || []).length || n.listId || n.projectId || (n.files || []).length || (typeof linkedTasks === 'function' && linkedTasks(n).length) || (n.contactIds || []).length);
 function noteEditorHtml(n) {
   const mode = edMode(S.settings.notes.view);
   return `<div class="ne-head"><button class="ib mob2" data-act="noteback" aria-label="Back to the list">${ic('left', 20)}</button><button class="ib ne-ico" data-act="noteicon" title="Note icon" aria-label="Choose an icon for this note">${iconAny(n.icon, 20, 'file-text')}</button><input class="ne-title" data-f="ntitle" value="${esc(n.title)}" placeholder="Untitled note" autocomplete="off">`
@@ -239,7 +239,7 @@ function openNoteExpand(tid) {
 const linkChipTask = (t, rm) => `<span class="lchip${t.status !== 'open' ? ' fin' : ''}"><button type="button" class="lc-b" data-act="nlnkopen" data-id="${t.id}" title="Open this task">${ic(t.status === 'done' ? 'check-circle' : 'check-square', 13)}<span>${titleHtml(t)}</span>${t.due ? `<small>${esc(dueLabel(t))}</small>` : ''}</button>${rm ? `<button type="button" class="lc-x" data-act="nlnkrm" data-id="${t.id}" title="Unlink" aria-label="Unlink">${ic('x', 12)}</button>` : ''}</span>`;
 function noteLinksHtml(n) {
   const ts = linkedTasks(n);
-  return `<span class="ne-lh">${ic('link', 14)} Tasks</span>${ts.map(t => linkChipTask(t, true)).join('')}<button type="button" class="btn sm" data-act="nlnkpick">${ic('plus', 13)} ${ts.length ? 'Link' : 'Link a task'}</button>`;
+  return `<span class="ne-lh">${ic('link', 14)} Tasks</span>${ts.map(t => linkChipTask(t, true)).join('')}<button type="button" class="btn sm" data-act="nlnkpick">${ic('plus', 13)} ${ts.length ? 'Link' : 'Link a task'}</button>${typeof ctNoteRowHtml === 'function' ? ctNoteRowHtml(n) : ''}`;
 }
 function linkedNotesHtml(t) {
   const ns = linkedNotes(t);

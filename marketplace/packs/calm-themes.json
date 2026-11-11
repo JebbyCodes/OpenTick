@@ -1,0 +1,40 @@
+{
+  "opentick": "pack",
+  "format": 1,
+  "id": "calm-themes",
+  "name": "Calm themes",
+  "version": "1.0.0",
+  "author": "OpenTick",
+  "description": "Three quiet themes: Forest and Dusk for the evening, Paper for the day.",
+  "license": "CC0-1.0",
+  "homepage": "https://github.com/JebbyCodes/OpenTick",
+  "themes": [
+    {
+      "name": "Forest",
+      "base": "dark",
+      "vars": {
+        "--bg": "#16201b", "--side": "#111a15", "--text": "#e3ede6", "--muted": "#8fa597", "--line": "#273830",
+        "--hover": "#1d2b24", "--sel": "#234032", "--acc": "#5fbf8a", "--on-acc": "#0d1711", "--red": "#e5736d",
+        "--p1": "#6fb7d4", "--p2": "#e0b25a", "--p3": "#e5736d", "--card": "#1b2a22", "--shadow": "0 10px 40px rgba(0,0,0,.55)"
+      }
+    },
+    {
+      "name": "Dusk",
+      "base": "dark",
+      "vars": {
+        "--bg": "#1d1a2b", "--side": "#171524", "--text": "#ebe8f7", "--muted": "#9a95b8", "--line": "#2e2a45",
+        "--hover": "#262239", "--sel": "#352f5a", "--acc": "#a78bfa", "--on-acc": "#161226", "--red": "#f07178",
+        "--p1": "#7aa2f7", "--p2": "#f0b866", "--p3": "#f07178", "--card": "#252139", "--shadow": "0 10px 40px rgba(0,0,0,.55)"
+      }
+    },
+    {
+      "name": "Paper",
+      "base": "light",
+      "vars": {
+        "--bg": "#fbf8f1", "--side": "#f3eee2", "--text": "#2b2a27", "--muted": "#8a8474", "--line": "#e6dfcd",
+        "--hover": "#eee7d6", "--sel": "#e8dfc3", "--acc": "#b4532a", "--on-acc": "#fffaf0", "--red": "#c0392b",
+        "--p1": "#3b6ea5", "--p2": "#b07a14", "--p3": "#c0392b", "--card": "#fffdf7", "--shadow": "0 10px 40px rgba(60,50,30,.2)"
+      }
+    }
+  ]
+}

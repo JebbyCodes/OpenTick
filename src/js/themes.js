@@ -81,11 +81,11 @@ function themeBaseId(b, css) {
   return 'gruvbox-dark';
 }
 // add or replace a theme from file text; returns the stored record
-function themeImport(text, fileName) {
+function themeImport(text, fileName, select = true) { // select false: only add it (a pack's themes are added, and the person picks one)
   const t = themeNormalise(text, fileName), id = 'custom:' + themeSlug(t.name), rec = { id, name: t.name, base: themeBaseId(t.base, t.css), css: t.css, added: Date.now() };
   const list = (S.settings.customThemes = customThemes()), i = list.findIndex(c => c.id === id);
   if (i >= 0) list[i] = rec; else list.push(rec);
-  S.settings.theme = id; save(); applyTheme();
+  if (select) S.settings.theme = id; save(); applyTheme();
   return { rec, replaced: i >= 0 };
 }
 function themeRemove(id) {

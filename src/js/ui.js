@@ -156,14 +156,47 @@ function pagesShown() {
   return order.map(k => PAGES.find(p => p[0] === k)).filter(p => !u.hidePages.includes(p[0]) || p[0] === U.page);
 }
 /* Sections: the groups the sidebar and tab bar show. A view is hidden with its checkbox in Settings → Layout; a section shows while any of its
-   views does (and always while you are in it). Their order comes from the saved page order, so older saved layouts still apply. */
-const secOf = page => { const s = SECTIONS.find(x => x[3].includes(page)); return s ? s[0] : null; };
-function sectionsAll() {
-  const order = pageOrder(), at = s => Math.min(...s[3].map(k => order.indexOf(k)));
-  return SECTIONS.slice().sort((a, b) => at(a) - at(b));
+   views does (and always while you are in it). The built-in sections are SECTIONS; the ones a person (or a pack) made are in S.csections and
+   look the same here: [id, name, icon, [id]] with the section's own id as its one page (xsections.js). */
+const secsAll = () => (typeof csecEntries === 'function' ? SECTIONS.concat(csecEntries()) : SECTIONS);
+const secOf = page => { const s = secsAll().find(x => x[3].includes(page)); return s ? s[0] : null; };
+// the name and icon of a view, built in or not: [label, icon]
+const viewTab = k => VIEW_TAB[k] || (typeof csecEntries === 'function' ? (csecEntries().find(s => s[0] === k) || []).slice(1, 3) : []);
+
+/* ---------- the order of the buttons ----------
+   Everything in the sidebar's button grid and the phone's tab bar is one ordered list of "nav keys": 'sec:<id>' for a section (a built-in one
+   or a custom one) and 'pin:<key>' for a pinned view (pins.js). They are mixed freely, so a pin can sit between two sections. The order is a
+   layout choice, kept per device in S.settings.ui.navOrder. Until it is first changed (and for anyone coming from an older version) the
+   sections follow the old saved page order, with the pins after them. Whatever is missing from the saved list is added, whatever no longer
+   exists is dropped: a new section joins after the last section, a new pin goes to the end. */
+function navSectionsDefault() {
+  const order = pageOrder(), at = s => { const i = Math.min(...s[3].map(k => order.indexOf(k))); return i < 0 ? 1e6 : i; };
+  return secsAll().slice().sort((a, b) => at(a) - at(b)); // (stable: sections made later stay in the order they were made)
 }
+function navKeys() {
+  const u = S.settings.ui, secs = navSectionsDefault().map(s => 'sec:' + s[0]), pins = (typeof pinList === 'function' ? pinList() : []).filter(k => typeof pinInfo !== 'function' || pinInfo(k)).map(k => 'pin:' + k);
+  const valid = new Set([...secs, ...pins]), out = [], have = new Set();
+  for (const k of Array.isArray(u.navOrder) ? u.navOrder : []) if (typeof k === 'string' && valid.has(k) && !have.has(k)) { have.add(k); out.push(k); }
+  if (!out.length) return [...secs, ...pins];
+  const lastSec = out.map(k => k.startsWith('sec:')).lastIndexOf(true), newSecs = secs.filter(k => !have.has(k));
+  out.splice(lastSec + 1, 0, ...newSecs);
+  return [...out, ...pins.filter(k => !have.has(k))];
+}
+const navSecOf = k => (k.startsWith('sec:') ? secsAll().find(s => s[0] === k.slice(4)) || null : null);
+function navSave(keys) {
+  const u = S.settings.ui; u.navOrder = keys;
+  // the old page order is kept in step (it is what older saved layouts and the sections' own order are read from)
+  u.pageOrder = keys.filter(k => k.startsWith('sec:')).flatMap(k => (SECTIONS.find(s => s[0] === k.slice(4)) || [, , , []])[3]);
+  // and the pinned views keep their own order too (relative to each other), which is what ui.pins holds
+  if (Array.isArray(u.pins)) { const po = keys.filter(k => k.startsWith('pin:')).map(k => k.slice(4)); u.pins = [...po.filter(k => u.pins.includes(k)), ...u.pins.filter(k => !po.includes(k))]; }
+  save();
+}
+// is this button showing? a section with every view hidden is not (but is while you are in it); a pin shows while it still means something
+const navVisible = k => (k.startsWith('sec:') ? !!navSecOf(k) && viewsOf(k.slice(4)).length > 0 : typeof pinInfo === 'function' && !!pinInfo(k.slice(4)));
+const navShown = () => navKeys().filter(navVisible);
+function sectionsAll() { return navKeys().filter(k => k.startsWith('sec:')).map(navSecOf).filter(Boolean); }
 const viewsOf = sec => {
-  const s = SECTIONS.find(x => x[0] === sec), hid = S.settings.ui.hidePages; if (!s) return [];
+  const s = secsAll().find(x => x[0] === sec), hid = S.settings.ui.hidePages; if (!s) return [];
   const out = s[3].filter(k => !hid.includes(k) || k === U.page);
   // the Calendar is one view whose week and day are the old Timetable: it shows unless both of those were hidden (older saved layouts have two switches)
   if (sec === 'calendar') { const rest = out.filter(k => k !== 'timetable'); if (!rest.includes('calendar') && out.includes('timetable')) rest.unshift('calendar'); return rest; }
@@ -173,12 +206,21 @@ const sectionsShown = () => sectionsAll().filter(s => viewsOf(s[0]).length);
 // the view a section opens on: the one you used last in it, else its first
 function sectionTarget(sec) {
   const vs = viewsOf(sec), last = (U.secLast || {})[sec];
-  return vs.includes(last) || (last === 'timetable' && vs.includes('calendar')) ? last : vs[0] || (SECTIONS.find(x => x[0] === sec) || [, , , ['tasks']])[3][0];
+  return vs.includes(last) || (last === 'timetable' && vs.includes('calendar')) ? last : vs[0] || (secsAll().find(x => x[0] === sec) || [, , , ['tasks']])[3][0];
 }
-function uiMoveSection(sec, d) {
-  const all = sectionsAll().map(s => s[0]), i = all.indexOf(sec), j = i + d; if (i < 0 || j < 0 || j >= all.length) return;
-  [all[i], all[j]] = [all[j], all[i]]; S.settings.ui.pageOrder = all.flatMap(k => SECTIONS.find(s => s[0] === k)[3]); save();
+// move one button up (d = -1) or down (d = 1) among the ones that show: hidden sections are stepped over, so a press always changes something you can see
+function navMove(key, d) {
+  const all = navKeys(), i = all.indexOf(key); if (i < 0) return false;
+  let j = i + d; if (j < 0 || j >= all.length) return false;
+  if (Math.abs(d) === 1) { while (j >= 0 && j < all.length && !navVisible(all[j])) j += d; if (j < 0 || j >= all.length) return false; }
+  all.splice(i, 1); all.splice(j, 0, key); navSave(all); return true;
 }
+// put `key` where `to` is (drag and drop: it takes the place of the one it lands on)
+function navReorder(key, to) {
+  const all = navKeys(), i = all.indexOf(key), j = all.indexOf(to); if (i < 0 || j < 0 || i === j) return false;
+  all.splice(i, 1); all.splice(j, 0, key); navSave(all); return true;
+}
+const uiMoveSection = (sec, d) => navMove('sec:' + sec, d);
 // Settings → Appearance: how much space the interface leaves around things, and whether the details panel waits for a task
 function densitySetting() {
   const u = S.settings.ui;
@@ -189,30 +231,49 @@ function densitySetting() {
 const PG_MAX = 8;
 function pagesGrid() { return sectionsShown().map(([k, n, i]) => [k, n, i]); }
 const pagesMoreBtn = () => '';
+// one button of the grid or the tab bar: a section or a pinned view (where = 'side' or 'bar')
+function navButtonHtml(key, where) {
+  if (key.startsWith('pin:')) { const p = pinInfo(key.slice(4)); return p ? pinButtonHtml(p, where) : ''; }
+  const s = navSecOf(key); if (!s) return '';
+  const [k, n, i] = s, on = secOf(U.page) === k && !pinActive(), ico = (typeof iconAny === 'function' ? iconAny : (x, z) => ic(x, z));
+  return where === 'bar'
+    ? `<button class="${on ? 'on' : ''}" data-act="page" data-page="${esc(sectionTarget(k))}" data-sec="${esc(k)}" data-nk="${esc(key)}">${ico(i, 22)}<small>${esc(n)}</small></button>`
+    : `<button class="pg${on ? ' on' : ''}" data-act="page" data-page="${esc(sectionTarget(k))}" data-sec="${esc(k)}" data-nk="${esc(key)}" title="${esc(n)} — drag to reorder" draggable="true">${ico(i, 20)}<small>${esc(n)}</small></button>`;
+}
+const navHtml = where => navShown().map(k => navButtonHtml(k, where)).join('');
+// Settings → Layout: every button in the order it has, each with the arrows that move it; sections also list their views
 function uiSidebarSettings() {
-  const u = S.settings.ui, secs = sectionsAll();
-  return `<div class="vlist">${secs.map((s, i) => `<div class="vsec"><div class="vrow vsh"><b>${ic(s[2], 16)} ${esc(s[1])}</b><span><button class="ib sm" data-secmv="${s[0]}" data-d="-1"${i ? '' : ' disabled'} title="Move up" aria-label="Move ${esc(s[1])} up">${ic('up', 14)}</button><button class="ib sm" data-secmv="${s[0]}" data-d="1"${i < secs.length - 1 ? '' : ' disabled'} title="Move down" aria-label="Move ${esc(s[1])} down">${ic('down', 14)}</button></span></div>${s[3].length > 1 || s[3][0] !== s[0] ? s[3].filter(k => k !== 'timetable').map(k => `<div class="vrow vsub"><label><input type="checkbox" data-pg="${k}"${(k === 'calendar' ? u.hidePages.includes('calendar') && u.hidePages.includes('timetable') : u.hidePages.includes(k)) ? '' : ' checked'}> ${ic(VIEW_TAB[k][1], 15)} ${esc(VIEW_TAB[k][0])}</label></div>`).join('') : `<div class="vrow vsub"><label><input type="checkbox" data-pg="${s[3][0]}"${u.hidePages.includes(s[3][0]) ? '' : ' checked'}> Show in the sidebar</label></div>`}</div>`).join('')}</div><p class="hint">Related views share one place: Tasks holds the list, board, matrix and timeline; Calendar holds the month, week, 3 days, day and agenda, plus countdowns and time zones. Untick a view to hide its tab. Drag the section buttons in the sidebar to reorder them.</p>${typeof pinSettingsHtml === 'function' ? pinSettingsHtml() : ''}`;
+  const u = S.settings.ui, keys = navKeys().filter(navVisible), arrows = (k, label, i) => `<span><button class="ib sm" data-navmv="${esc(k)}" data-d="-1"${i ? '' : ' disabled'} title="Move up" aria-label="Move ${esc(label)} up">${ic('up', 14)}</button><button class="ib sm" data-navmv="${esc(k)}" data-d="1"${i < keys.length - 1 ? '' : ' disabled'} title="Move down" aria-label="Move ${esc(label)} down">${ic('down', 14)}</button></span>`;
+  const ico = (x, z) => (typeof iconAny === 'function' ? iconAny(x, z) : ic(x, z));
+  const row = (k, i) => {
+    if (k.startsWith('pin:')) { const p = pinInfo(k.slice(4)); return `<div class="vsec pinsec"><div class="vrow vsh"><b class="pinrow">${ic('pin', 14)} ${ico(p.icon, 15)} ${esc(p.tip)}</b><span class="pinact">${arrows(k, p.label, i)}<button class="ib sm" data-pinrm="${esc(k.slice(4))}" title="Unpin" aria-label="Unpin ${esc(p.label)}">${ic('x', 14)}</button></span></div></div>`; }
+    const s = navSecOf(k), id = s[0];
+    return `<div class="vsec"><div class="vrow vsh"><b>${ico(s[2], 16)} ${esc(s[1])}</b>${arrows(k, s[1], i)}</div>${s[3].length > 1 || s[3][0] !== id ? s[3].filter(v => v !== 'timetable').map(v => `<div class="vrow vsub"><label><input type="checkbox" data-pg="${esc(v)}"${(v === 'calendar' ? u.hidePages.includes('calendar') && u.hidePages.includes('timetable') : u.hidePages.includes(v)) ? '' : ' checked'}> ${ico(viewTab(v)[1], 15)} ${esc(viewTab(v)[0])}</label></div>`).join('') : `<div class="vrow vsub"><label><input type="checkbox" data-pg="${esc(s[3][0])}"${u.hidePages.includes(s[3][0]) ? '' : ' checked'}> Show in the sidebar</label></div>`}</div>`;
+  };
+  // a section that is hidden is not in the list above, so it is offered here to be brought back
+  const hidden = navKeys().filter(k => k.startsWith('sec:') && !navVisible(k)).map(navSecOf).filter(Boolean);
+  return `<div class="vlist navlist pinlist">${keys.map(row).join('')}</div>${hidden.length ? `<div class="vlist"><div class="vsec"><div class="vrow vsh"><b>Hidden</b></div>${hidden.map(s => `<div class="vrow vsub"><label><input type="checkbox" data-showsec="${esc(s[0])}"> ${ico(s[2], 15)} ${esc(s[1])}</label></div>`).join('')}</div></div>` : ''}<p class="hint">Related views share one place: Tasks holds the list, board, matrix and timeline; Calendar holds the month, week, 3 days, day and agenda, plus countdowns and time zones. Untick a view to hide its tab. Move the buttons with the arrows, or drag them in the sidebar: pinned views and sections can be put in any order together.</p>${typeof xsNew === 'function' ? `<div class="vadd"><button type="button" class="btn sm" data-m="xsnew">${ic('plus', 13)} Add a section…</button><small class="hint">Make your own: books, recipes, spending… or add one someone shared (Settings → Sections &amp; packs).</small></div>` : ''}${typeof pinSettingsHtml === 'function' ? pinSettingsHtml() : ''}`;
 }
 function uiMovePage(k, d) {
   const u = S.settings.ui, order = pageOrder();
   const i = order.indexOf(k), j = i + d; if (i < 0 || j < 0 || j >= order.length) return;
-  [order[i], order[j]] = [order[j], order[i]]; u.pageOrder = order; save();
+  [order[i], order[j]] = [order[j], order[i]]; u.pageOrder = order; u.navOrder = []; save(); // a page order set by hand wins over a saved button order
 }
 
 /* ---------- reorder: lists in the sidebar, view tabs, and dropping a task on a sidebar entry ---------- */
 document.addEventListener('dragstart', e => {
   const l = e.target.closest && e.target.closest('.navrow[data-lid]');
   if (l) { U.ldrag = l.dataset.lid; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'list:' + U.ldrag); l.classList.add('drag'); return; }
-  const p = e.target.closest && e.target.closest('.pg[data-sec]');
-  if (p) { U.pdrag = p.dataset.sec; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'section:' + U.pdrag); p.classList.add('drag'); }
+  const p = e.target.closest && e.target.closest('.pg[data-nk]'); // a section or a pinned view: they are reordered together
+  if (p) { U.pdrag = p.dataset.nk; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'nav:' + U.pdrag); p.classList.add('drag'); }
 });
 document.addEventListener('dragover', e => {
-  const t = e.target.closest && e.target.closest('.navrow[data-lid],.pg[data-sec],.sech[data-k="lists"]');
+  const t = e.target.closest && e.target.closest('.navrow[data-lid],.pg[data-nk],.sech[data-k="lists"]');
   if (U.ldrag && t && (t.dataset.lid || t.dataset.k)) { // a list over a list: top / bottom edge = reorder next to it, middle = move inside it
     const bad = new Set([U.ldrag, ...listDescendants(U.ldrag)]); if (t.dataset.lid && bad.has(t.dataset.lid)) return;
     e.preventDefault(); $$('.over,.dz-b,.dz-a,.dz-in').forEach(x => x.classList.remove('over', 'dz-b', 'dz-a', 'dz-in'));
     if (t.dataset.lid) { const r = t.getBoundingClientRect(), y = (zc(e.clientY) - r.top) / r.height; t.classList.add(y < 0.28 ? 'dz-b' : y > 0.72 ? 'dz-a' : 'dz-in'); } else t.classList.add('over');
-  } else if (t && U.pdrag && t.dataset.sec) { e.preventDefault(); $$('.over').forEach(x => x.classList.remove('over')); t.classList.add('over'); }
+  } else if (t && U.pdrag && t.dataset.nk) { e.preventDefault(); $$('.over').forEach(x => x.classList.remove('over')); t.classList.add('over'); }
 });
 document.addEventListener('drop', e => {
   if (U.ldrag) {
@@ -230,12 +291,8 @@ document.addEventListener('drop', e => {
       save(); renderSide();
     }
   } else if (U.pdrag) {
-    const t = e.target.closest('.pg[data-sec]');
-    if (t && t.dataset.sec !== U.pdrag) {
-      e.preventDefault();
-      const all = sectionsAll().map(x => x[0]), to = all.indexOf(t.dataset.sec); all.splice(all.indexOf(U.pdrag), 1); all.splice(to, 0, U.pdrag);
-      S.settings.ui.pageOrder = all.flatMap(k => SECTIONS.find(x => x[0] === k)[3]); save(); renderSide();
-    }
+    const t = e.target.closest('.pg[data-nk]');
+    if (t && t.dataset.nk !== U.pdrag) { e.preventDefault(); if (navReorder(U.pdrag, t.dataset.nk)) { renderSide(); if (typeof renderTabbar === 'function') renderTabbar(); const b = $('#sbv'); if (b) b.innerHTML = uiSidebarSettings(); } }
   }
 });
 document.addEventListener('dragend', () => { U.ldrag = U.pdrag = null; });
@@ -260,6 +317,7 @@ function paletteItems(q) {
   const go = (label, hint, run) => ({ label, hint, run });
   const out = [
     ...PAGES.map(([k, n]) => go('Go to ' + n, 'View', () => { U.page = k; U.sel = null; render(); })),
+    ...(typeof csecEntries === 'function' ? csecEntries().map(([k, n]) => go('Go to ' + n, 'Section', () => { U.page = k; U.sel = null; render(); })) : []),
     go('Go to History', 'View', () => { U.page = 'history'; U.sel = null; render(); }),
     ...(typeof pinHere === 'function' && pinHere() ? [go(pinList().includes(pinHere()) ? 'Unpin this view from the ' + pinWhere() : 'Pin this view to the ' + pinWhere(), 'View', () => pinToggle(pinHere()))] : []),
     ...SMART.map(([k, n]) => go('Open ' + n, 'List', () => setNav(k))),
@@ -270,6 +328,7 @@ function paletteItems(q) {
     go('Toggle sidebar', '[', () => uiToggle('side')), go('Toggle task details', ']', () => uiToggle('detail')),
     go('Focus mode: hide both panels', '\\', uiFocus),
     go('Toggle compact density', 'Layout', () => { uiCompact(); render(); }),
+    ...(typeof xsNew === 'function' ? [go('New section…', 'Action', () => { xsNew(); }), go('New contact…', 'Action', () => { U.page = 'contacts'; U.sel = null; render(); ctEditForm(null); })] : []),
     go('New list…', 'Action', () => ACT.addlist()), go('New template…', 'Action', () => TPL_ACT.tpladd()), go('New note', 'Action', () => { U.page = 'notes'; U.sel = null; render(); ACT.noteadd(); }), go('Settings…', 'Action', openSettings),
     go('Keyboard shortcuts', '?', openShortcuts), go('Help & user guide', 'Help', () => openHelp()), go('About OpenTick: version, licences, credits', 'Help', () => openAbout()),
     go('Interface size…', 'Appearance', openSettings), go('Background effects…', 'Appearance', openBgSettings),
@@ -283,7 +342,8 @@ function paletteItems(q) {
   const tpls = q.length > 0 ? S.templates.filter(x => (x.name + ' ' + x.tags.join(' ')).toLowerCase().includes(q)).slice(0, 6).map(x => go('Use template: ' + (x.name || 'Untitled'), 'Template', () => tplFill(x.id))) : [];
   const notes = q.length > 1 ? S.notes.filter(n => (noteTitle(n) + ' ' + n.body).toLowerCase().includes(q)).slice(0, 5).map(n => go(noteTitle(n), 'Note', () => openNoteById(n.id))) : [];
   const tasks = q.length > 1 ? S.tasks.filter(t => !t.deleted && !t.log && (t.title || '').toLowerCase().includes(q)).slice(0, 8).map(t => go(t.title, 'Task', () => { setNav(t.listId === 'inbox' ? 'inbox' : 'list:' + t.listId); U.sel = t.id; renderMain(); renderDetail(); })) : [];
-  return [...hit, ...tpls, ...notes, ...tasks].slice(0, 14);
+  const people = q.length > 1 && typeof ctMatch === 'function' ? S.contacts.filter(c => ctMatch(c, q)).slice(0, 5).map(c => go(c.name, 'Contact', () => { U.page = 'contacts'; U.sel = null; render(); ctProfile(c.id); })) : [];
+  return [...hit, ...tpls, ...notes, ...people, ...tasks].slice(0, 14);
 }
 function openPalette() {
   let sel = 0, items = paletteItems('');

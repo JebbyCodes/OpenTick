@@ -9,6 +9,7 @@ name: Release
 #      (write what is new in CHANGELOG.md, commit)
 #      git tag v0.6.0 && git push origin main v0.6.0
 #  That is all. Pushing the tag starts this workflow. See docs/RELEASING.md for the full guide, including the secrets.
+#  No terminal? Actions -> "Prepare release" does the bump for you and opens a pull request; merge it, then push the tag.
 #
 #  WHAT HAPPENS, IN ORDER
 #
@@ -25,6 +26,8 @@ name: Release
 #    5. publish ......... Only after the release exists (see the note below), each of these runs on its own and skips itself with
 #                         a warning if its secret is missing:
 #                           Docker registry (ghcr.io)    Snap Store    Microsoft Store    Chocolatey    Scoop    Winget
+#    6. summary ......... Always runs, even after a failure: a table on the run page with the result of every stage above and
+#                         whether it was required, so "what happened, and did it matter?" is answered without opening twenty jobs.
 #
 #  DRY RUN: Actions -> Release -> Run workflow, leave "publish" OFF. Everything is built and tested but nothing is released or pushed;
 #  the files stay in the run's artifacts.
@@ -347,3 +350,28 @@ jobs:
     with:
       tag: ${{ needs.prepare.outputs.tag }}
     secrets: inherit
+
+  # ===============================================================================================================================
+  # 6. SUMMARY: one table of how every stage went (always runs, even when something failed)
+  # ===============================================================================================================================
+  # A release is about twenty jobs, so this puts the answer to "what happened, and did it matter?" at the top of the run page.
+  # It reports; it never changes the result of the run.
+  summary:
+    name: Summary
+    needs: [prepare, tests, desktop, android, ios, watch, web, docker, snap, msix-bundle, release, publish-docker, publish-snap, publish-microsoft-store, publish-chocolatey, publish-scoop, publish-winget]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      NEEDS: ${{ toJSON(needs) }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Write the status table on the run page
+        run: node scripts/release/run-summary.mjs >> "$GITHUB_STEP_SUMMARY"

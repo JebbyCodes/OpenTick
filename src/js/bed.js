@@ -12,6 +12,7 @@ const BED_CMDS = [
   { id: 'file', label: 'File', hint: 'Attach a PDF, document…', words: 'file attach pdf document upload' },
   { id: 'embed', label: 'Embed', hint: 'A video, audio, PDF or music player from a link', words: 'embed video youtube vimeo spotify audio pdf player iframe' },
   { id: 'notebed', label: 'Embed a note', hint: 'Show another note right here', words: 'embed note include transclude show ![[' },
+  { id: 'mention', label: 'Mention a person', hint: 'Link someone from Contacts', words: 'mention person people contact @', needs: () => S.contacts.length > 0 },
   { id: 'note', label: 'Link to a note', hint: 'A [[link]] to another note', words: 'link note wiki mention [[' },
   { id: 'task', label: 'Link a task', hint: 'Connect a task to this note', words: 'link task connect', only: 'n' },
   { id: 'date', label: "Today's date", hint: 'Type the date', words: 'date today' },
@@ -124,26 +125,31 @@ function bedShowMenu(inst) {
 function bedMenuItems(inst, m) {
   const q = m.q.trim().toLowerCase();
   if (m.type === 'wiki') { const me = inst.o.pre === 'n' ? U.noteSel : ''; return S.notes.filter(n => n.id !== me && (!q || noteTitle(n).toLowerCase().includes(q))).sort((a, b) => (b.updated || 0) - (a.updated || 0)).slice(0, 8).map(n => ({ id: n.id, label: noteTitle(n), hint: noteWhen(n.updated), note: n })); }
+  if (m.type === 'contact') return S.contacts.filter(c => !q || ctMatch(c, q)).sort((a, b) => a.name.localeCompare(b.name)).slice(0, 8).map(c => ({ id: c.id, label: c.name, hint: ctSub(c), contact: c }));
   if (m.type === 'turn') return BK_TURN.map(([id, label, hint]) => ({ id, label, hint, turn: true }));
-  return BED_CMDS.filter(c => (!c.only || c.only === inst.o.pre) && (!q || (c.label + ' ' + c.words).toLowerCase().includes(q))).slice(0, 12);
+  return BED_CMDS.filter(c => (!c.only || c.only === inst.o.pre) && (!c.needs || c.needs()) && (!q || (c.label + ' ' + c.words).toLowerCase().includes(q))).slice(0, 12);
 }
 function bedOpenMenu(inst, type, start) {
   inst.menu = { type, start, q: '', sel: 0, items: [] }; inst.menu.items = bedMenuItems(inst, inst.menu); bedShowMenu(inst);
 }
 function bedMenuUpdate(inst) {
   const m = inst.menu, ta = bedTa(inst); if (!m || !ta) return;
-  const caret = ta.selectionStart, open = m.type === 'wiki' ? '[[' : '/';
+  const caret = ta.selectionStart, open = m.type === 'wiki' ? '[[' : m.type === 'contact' ? '@' : '/';
   if (m.start < 0 || ta.value.slice(m.start, m.start + open.length) !== open || caret < m.start + open.length) { bedClosePop(inst); return; }
   m.q = ta.value.slice(m.start + open.length, caret);
   if (m.type === 'slash' && /\s/.test(m.q.trim()) && !bedMenuItems(inst, m).length) { bedClosePop(inst); return; }
   if (m.q.length > 24) { bedClosePop(inst); return; }
-  m.items = bedMenuItems(inst, m); m.sel = Math.min(m.sel, Math.max(0, m.items.length - 1)); bedShowMenu(inst);
+  m.items = bedMenuItems(inst, m); if (m.type === 'contact' && !m.items.length && /\s/.test(m.q.trim())) { bedClosePop(inst); return; } // (a word after an @ that names nobody is just text)
+  m.sel = Math.min(m.sel, Math.max(0, m.items.length - 1)); bedShowMenu(inst);
 }
 async function bedPickMenu(inst, n) {
   const m = inst.menu, c = m && m.items[n]; if (!c) return;
   const i = inst.act, b = bedCur(inst), ta = bedTa(inst); if (!b || !ta) return;
   const caret = ta.selectionStart, start = m.start, type = m.type, open = type === 'wiki' ? '[[' : '/';
   bedSnap(inst);
+  if (type === 'contact') { // @[Name] in place of "@query"
+    const ins = `@[${c.label}] `; b.text = b.text.slice(0, start) + ins + b.text.slice(caret); bedClosePop(inst); bedPaint(inst, { pos: start + ins.length }); bedCommit(inst); return;
+  }
   if (type === 'wiki') { // [[Title]] in place of "[[query"
     const ins = `[[${c.label}]]`; b.text = b.text.slice(0, start) + ins + b.text.slice(caret); bedClosePop(inst); bedPaint(inst, { pos: start + ins.length }); bedCommit(inst); return;
   }
@@ -155,6 +161,7 @@ async function bedPickMenu(inst, n) {
   if (c.id === 'date') { const d = new Date(), ins = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; b.text = b.text.slice(0, start) + ins + b.text.slice(start); bedPaint(inst, { pos: start + ins.length }); bedCommit(inst); return; }
   if (c.id === 'embed') { const f = blkInsertAfter(inst.doc, i, 'p', '![](https://)'); inst.act = f.i; bedPaint(inst, { pos: 4 }); bedCommit(inst); return; }
   if (c.id === 'notebed') { bedPaint(inst, { pos: start }); const cur = bedCur(inst); if (cur) { cur.text = cur.text.slice(0, start) + '![[' + cur.text.slice(start); bedPaint(inst, { pos: start + 3 }); bedOpenMenu(inst, 'wiki', start + 1); } return; }
+  if (c.id === 'mention') { bedPaint(inst, { pos: start }); const cur = bedCur(inst); if (cur) { cur.text = cur.text.slice(0, start) + '@' + cur.text.slice(start); bedPaint(inst, { pos: start + 1 }); bedOpenMenu(inst, 'contact', start); } return; }
   if (c.id === 'note') { bedPaint(inst, { pos: start }); const t2 = bedTa(inst); if (t2) { const cur = bedCur(inst); cur.text = cur.text.slice(0, start) + '[[' + cur.text.slice(start); bedPaint(inst, { pos: start + 2 }); bedOpenMenu(inst, 'wiki', start); } return; }
   if (c.id === 'task') { bedPaint(inst, { pos: start }); bedCommit(inst); openLinkPicker('note', U.noteSel); return; }
   if (c.id === 'image' || c.id === 'file') {
@@ -217,7 +224,7 @@ function bedKey(inst, e) {
   const ta = e.target; if (!ta.matches || !ta.matches('textarea.bk-t')) return;
   inst.shift = e.shiftKey; const b = bedCur(inst); if (!b) return;
   const mod = e.ctrlKey || e.metaKey, m = inst.menu;
-  if (m && (m.type === 'slash' || m.type === 'wiki' || m.type === 'turn')) { // a menu is open: it takes the arrows, Enter and Escape
+  if (m && (m.type === 'slash' || m.type === 'wiki' || m.type === 'turn' || m.type === 'contact')) { // a menu is open: it takes the arrows, Enter and Escape
     if (e.key === 'ArrowDown') { e.preventDefault(); m.sel = (m.sel + 1) % Math.max(1, m.items.length); bedShowMenu(inst); return; }
     if (e.key === 'ArrowUp') { e.preventDefault(); m.sel = (m.sel - 1 + m.items.length) % Math.max(1, m.items.length); bedShowMenu(inst); return; }
     if ((e.key === 'Enter' || e.key === 'Tab') && m.items.length && !e.isComposing) { e.preventDefault(); e.stopPropagation(); bedPickMenu(inst, m.sel); return; }
@@ -268,11 +275,12 @@ function bedInput(inst, ta, e) {
   if (b.kind !== 'code' && b.kind !== 'raw' && b.kind !== 'table' && b.text.includes('\n') && (b.kind !== 'p' || /\n\s*\n|\n(?:#{1,6} |[-*+] |\d{1,9}[.)] |> |```|~~~)/.test(b.text) || (e && /^insertFromPaste|^insertFromDrop/.test(e.inputType || '')))) {
     const bs = blkReparse(b); if (bs.length > 1 || bs[0].kind !== b.kind) { const at = inst.act; inst.doc.blocks.splice(at, 1, ...bs); inst.act = at + bs.length - 1; bedPaint(inst, { pos: Infinity }); bedCommit(inst); return; }
   }
-  // "/" starts the block menu, "[[" the note-link menu
+  // "/" starts the block menu, "[[" the note-link menu, "@" the menu of people
   if (inst.menu) bedMenuUpdate(inst);
   else if (e && /^insert/.test(e.inputType || '') && b.kind !== 'code' && b.kind !== 'raw' && b.kind !== 'table') {
     if (ta.value[caret - 1] === '/' && (caret === 1 || /\s/.test(ta.value[caret - 2]))) bedOpenMenu(inst, 'slash', caret - 1);
     else if (ta.value.slice(caret - 2, caret) === '[[') bedOpenMenu(inst, 'wiki', caret - 2);
+    else if (ta.value[caret - 1] === '@' && S.contacts.length && (caret === 1 || /\s/.test(ta.value[caret - 2]))) bedOpenMenu(inst, 'contact', caret - 1);
   }
   bedFit(ta); bedBar(inst); bedCommit(inst);
 }

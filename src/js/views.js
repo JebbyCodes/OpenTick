@@ -106,14 +106,14 @@ const logoHtml = (n = 28) => `<span class="logo" style="width:${n}px;height:${n}
 // icons offered for lists and projects (an emoji can be used instead)
 const LIST_ICONS = ['list', 'inbox', 'sun', 'calendar', 'star', 'flag', 'heart', 'home', 'briefcase', 'book', 'cart', 'folder', 'target', 'zap', 'music', 'camera', 'code', 'gift', 'coffee', 'dollar', 'user', 'users', 'tool', 'globe', 'send', 'bookmark', 'bell', 'clock', 'tag', 'file-text', 'layers', 'flame'];
 const listIcon = (o, n = 18) => { const i = o && o.icon; return i && IC[i] ? ic(i, n) : i ? `<span class="emo" style="font-size:${Math.round(n * 0.9)}px">${esc(i)}</span>` : ic(o && o.listIds ? 'layers' : 'list', n); };
-const U = { projList: {}, tagSel: [], tagMode: 'all', hist: { acts: [], kinds: [], q: '', sort: 'new', shown: 150 },  page: 'tasks', nav: 'today', q: '', sel: null, calD: new Date(), fx: [], showDone: {}, drag: null, _rn: null, ttDate: null, ttTray: null, ttV: null };
+const U = { projList: {}, tagSel: [], tagMode: 'all', hist: { acts: [], kinds: [], q: '', sort: 'new', shown: 150 },  page: 'tasks', nav: 'today', q: '', sel: null, pinKey: null, calD: new Date(), fx: [], showDone: {}, drag: null, _rn: null, ttDate: null, ttTray: null, ttV: null };
 const SMART = [['inbox', 'Inbox', 'inbox'], ['today', 'Today', 'sun'], ['tomorrow', 'Tomorrow', 'sunrise'], ['week', 'Next 7 Days', 'calendar'], ['all', 'All', 'layers']];
-const PAGES = [['home', 'Projects', 'dashboard'], ['tasks', 'Tasks', 'check-circle'], ['notes', 'Notes', 'notes'], ['calendar', 'Calendar', 'calendar'], ['timetable', 'Week & day', 'table'], ['gantt', 'Timeline', 'gantt'], ['matrix', 'Matrix', 'grid'], ['habits', 'Habits', 'activity'], ['focus', 'Focus', 'clock'], ['templates', 'Templates', 'copy'], ['countdowns', 'Countdowns', 'hourglass'], ['zones', 'Time zones', 'globe'], ['kanban', 'Board', 'columns']];
+const PAGES = [['home', 'Projects', 'dashboard'], ['tasks', 'Tasks', 'check-circle'], ['notes', 'Notes', 'notes'], ['calendar', 'Calendar', 'calendar'], ['timetable', 'Week & day', 'table'], ['gantt', 'Timeline', 'gantt'], ['matrix', 'Matrix', 'grid'], ['habits', 'Habits', 'activity'], ['focus', 'Focus', 'clock'], ['templates', 'Templates', 'copy'], ['countdowns', 'Countdowns', 'hourglass'], ['zones', 'Time zones', 'globe'], ['kanban', 'Board', 'columns'], ['contacts', 'Contacts', 'contact']];
 // The sidebar and the phone tab bar show SECTIONS; each section groups related views (the pages above, whose ids are what everything else
 // uses: shortcuts, widgets, links, settings). A slim switcher under the page header moves between a section's views.
-const SECTIONS = [['home', 'Projects', 'dashboard', ['home']], ['tasks', 'Tasks', 'check-circle', ['tasks', 'kanban', 'matrix', 'gantt']], ['notes', 'Notes', 'notes', ['notes', 'templates']], ['calendar', 'Calendar', 'calendar', ['calendar', 'timetable', 'countdowns', 'zones']], ['habits', 'Habits', 'activity', ['habits', 'focus']]];
+const SECTIONS = [['home', 'Projects', 'dashboard', ['home']], ['tasks', 'Tasks', 'check-circle', ['tasks', 'kanban', 'matrix', 'gantt']], ['notes', 'Notes', 'notes', ['notes', 'templates']], ['calendar', 'Calendar', 'calendar', ['calendar', 'timetable', 'countdowns', 'zones']], ['habits', 'Habits', 'activity', ['habits', 'focus']], ['contacts', 'Contacts', 'contact', ['contacts']]];
 // how a view is named inside its section: [label, icon]
-const VIEW_TAB = { home: ['Projects', 'dashboard'], tasks: ['List', 'list'], kanban: ['Board', 'columns'], matrix: ['Matrix', 'grid'], gantt: ['Timeline', 'gantt'], notes: ['Notes', 'notes'], templates: ['Templates', 'copy'], calendar: ['Calendar', 'calendar'], timetable: ['Week & day', 'table'], countdowns: ['Countdowns', 'hourglass'], zones: ['Time zones', 'globe'], habits: ['Habits', 'activity'], focus: ['Focus', 'clock'] };
+const VIEW_TAB = { home: ['Projects', 'dashboard'], tasks: ['List', 'list'], kanban: ['Board', 'columns'], matrix: ['Matrix', 'grid'], gantt: ['Timeline', 'gantt'], notes: ['Notes', 'notes'], templates: ['Templates', 'copy'], calendar: ['Calendar', 'calendar'], timetable: ['Week & day', 'table'], countdowns: ['Countdowns', 'hourglass'], zones: ['Time zones', 'globe'], habits: ['Habits', 'activity'], focus: ['Focus', 'clock'], contacts: ['Contacts', 'contact'] };
 const FLAT = ['done', 'trash', 'wontdo', 'search'];
 // inline markdown in titles, never as links (rows are click targets)
 const FULLDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -257,19 +257,21 @@ const canDrag = () => S.settings.sort === 'manual' && sortDir() === 'asc' && S.s
 // the view switcher under a page's header: only for a section with more than one view showing
 function vtabsHtml() {
   const sec = typeof secOf === 'function' ? secOf(U.page) : null; if (!sec) return '';
-  const vs = viewsOf(sec), name = SECTIONS.find(s => s[0] === sec)[1];
+  const vs = viewsOf(sec), name = secsAll().find(s => s[0] === sec)[1];
   if (sec === 'calendar' && vs.includes('calendar')) { // one Calendar: Month and Agenda list tasks by date, Week / 3 days / Day are the time grid (the old Timetable)
     const cur = typeof calMode === 'function' ? calMode() : '';
     const tab = (on, act, attrs, ico, label) => `<button role="tab" class="${on ? 'on' : ''}" aria-selected="${on}" data-act="${act}" ${attrs}>${ic(ico, 15)}<span>${esc(label)}</span></button>`;
-    return `<nav class="vtabs" role="tablist" aria-label="${esc(name)} views">${CAL_MODES.map(([v, n, i, grid]) => tab(cur === v, grid ? 'ttview' : 'calview', `data-v="${v}"`, i, n)).join('')}${typeof scName === 'function' && typeof schoolOn === 'function' ? tab(schoolOn() && U.page === 'timetable', 'scmode', 'data-m="school"', 'graduation', scName()) : ''}${vs.filter(k => k !== 'calendar' && k !== 'timetable').map(k => tab(U.page === k, 'page', `data-page="${k}"`, VIEW_TAB[k][1], VIEW_TAB[k][0])).join('')}</nav>`;
+    return `<nav class="vtabs" role="tablist" aria-label="${esc(name)} views">${CAL_MODES.map(([v, n, i, grid]) => tab(cur === v, grid ? 'ttview' : 'calview', `data-v="${v}"`, i, n)).join('')}${typeof scName === 'function' && typeof schoolOn === 'function' ? tab(schoolOn() && U.page === 'timetable', 'scmode', 'data-m="school"', 'graduation', scName()) : ''}${vs.filter(k => k !== 'calendar' && k !== 'timetable').map(k => tab(U.page === k, 'page', `data-page="${k}"`, viewTab(k)[1], viewTab(k)[0])).join('')}</nav>`;
   }
   if (vs.length < 2) return '';
-  return `<nav class="vtabs" role="tablist" aria-label="${esc(name)} views">${vs.map(k => `<button role="tab" class="${U.page === k ? 'on' : ''}" aria-selected="${U.page === k}" data-act="page" data-page="${k}">${ic(VIEW_TAB[k][1], 15)}<span>${esc(VIEW_TAB[k][0])}</span></button>`).join('')}</nav>`;
+  return `<nav class="vtabs" role="tablist" aria-label="${esc(name)} views">${vs.map(k => `<button role="tab" class="${U.page === k ? 'on' : ''}" aria-selected="${U.page === k}" data-act="page" data-page="${k}">${ic(viewTab(k)[1], 15)}<span>${esc(viewTab(k)[0])}</span></button>`).join('')}</nav>`;
 }
 const topHtml = (title, tools = '') => vtabsHtml() ? topHead(title, tools) + vtabsHtml() : topHead(title, tools);
 const topHead = (title, tools = '') => `<header class="top"><button class="ib burger" data-act="burger" aria-label="Menu">${ic('menu', 22)}</button><h1>${title}</h1><div class="tools">${tools}</div><button class="ib pt pt-det" data-act="uitoggle" data-k="detail" title="Show / hide task details  ]" aria-label="Show or hide the task details">${ic('panel-right', 20)}</button></header>`;
 function render() {
-  { const s = typeof secOf === 'function' ? secOf(U.page) : null; if (s) (U.secLast = U.secLast || {})[s] = U.page; } // a section reopens on the view you last used in it
+  // a section reopens on the view you last used in it (Classes is the exception: it is not a view of the Calendar to come back to, it has its own button or pin)
+  { const s = typeof secOf === 'function' ? secOf(U.page) : null; if (s && !(U.page === 'timetable' && typeof schoolOn === 'function' && schoolOn())) (U.secLast = U.secLast || {})[s] = U.page; }
+  if (U.pinKey && typeof pinInfo === 'function') { const p = pinInfo(U.pinKey); if (!p || !p.active()) U.pinKey = null; } // you left the pinned view: its button stops being the lit one
   document.body.classList.toggle('on-help', U.page === 'help'); // the print rules for the Help page are keyed on this
   if (typeof WIDGET !== 'undefined' && WIDGET) return renderWidget();
   if (typeof watchOn === 'function' && watchOn()) return watchRender(); // the smartwatch layout (watch.js) draws its own pages
@@ -279,22 +281,20 @@ function render() {
   document.body.classList.toggle('pg-notes', U.page === 'notes' || U.page === 'history'); // the Notes page uses the whole width: no details panel
   renderSide(); renderMain(); renderDetail(); renderTabbar();
 }
-// phone navigation: the first views as bottom tabs, "More" opens the full menu
+// phone navigation: the sections and pinned views as bottom tabs (in the order they have in the sidebar), "More" opens the full menu
 function renderTabbar() {
   const el = $('#tabbar'); if (!el) return;
-  const items = sectionsShown();
-  const pinOn = !!pinActive();
-  el.innerHTML = items.map(([k, n, i]) => `<button class="${secOf(U.page) === k && !pinOn ? 'on' : ''}" data-act="page" data-page="${sectionTarget(k)}" data-sec="${k}">${ic(i, 22)}<small>${n}</small></button>`).join('') + pinsHtml('bar') + `<button data-act="burger">${ic('menu', 22)}<small>More</small></button>`;
+  el.innerHTML = navHtml('bar') + `<button data-act="burger">${ic('menu', 22)}<small>More</small></button>`;
 }
 function renderTimetable() { schoolOn() ? renderSchool() : renderTimetablePlan(); }
-function renderMain() { if (typeof WIDGET !== 'undefined' && WIDGET) return renderWidget(); ({ home: renderHome, tasks: renderTasks, notes: renderNotes, templates: renderTemplates, calendar: renderCal, timetable: renderTimetable, gantt: renderGantt, matrix: renderMatrix, habits: renderHabits, help: renderHelp, focus: renderFocus, history: renderHistory, countdowns: renderCountdowns, zones: renderZones, kanban: renderKanbanPage })[U.page](); fxFlush(); if (typeof batchPaint === 'function') batchPaint(); }
+function renderMain() { if (typeof WIDGET !== 'undefined' && WIDGET) return renderWidget(); if (typeof csecOn === 'function' && csecOn(U.page)) { renderCustomSection(); fxFlush(); return; } ({ contacts: renderContacts, home: renderHome, tasks: renderTasks, notes: renderNotes, templates: renderTemplates, calendar: renderCal, timetable: renderTimetable, gantt: renderGantt, matrix: renderMatrix, habits: renderHabits, help: renderHelp, focus: renderFocus, history: renderHistory, countdowns: renderCountdowns, zones: renderZones, kanban: renderKanbanPage })[U.page](); fxFlush(); if (typeof batchPaint === 'function') batchPaint(); }
 
 function renderSide() {
   const q = $('#q'), keep = q ? q.value : '';
   const on = k => U.page === 'tasks' && ((U.nav === k && !U.q) || (k.startsWith('tag:') && U.tagSel.includes(k.slice(4)))) ? ' on' : '';
   const item = (key, label, icon, color, count, extra = '') => `<button class="nav${on(key)}" data-act="nav" data-nav="${esc(key)}"${extra}><span class="ni"${color ? ` style="color:${color}"` : ''}>${ic(icon, 18)}</span><span class="nl">${esc(label)}</span>${count ? `<span class="cnt">${count}</span>` : ''}</button>`;
   const sec = (k, title, add = '') => `<div class="sec"><button class="sech" data-act="fold" data-k="${k}" aria-expanded="${!folded(k)}">${ic(folded(k) ? 'right' : 'down', 14)}<span>${title}</span></button>${add}</div>`;
-  const tags = allTags(), pinOn = !!pinActive(); // a pinned view that is showing takes the highlight from its section
+  const tags = allTags();
   // lists as a tree: a caret folds the sublists, the dots open the list menu (always visible on the selected list / on touch screens)
   const hiddenUnder = new Set(), rows = [];
   for (const { l, depth, kids } of listTree()) {
@@ -315,7 +315,7 @@ function renderSide() {
   $('#side').innerHTML = `
 <div class="brand">${logoHtml(28)}<span class="bn"><b>OpenTick</b><small class="ver" title="Version ${esc(APP_VERSION)}">v${esc(APP_VERSION)}</small></span><button class="ib" data-act="uitoggle" data-k="side" title="${S.settings.ui.side ? 'Hide sidebar' : 'Dock sidebar'}">${ic('panel-left', 18)}</button><button class="ib" data-act="settings" title="Settings">${ic('sliders', 18)}</button></div>
 <div class="search">${ic('search', 16)}<input id="q" placeholder="Search everything" aria-label="Search everything: tasks, notes, templates, settings" autocomplete="off" readonly>${U.q ? `<button class="ib sm" data-act="qclear" title="Clear this search" aria-label="Clear this search">${ic('x', 14)}</button>` : ''}</div>
-<div class="pages">${pagesGrid().map(([k, n, i]) => `<button class="pg${secOf(U.page) === k && !pinOn ? ' on' : ''}" data-act="page" data-page="${sectionTarget(k)}" data-sec="${k}" title="${n} — drag to reorder" draggable="true">${ic(i, 20)}<small>${n}</small></button>`).join('')}${pinsHtml('side')}${pagesMoreBtn()}</div>
+<div class="pages">${navHtml('side')}${pagesMoreBtn()}</div>
 <div class="scroll">
 ${SMART.map(([k, n, i]) => item(k, n, i, null, openCount(k))).join('')}
 ${sec('lists', 'Lists', `<button class="ib sm" data-act="addlist" title="New list" aria-label="New list">${ic('plus', 14)}</button>`)}
@@ -423,8 +423,8 @@ function renderTasks() {
 
 /* ---------- history page ---------- */
 const HIST_ICON = { add: 'plus', edit: 'notes', done: 'check-circle', reopen: 'refresh', wontdo: 'slash', delete: 'trash', restore: 'upload', purge: 'x', import: 'download' };
-const HIST_KIND_NAME = { task: 'Task', list: 'List', project: 'Project', habit: 'Habit', note: 'Note', template: 'Template', countdown: 'Countdown', zone: 'Time zone', board: 'Board', slot: 'Slot', app: '' };
-const HIST_FIELD = { title: 'Title', due: 'Due date', time: 'Time', dur: 'Duration', priority: 'Priority', tags: 'Tags', listId: 'List', section: 'Section', repeat: 'Repeat', reminder: 'Reminder', notes: 'Notes', subtasks: 'Subtasks', start: 'Plan start', astart: 'Actual start', slotId: 'Timetable slot', name: 'Name', color: 'Colour', icon: 'Icon', goal: 'Goal', sections: 'Sections', view: 'View', days: 'Days', end: 'End', loc: 'Location', body: 'Text', pinned: 'Pin', projectId: 'Project', banner: 'Banner', columns: 'Columns', scope: 'Scope', tz: 'Time zone', kb: 'Board column' };
+const HIST_KIND_NAME = { task: 'Task', list: 'List', project: 'Project', habit: 'Habit', note: 'Note', template: 'Template', countdown: 'Countdown', zone: 'Time zone', board: 'Board', slot: 'Slot', contact: 'Contact', section: 'Section', entry: 'Entry', app: '' };
+const HIST_FIELD = { title: 'Title', due: 'Due date', time: 'Time', dur: 'Duration', priority: 'Priority', tags: 'Tags', listId: 'List', section: 'Section', repeat: 'Repeat', reminder: 'Reminder', notes: 'Notes', subtasks: 'Subtasks', start: 'Plan start', astart: 'Actual start', slotId: 'Timetable slot', name: 'Name', color: 'Colour', icon: 'Icon', goal: 'Goal', sections: 'Sections', view: 'View', days: 'Days', end: 'End', loc: 'Location', body: 'Text', pinned: 'Pin', projectId: 'Project', banner: 'Banner', columns: 'Columns', scope: 'Scope', tz: 'Time zone', kb: 'Board column', org: 'Organisation', role: 'Role', emails: 'Emails', phones: 'Phone numbers', avail: 'Available hours', contactIds: 'People', classIds: 'Classes', fields: 'Fields', vals: 'Details' };
 function histVal(k, v) {
   if (v == null || v === '') return 'none';
   if (k === 'due' || k === 'start' || k === 'astart') return fmtDate(v);
@@ -478,7 +478,7 @@ function histListHtml() {
 function renderHistory() {
   const h = U.hist, base = histFiltered(), cnt = a => base.filter(e => e.a === a).length;
   const acts = Object.keys(HIST_ACT).filter(a => S.history.some(e => e.a === a));
-  const kinds = ['task', 'list', 'project', 'habit', 'note', 'template', 'countdown', 'zone', 'board', 'slot'].filter(k => S.history.some(e => e.k === k));
+  const kinds = ['task', 'list', 'project', 'habit', 'note', 'template', 'countdown', 'zone', 'board', 'slot', 'contact', 'section', 'entry'].filter(k => S.history.some(e => e.k === k));
   $('#main').innerHTML = topHtml('History', `<select data-hsel="sort" title="Order">${opts([['new', 'Newest first'], ['old', 'Oldest first'], ['action', 'By action'], ['name', 'By name']], h.sort)}</select>${S.history.length ? `<button class="btn" data-act="hclear">Clear</button>` : ''}`)
     + `<div class="hfilters"><div class="search hs">${ic('search', 16)}<input id="hq" placeholder="Search the history" autocomplete="off" value="${esc(h.q)}"></div><div class="hchips">${acts.map(a => `<button class="tfc hc a-${a}${h.acts.includes(a) ? ' on' : ''}" data-act="hact" data-a="${a}" aria-pressed="${h.acts.includes(a)}">${HIST_ACT[a]}<small>${cnt(a)}</small></button>`).join('')}${kinds.length > 1 ? '<span class="hsep"></span>' + kinds.map(k => `<button class="tfc${h.kinds.includes(k) ? ' on' : ''}" data-act="hkind" data-k="${k}" aria-pressed="${h.kinds.includes(k)}">${HIST_KIND_NAME[k]}s</button>`).join('') : ''}${h.acts.length || h.kinds.length || h.q ? '<button class="btn sm" data-act="hreset">Reset</button>' : ''}</div></div>`
     + `<div class="body hist" id="hlist">${histListHtml()}</div><p class="hint pad">Kept on this device only (last ${HIST_MAX}). Quick edits to one item are combined.</p>`;
@@ -710,6 +710,7 @@ ${gtDetailHtml(t)}
 ${t.tags.length ? `<div class="chips tg">${t.tags.map(g => `<button class="tag tagb"${tagColor(g) ? ` style="--tc:${tagColor(g)}"` : ''} data-act="tagcolor" data-tag="${esc(g)}" title="Colour this tag">#${esc(g)}</button>`).join('')}<small class="hint">tap a tag to colour it</small></div>` : ''}
 ${notesHtml(t)}
 ${linkedNotesHtml(t)}
+${typeof ctPeopleHtml === 'function' ? ctPeopleHtml('task', t) : ''}
 ${filesHtml('task', t.id)}
 <div class="subs"><h4>Subtasks</h4>${t.subtasks.map(s => `<div class="sub"><button class="chk sm${s.done ? ' on' : ''}" data-act="subtog" data-sid="${s.id}">${s.done ? ic('check', 11) : ''}</button><input data-sf="${s.id}" value="${esc(s.title)}" class="${s.done ? 'fin' : ''}">${s.start || s.due ? `<small class="sd" title="Subtask dates (shown in the Gantt view)">${esc(s.start && s.due ? fmtDate(s.start) + ' – ' + fmtDate(s.due) : fmtDate(s.start || s.due))}</small>` : ''}<button class="ib sm" data-act="subdel" data-sid="${s.id}">${ic('x', 14)}</button></div>`).join('')}<input id="d-subnew" placeholder="+ Add subtask" autocomplete="off"></div>
 </div>

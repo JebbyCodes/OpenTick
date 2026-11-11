@@ -1,0 +1,41 @@
+# How GitHub groups the automatic "What's Changed" list that the Release workflow adds under OpenTick's own release description.
+# (It is read by GitHub itself when a release is made with generate_release_notes; it is not a workflow.)
+#
+# A pull request lands in the first category whose label it carries, so one label is enough. Unlabelled pull requests fall into "Other changes".
+# Dependabot already labels its pull requests `dependencies`. docs/RELEASING.md lists the labels worth using.
+
+changelog:
+  exclude:
+    labels:
+      - skip-changelog
+      - duplicate
+      - invalid
+      - wontfix
+      - question
+    authors:
+      - github-actions
+  categories:
+    - title: "⚠️ Breaking changes"
+      labels: [breaking]
+    - title: "🔒 Security and privacy"
+      labels: [security, privacy]
+    - title: "✨ New features"
+      labels: [feature, enhancement]
+    - title: "👥 Contacts"
+      labels: [contacts]
+    - title: "🧩 Custom sections, packs and themes"
+      labels: [sections, packs, marketplace, themes]
+    - title: "🔄 Sync and encryption"
+      labels: [sync, encryption]
+    - title: "🐛 Bug fixes"
+      labels: [bug, fix]
+    - title: "📱 Platforms and packaging"
+      labels: [platform, android, ios, desktop, windows, macos, linux, docker, snap, web, watch, packaging]
+    - title: "🚀 Release and CI"
+      labels: [ci, release, workflow]
+    - title: "📚 Documentation"
+      labels: [documentation, docs]
+    - title: "📦 Dependencies"
+      labels: [dependencies]
+    - title: "Other changes"
+      labels: ["*"]

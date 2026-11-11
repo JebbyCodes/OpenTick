@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { missing, REQUIRED, OPTIONAL } from '../scripts/release/collect-assets.mjs';
 import { RULES, buildNotes, downloadsTable } from '../scripts/release/release-notes.mjs';
+import { STAGES, summarise } from '../scripts/release/run-summary.mjs';
 import { stagedName, flavourOf } from '../scripts/android/stage-apks.mjs';
 const root = new URL('..', import.meta.url).pathname, rd = p => readFileSync(join(root, p), 'utf8');
 const V = JSON.parse(rd('package.json')).version;
@@ -72,6 +73,7 @@ const EXPECTED_WORKFLOWS = [
   'build-web.yml',
   'ci.yml',
   'deploy-pages.yml',
+  'prepare-release.yml',
   'publish-chocolatey.yml',
   'publish-docker.yml',
   'publish-microsoft-store.yml',
@@ -84,7 +86,7 @@ const EXPECTED_WORKFLOWS = [
 assert.deepEqual(
   WF,
   EXPECTED_WORKFLOWS,
-  'workflow files are named build-* / publish-* / deploy-* / ci / release',
+  'workflow files are named build-* / publish-* / deploy-* / prepare-release / ci / release',
 );
 
 for (const f of WF) {
@@ -273,4 +275,48 @@ assert.ok(readFileSync(join(tmp, 'out/SHA256SUMS.txt'), 'utf8').split('\n').filt
 writeFileSync(join(tmp, 'b', FULL[0]), 'dup'); mkdirSync(join(tmp, 'c')); writeFileSync(join(tmp, 'c', FULL[0]), 'dup2');
 r = spawnSync('node', ['scripts/release/collect-assets.mjs', '--from', join(tmp, '.'), '--to', join(tmp, 'out2'), '--version', V], { cwd: root, encoding: 'utf8' });
 assert.notEqual(r.status, 0, 'two jobs making the same file name is an error');
+/* ---- Prepare release: the version bump from the Actions tab ---- */
+const prep = wf('prepare-release.yml');
+assert.match(prep, /on:\n\s+workflow_dispatch:/, 'Prepare release is started by hand');
+assert.ok(!/^\s+(push|pull_request|schedule):/m.test((/^on:\n((?:[ \t].*\n|\n)*)/m.exec(prep) || [])[1] || ''), 'Prepare release has no other trigger');
+assert.match(prep, /npm run --silent bump -- "\$VERSION"/, 'it runs the same bump as `npm run bump`');
+assert.match(prep, /npm run --silent version:check/, 'and proves every file agrees afterwards');
+assert.ok(!/\$\{\{\s*inputs\.version\s*\}\}/.test(prep.split('\n').filter(l => !/^\s*(VERSION_INPUT|description):/.test(l)).join('\n')), 'the typed version is only read through an environment variable, never pasted into a script');
+assert.match(prep, /release\/v/, 'it works on a release/vX.Y.Z branch');
+assert.match(prep, /pull-requests: write/); assert.match(prep, /ls-remote --exit-code --tags/, 'it refuses a version whose tag already exists');
+assert.ok(!/gh release|git tag |git push [^\n]*--tags|git push origin "?v/.test(prep.replace(/^\s*(#|echo ).*$/gm, '')), 'it prepares a release; it never tags or publishes one');
+
+/* ---- the release run's status table ---- */
+const relJobs = [...rel.slice(rel.indexOf('\njobs:')).matchAll(/^  ([a-z][a-z-]*):\s*$/gm)].map(x => x[1]);
+assert.deepEqual([...relJobs].sort(), [...STAGES.map(s => s[0]), 'summary'].sort(), 'every job in release.yml has a line in the status table, and the table has no stale lines');
+const sumNeeds = (/\n  summary:[\s\S]*?needs: \[([^\]]+)\]/.exec(rel) || [])[1] || '';
+assert.deepEqual(sumNeeds.split(',').map(s => s.trim()).sort(), STAGES.map(s => s[0]).sort(), 'the summary job waits for every stage');
+assert.match(rel, /\n  summary:[\s\S]*?if: \$\{\{ always\(\) \}\}/, 'and runs even when one failed');
+const ok = Object.fromEntries(STAGES.map(s => [s[0], { result: 'success', outputs: {} }]));
+ok.prepare.outputs = { tag: 'v9.9.9', publish: 'true', stable: 'true' };
+let sm = summarise(ok);
+assert.ok(sm.released && sm.failedRequired.length === 0 && /was released/.test(sm.markdown) && /v9\.9\.9/.test(sm.markdown), 'a clean release says so');
+assert.equal(sm.markdown.split('\n').filter(l => /^\| \*\*|^\| `/.test(l)).length, STAGES.length, 'one table row per stage');
+sm = summarise({ ...ok, desktop: { result: 'failure' }, release: { result: 'skipped' } });
+assert.deepEqual(sm.failedRequired, ['desktop']); assert.ok(!sm.released && /No release was made/.test(sm.markdown) && /`desktop`/.test(sm.markdown), 'a failed required stage is named');
+sm = summarise({ ...ok, ios: { result: 'failure' }, watch: { result: 'skipped' }, 'publish-scoop': { result: 'failure' } });
+assert.ok(sm.released && sm.failedRequired.length === 0 && JSON.stringify(sm.failedOptional) === JSON.stringify(['ios', 'publish-scoop']) && /Optional stages that did not work/.test(sm.markdown), 'an optional stage failing does not stop the release but is reported');
+sm = summarise({ ...ok, prepare: { result: 'success', outputs: { tag: 'v9.9.9', publish: 'false', stable: 'true' } }, release: { result: 'skipped' } });
+assert.ok(/Dry run/.test(sm.markdown) && !sm.released, 'a dry run is called one');
+sm = summarise({ ...ok, prepare: { result: 'success', outputs: { tag: 'v9.9.9-beta.1', publish: 'true', stable: 'false' } }, 'publish-scoop': { result: 'skipped' } });
+assert.ok(/pre-release/.test(sm.markdown) && /stable releases only/.test(sm.markdown), 'a pre-release explains why the stores were skipped');
+assert.ok(/Tag, code and CHANGELOG/.test(summarise({ prepare: { result: 'failure' } }).markdown) || /could not be checked/.test(summarise({ prepare: { result: 'failure' } }).markdown), 'a failed tag check is reported first');
+assert.doesNotThrow(() => summarise(undefined), 'no data at all still produces a table');
+r = spawnSync('node', ['scripts/release/run-summary.mjs'], { cwd: root, encoding: 'utf8', env: { ...process.env, NEEDS: JSON.stringify(ok), GITHUB_REPOSITORY: 'a/b', GITHUB_RUN_ID: '7' } });
+assert.equal(r.status, 0, r.stderr); assert.ok(r.stdout.includes('actions/runs/7') && r.stdout.includes('| Stage | Result |'), 'the command line prints the table');
+r = spawnSync('node', ['scripts/release/run-summary.mjs'], { cwd: root, encoding: 'utf8', env: { ...process.env, NEEDS: 'not json' } });
+assert.equal(r.status, 0, 'a broken NEEDS never fails the run');
+
+/* ---- GitHub's release-notes categories, and the checks CI makes ---- */
+const rn = rd('.github/release.yml');
+assert.match(rn, /^changelog:/m); assert.match(rn, /labels: \["\*"\]/, 'unlabelled pull requests still land somewhere');
+for (const label of ['contacts', 'sections', 'packs', 'themes', 'sync', 'encryption', 'security', 'bug', 'documentation', 'dependencies']) assert.ok(new RegExp('\\b' + label + '\\b').test(rn), 'release notes have a place for the ' + label + ' label');
+assert.ok(rd('docs/RELEASING.md').includes('.github/release.yml'), 'RELEASING.md explains the release-notes categories');
+assert.match(ci, /npm run packs:check/, 'CI checks the pack library'); assert.match(rd('.github/workflows/deploy-pages.yml'), /site\/marketplace/, 'the website serves the pack library');
+
 console.log('release pipeline tests passed');

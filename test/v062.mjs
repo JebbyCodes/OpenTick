@@ -59,7 +59,7 @@ assert.equal(typeof A.NOTE_ACT.notetpl === 'function' || typeof A.ACT.notetpl ==
 
 /* the sync file and the vault are not touched by any of this: same collections in the snapshot, same payload parts, and a view change is not a data change */
 const snap = A.snapshot();
-eq(Object.keys(snap), ['tasks', 'lists', 'habits', 'tags', 'slots', 'notes', 'projects', 'school', 'templates', 'countdowns', 'zones', 'boards', 'pomo', 'tomb'], 'the synced collections are the same as in 0.6.1');
+eq(Object.keys(snap), ['tasks', 'lists', 'habits', 'tags', 'slots', 'notes', 'projects', 'school', 'templates', 'countdowns', 'zones', 'boards', 'contacts', 'csections', 'centries', 'pomo', 'tomb'], 'the synced collections are those of 0.6.1, plus contacts and custom sections (0.8)');
 eq(Object.keys(A.buildPayload()), ['snap', 'fp', 'text'], 'the sync payload has the same parts');
 const fp = A.fingerprint(A.snapshot()); A.calGo('week'); A.calGo('month'); assert.equal(A.fingerprint(A.snapshot()), fp, 'moving around the Calendar does not look like an edit to sync');
 console.log('0.6.2 tests passed (one Calendar, names, search, templates in Notes, sync shape)');

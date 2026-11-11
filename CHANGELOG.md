@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.8.0
+
+**Fixed**
+- Fixed: **pressing Calendar lit the wrong button and opened Classes** when you had a view pinned (for example Classes). Calendar, or whichever section sits fourth, now lights up when you press it and opens itself. A pinned view is lit only when you pressed that pin, so two buttons are never lit at once.
+- Fixed: **the "Next" line on a project card did not scroll to its end.** Long names that slide sideways (calendar chips, timetable blocks, task rows in a narrow window, the project card) now always travel to their real last letter. The old version measured the text in advance and could stop short.
+- Fixed: a menu or a tooltip no longer closes by itself while a long name is sliding past.
+- Fixed: the phone's tab bar fits six sections and **More** on a small screen, and More stays at the end when pins make the bar scroll. The printed Help guide's contents list is in two columns again.
+
+**App**
+- New: **drag a long name with your hand.** A name that is too long and slides can now be moved yourself: drag it with the mouse, swipe it on a touch screen, use a trackpad or Shift + mouse wheel. It holds still while you read and carries on a moment after you let go. With Animations off or "reduce motion" it does not move by itself but can still be dragged.
+- New: **pinned views are part of the sections' order.** Drag a pin among the sections, or use **Move earlier / Move later** in its right-click (or press-and-hold) menu, or the arrows in Settings → Layout. One order for the sidebar and the phone's tab bar, kept on each device.
+- New: **Contacts**, a book of the people you work and study with: name, nickname, role, organisation, any number of labelled emails and phone numbers, website, address, birthday, time zone, notes and tags, and **available hours** (the card says "Available now · until 3:00 PM" or "Free tomorrow from 9:00 AM", worked out in their time zone). Filter by available now, favourites, tags or class contacts; sort and search. Email and phone buttons open your own mail and phone apps; OpenTick sends nothing.
+- New: **link people to your work.** A task, a note, a class or a section entry can be linked to any number of people, and the person's page lists everything linked to them. Write `@[Name]` in a note (or type `@` in the block editor, or use the Mention button in the toolbar) for a link to their page; rename a person and mentions follow. In the task box, `+anna` links a person ("Send the report +anna tomorrow").
+- New: **teachers are contacts.** Every teacher in Classes is also a contact, with name, email and phone shared both ways, grouped as **Class contacts** on the Contacts page. Existing teachers become contacts the first time you open 0.8.0.
+- New: **your own sections.** Make a section for anything (a reading list, recipes, spending, gift ideas, workouts) with the fields you choose: text, note, number, date, tick box, choice, rating, link or tags. Show it as a list, cards or a table, sort and group it, give it a colour and icon, search it, link people, pin it, hide it, use it as your start screen. **Add a section…** is in Settings → Layout and the command palette; seven templates are built in.
+- New: **packs.** Settings → Sections & packs exports your sections as one small file, and adds a pack someone sent you (a file or pasted text). A pack holds only sections, starter entries and colours: no code, no internet, no access to your data, and it never switches your theme. Adding a pack always makes new sections and never overwrites yours. Four sample packs are in the repository's `marketplace/` folder (study planner, garden journal, home maintenance, calm themes) and published at `/marketplace/` on the website. A marketplace for packs and themes is planned and will use these same files; the author guide is `docs/PACKS.md`.
+- Changed: search (Ctrl + K) finds people and your own sections' entries; the start screen can be Contacts or one of your sections; the Help page has chapters for Contacts and for sections and packs; the privacy policy covers both.
+
+**Releases**
+- New: **Prepare release** workflow (Actions → Prepare release). Type the version and it bumps every file, pushes `release/vX.Y.Z` and opens a pull request with a checklist; it never tags or publishes.
+- New: **every release run ends with a status table** of all stages (required or optional, passed or failed), GitHub's release notes are grouped by pull request label (`.github/release.yml`), and CI checks the pack library (`npm run packs:check`), which the website also serves.
+- Changed: `docs/RELEASING.md` is reorganised (quick start, what a run does, the workflows, release notes, CI, secrets, platform notes, troubleshooting).
+
+**Sync and encryption**
+- **The sync file is now schema 7.** It adds contacts, your sections and their entries, and the people linked to tasks, notes and classes. **Update every device to 0.8.0 before syncing between them:** an older version refuses a file written by a newer one ("please update this app") rather than guessing, and a 0.8.0 device reads an older file as having no contacts or sections and keeps its own. Deleting a contact or a section is carried to the other devices like any other deletion.
+- Contacts, sections and entries are encrypted, backed up, exported and synced like tasks and notes: sealed when encryption is on and re-sealed when it is turned on, off or re-keyed. Tests cover every collection, merging edits from two devices, and encryption on and off.
+- The layout (the order of sections and pins) stays a setting of the device and is never part of the sync file.
+
 ## 0.7.0
 
 **App**

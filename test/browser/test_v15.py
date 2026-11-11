@@ -45,9 +45,11 @@ with sync_playwright() as p:
     b, ctx, pg = launch(p, mobile=False, w=1000, h=800)
     pg.evaluate("S.tasks.push(newTask({title:'An extremely long task name that will certainly not fit inside a calendar chip at all, not even close',due:todayStr()})); save(); U.page='calendar'; render()")
     pg.wait_for_timeout(900); assert pg.locator('.mq-on').count() >= 1, 'a truncated chip scrolls'
-    assert pg.evaluate("getComputedStyle(document.querySelector('.mq-on > .mqi')).animationName") == 'mq'
+    assert pg.evaluate("getComputedStyle(document.querySelector('.mq-on')).overflowX") == 'auto', 'it is its own scroller'
+    pg.wait_for_function("[...document.querySelectorAll('.mq-on')].some(e=>e.scrollLeft>2)", timeout=6000)
     pg.emulate_media(reduced_motion='reduce'); pg.evaluate("render()"); pg.wait_for_timeout(700)
-    assert pg.evaluate("[...document.querySelectorAll('.mq-on > .mqi')].every(e=>getComputedStyle(e).animationName==='none')"), 'reduced motion stops it'
+    pos = pg.evaluate("[...document.querySelectorAll('.mq-on')].map(e=>e.scrollLeft)"); pg.wait_for_timeout(1800)
+    assert pg.evaluate("[...document.querySelectorAll('.mq-on')].map(e=>e.scrollLeft)") == pos, 'reduced motion stops it'
     assert not pg.errs, pg.errs; b.close()
 
     # embeds render as players and notes inside notes

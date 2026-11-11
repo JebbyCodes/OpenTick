@@ -6,7 +6,8 @@ name: CI
 # =====================================================================================================================================
 #  Runs three independent checks side by side:
 #
-#    1. Tests and checks   version numbers agree, the workflow files are consistent, the unit tests pass, the web app builds
+#    1. Tests and checks   version numbers agree, the workflow files are consistent, the pack library (marketplace/) is valid,
+#                          the unit tests pass, the web app builds
 #    2. Browser tests      the real app in headless Chromium (Playwright)
 #    3. Rust check         the desktop / mobile shell still compiles (`cargo check --locked`)
 #
@@ -63,6 +64,11 @@ jobs:
 
       - name: Check the GitHub workflow files for mistakes
         run: python scripts/ci/lint-workflows.py
+
+      # marketplace/ holds the sample section packs and themes. Every file in it is parsed and checked the way the app checks a pack it is
+      # asked to install, so a broken pack or a wrong index.json is caught here and not by someone who installs it.
+      - name: Check the pack library (marketplace/)
+        run: npm run packs:check
 
       - name: Run the unit and regression tests
         run: npm test

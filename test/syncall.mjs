@@ -1,7 +1,7 @@
 // Every kind of data you can make travels between two devices through an encrypted sync file, and nothing in the file is readable.
 // The list of kinds comes from the app itself (COLL), so a collection added later without being covered here fails this test.
 import assert from 'node:assert/strict';
-import { makeApp, fakeIndexedDB } from './harness.mjs';
+import { makeApp, fakeIndexedDB, clock } from './harness.mjs';
 import { davServer } from './dav-mock.mjs';
 const PASS = 'correct horse battery staple', FILE = '/dav/OpenTick/opentick.json';
 const makeDev = () => { const a = makeApp({ store: {}, indexedDB: fakeIndexedDB() }); return a; };
@@ -23,6 +23,9 @@ const mk = {
   countdowns: () => A.cdNormalise({ id: 'cd-sa', name: W('countdown'), date: '2030-01-01', time: '10:00' }),
   zones: () => ({ id: 'z-sa', name: W('zone'), tz: 'Asia/Tokyo' }),
   boards: () => ({ ...A.kbNewBoard(W('board')), id: 'b-sa' }),
+  contacts: () => A.ctNormalise({ id: 'ct-sa', name: W('contact'), org: W('org'), emails: [{ l: 'Work', v: 'sa@example.com' }], tags: ['sa'], avail: { days: { 1: [['09:00', '12:00']] }, note: W('availnote') } }),
+  csections: () => A.xsNormalise({ id: 'x-sa', name: W('section'), icon: 'book-open', fields: [{ id: 'f1', name: W('field'), type: 'text' }, { id: 'f2', name: 'Status', type: 'select', opts: ['A', 'B'] }] }),
+  centries: () => A.xeNormalise({ id: 'xe-sa', sid: 'x-sa', title: W('entry'), vals: { f1: W('value'), f2: 'B' }, contactIds: ['ct-sa'] }),
 };
 assert.deepEqual(Object.keys(mk).sort(), [...A.COLL].sort(), 'every synced collection is covered by this test');
 for (const c of A.COLL) { const o = mk[c](); A.S[c].push(o); }
@@ -45,9 +48,12 @@ for (const c of A.COLL) assert.ok(B.S[c].some(o => JSON.stringify(o).includes('S
 assert.equal(B.S.zones.find(z => z.id === 'z-sa').tz, 'Asia/Tokyo');
 assert.equal(B.S.countdowns.find(c => c.id === 'cd-sa').date, '2030-01-01');
 assert.equal(B.S.boards.find(b => b.id === 'b-sa').cols.length, A.S.boards.find(b => b.id === 'b-sa').cols.length);
+assert.equal(JSON.stringify(B.S.contacts.find(c => c.id === 'ct-sa').avail.days[1]), '[["09:00","12:00"]]', 'available hours arrive intact');
+assert.equal(B.S.csections.find(x => x.id === 'x-sa').fields.length, 2); assert.equal(JSON.stringify(B.S.centries.find(e => e.id === 'xe-sa').contactIds), '["ct-sa"]', 'an entry keeps its link to a contact');
 
 // edits and deletions in each collection travel back, still sealed
 B.S.zones.find(z => z.id === 'z-sa').name = W('zone2'); B.S.countdowns.find(c => c.id === 'cd-sa').name = W('cd2'); B.S.boards.find(b => b.id === 'b-sa').name = W('board2');
+B.S.contacts.find(c => c.id === 'ct-sa').phones = [{ l: 'Mobile', v: W('phone2') }]; B.S.centries.find(e => e.id === 'xe-sa').title = W('entry2'); B.S.csections.find(x => x.id === 'x-sa').name = W('section2');
 B.S.templates.splice(0, 1); B.S.tags.splice(0, 1);
 B.save(); B.flush(); await B.syncNow(true);
 assert.ok(!srv.files.get(FILE).body.includes('SECRET-'), 'what B uploaded is sealed');
@@ -56,7 +62,13 @@ assert.equal(A.Sync.state, 'ok', A.Sync.msg);
 assert.equal(A.S.zones.find(z => z.id === 'z-sa').name, W('zone2'));
 assert.equal(A.S.countdowns.find(c => c.id === 'cd-sa').name, W('cd2'));
 assert.equal(A.S.boards.find(b => b.id === 'b-sa').name, W('board2'));
+assert.equal(A.S.contacts.find(c => c.id === 'ct-sa').phones[0].v, W('phone2')); assert.equal(A.S.centries.find(e => e.id === 'xe-sa').title, W('entry2')); assert.equal(A.S.csections.find(x => x.id === 'x-sa').name, W('section2'));
 assert.ok(!A.S.templates.some(t => t.name === W('template')), 'a deleted template is deleted everywhere');
 assert.ok(!A.S.tags.some(t => t.id === 't-sa'), 'a deleted tag is deleted everywhere');
+// deleting a contact, an entry and a section travels too (a moment later than B's edits, which is what a delete after them means)
+clock.t += 60000;
+A.S.contacts.splice(0, A.S.contacts.length); A.S.centries.splice(0, A.S.centries.length); A.S.csections.splice(0, A.S.csections.length);
+A.save(); A.flush(); await A.syncNow(true); await B.syncNow(true);
+assert.equal(B.S.contacts.length + B.S.centries.length + B.S.csections.length, 0, 'deleted contacts, entries and sections are deleted on the other device');
 srv.server.close();
 console.log('syncall: ok');

@@ -40,14 +40,15 @@ const base0 = () => ({ tasks: [], lists: [], tags: [], habits: [], slots: [], no
 
   // the buttons: drawn in the sidebar and in the tab bar, one button lit at a time
   U.page = 'kanban';
+  assert.equal(A.pinActive(), null, 'being on a page that is also pinned does not light the pin: only the button that was pressed is lit'); U.pinKey = 'page:kanban';
   assert.equal(A.pinActive().key, 'page:kanban');
   assert.match(A.pinsHtml('side'), /class="pg pin on"[^>]*data-pin="page:kanban"/); assert.doesNotMatch(A.pinsHtml('side'), /data-pin="cal:week"[^>]*class="pg pin on"|class="pg pin on"[^>]*data-pin="cal:week"/);
-  assert.match(A.pinsHtml('bar'), /<button class="pin on" data-act="pingo" data-pin="page:kanban">/);
+  assert.match(A.pinsHtml('bar'), /<button class="pin on" data-act="pingo" data-pin="page:kanban"[^>]*>/);
   A.renderSide();
   assert.doesNotMatch(A.pinsHtml('side'), /<script/i);
   // a pin to the Calendar's week is lit on the week view, not on the month
   A.calGo('month'); assert.equal(A.pinActive(), null, 'the month view is not a pinned one');
-  A.calGo('week'); assert.equal(A.pinActive().key, 'cal:week');
+  A.calGo('week'); assert.equal(A.pinActive(), null, 'the pin is lit only after it was pressed'); U.pinKey = 'cal:week'; assert.equal(A.pinActive().key, 'cal:week');
   // damaged or unknown entries are not shown (and do not throw)
   S.settings.ui.pins = ['page:kanban', 'page:gone', 7, null, 'cal:week']; assert.equal(A.pinsShown().length, 2); assert.doesNotThrow(() => { A.pinsHtml('side'); A.pinsHtml('bar'); A.pinSettingsHtml(); });
   S.settings.ui.pins = ['page:kanban', 'cal:week'];
@@ -65,12 +66,12 @@ const base0 = () => ({ tasks: [], lists: [], tags: [], habits: [], slots: [], no
   U.page = 'inbox'; assert.equal(A.pinKeyOf(fake('header.top h1')), null, 'a list is not a view of its own');
 
   // the menu text: pin / unpin, and the pinned button's own menu
-  S.settings.ui.pins = [];
+  S.settings.ui.pins = []; S.settings.ui.navOrder = [];
   U.page = 'kanban'; let it = A.pinCtxItems(fake('header.top h1')); assert.equal(it.length, 1); assert.match(it[0].label, /^Pin “Board” to the (sidebar|tab bar)$/);
   A.pinToggle('page:kanban'); it = A.pinCtxItems(fake('header.top h1')); assert.equal(it[0].label, 'Unpin “Board”');
   A.pinToggle('cal:week');
-  const own = k => ({ dataset: { pin: k }, closest: s => (s.includes('data-pin') ? { dataset: { pin: k } } : null) });
-  it = A.pinCtxItems(own('page:kanban')); eq(it.filter(x => !x.sep).map(x => x.label), ['Open', 'Move later', 'Unpin “Board”']);
+  const own = k => { const el = { dataset: { pin: k, nk: 'pin:' + k } }; return { ...el, closest: s => (s.includes('data-nk') || s.includes('data-pin') ? el : null) }; };
+  it = A.pinCtxItems(own('page:kanban')); eq(it.filter(x => !x.sep).map(x => x.label), ['Open', 'Move earlier', 'Move later', 'Unpin “Board”'], 'a pin can move up past the sections: they share one order');
   it = A.pinCtxItems(own('cal:week')); eq(it.filter(x => !x.sep).map(x => x.label), ['Open', 'Move earlier', 'Unpin “Week”']);
   assert.equal(A.pinCtxItems(fake('p')), null, 'elsewhere the normal menus stay');
   // the shared context menu asks pins first, so a title never gets the menu of the thing behind it

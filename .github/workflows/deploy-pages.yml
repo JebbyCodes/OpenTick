@@ -8,6 +8,7 @@ name: Deploy / Website
 #    /eink/                  the e-ink edition (black and white, no animation, page buttons)
 #    /watch/                 the smartwatch edition (full-screen pages for a small round or square screen)
 #    /privacy-policy.html    the privacy policy, built from docs/privacy-policy.md
+#    /marketplace/           the pack library (index.json and packs/*.json): sample section packs and themes, plain files anyone can read
 #
 #  When it runs: on every push to `main`, or by hand (Actions -> Deploy / Website -> Run workflow).
 #  One-time setup: Settings -> Pages -> Source = "GitHub Actions".
@@ -44,18 +45,22 @@ jobs:
       - name: Set up Node.js and install npm packages
         uses: ./.github/actions/setup-node
 
-      - name: Build all three editions and the privacy policy
+      - name: Build all three editions, the privacy policy and the pack library
         shell: bash
         run: |
           set -euo pipefail
           node build-app.mjs --out site              # the normal app at the root
           node build-app.mjs --eink --out site/eink  # the e-ink edition under /eink/
           node build-app.mjs --watch --out site/watch  # the smartwatch edition under /watch/
+          # The pack library is published as plain files, after being checked the same way CI checks it.
+          node scripts/packs/validate-packs.mjs
+          mkdir -p site/marketplace && cp -r marketplace/. site/marketplace/
           test -f docs/privacy-policy.md
           npx --yes marked --gfm --output site/privacy-policy.html docs/privacy-policy.md
           test -f site/index.html
           test -f site/eink/index.html
           test -f site/watch/index.html
+          test -f site/marketplace/index.json
           echo "The site contains:"
           find site -maxdepth 2 -type f | sort
 

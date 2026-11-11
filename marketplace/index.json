@@ -1,0 +1,69 @@
+{
+  "opentick": "marketplace",
+  "format": 1,
+  "updated": "2026-11-10",
+  "packs": [
+    {
+      "id": "calm-themes",
+      "file": "packs/calm-themes.json",
+      "name": "Calm themes",
+      "version": "1.0.0",
+      "author": "OpenTick",
+      "description": "Three quiet themes: Forest and Dusk for the evening, Paper for the day.",
+      "license": "CC0-1.0",
+      "sections": 0,
+      "themes": 3,
+      "entries": 0,
+      "tags": [
+        "themes"
+      ]
+    },
+    {
+      "id": "garden-journal",
+      "file": "packs/garden-journal.json",
+      "name": "Garden journal",
+      "version": "1.0.0",
+      "author": "OpenTick",
+      "description": "What you planted, where, and how often it wants watering.",
+      "license": "CC0-1.0",
+      "sections": 1,
+      "themes": 0,
+      "entries": 2,
+      "tags": [
+        "home",
+        "hobby"
+      ]
+    },
+    {
+      "id": "home-maintenance",
+      "file": "packs/home-maintenance.json",
+      "name": "Home maintenance",
+      "version": "1.0.0",
+      "author": "OpenTick",
+      "description": "The jobs a home needs now and then, with when each was last done.",
+      "license": "CC0-1.0",
+      "sections": 1,
+      "themes": 0,
+      "entries": 3,
+      "tags": [
+        "home"
+      ]
+    },
+    {
+      "id": "study-planner",
+      "file": "packs/study-planner.json",
+      "name": "Study planner",
+      "version": "1.0.0",
+      "author": "OpenTick",
+      "description": "Topics to learn and revise, with how confident you feel and when to look at them again.",
+      "license": "CC0-1.0",
+      "sections": 1,
+      "themes": 0,
+      "entries": 3,
+      "tags": [
+        "study",
+        "school"
+      ]
+    }
+  ]
+}
