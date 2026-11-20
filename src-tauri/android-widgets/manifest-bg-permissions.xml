@@ -5,4 +5,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- 0.9.0: tactile feedback and "Vibrate on phones" (navigator.vibrate in the web view needs it) -->
+    <uses-permission android:name="android.permission.VIBRATE" />
     <!-- /OpenTick background service permissions -->

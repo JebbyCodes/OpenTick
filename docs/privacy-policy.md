@@ -1,6 +1,6 @@
 # OpenTick Privacy Policy
 
-**Last updated:** 11 November 2026
+**Last updated:** 19 November 2026
 
 ## 1. Introduction
 
@@ -36,7 +36,7 @@ You can protect your data with a passphrase in Settings → Encryption. When ena
 
 Attachments and a custom reminder sound are stored in the device's own database and are encrypted with the same key when encryption is on. Countdowns, saved time zones and board headings are part of the same data: they are stored, backed up and synced like your tasks, and are encrypted with them when encryption is on.
 
-**Contacts, your own sections and packs.** Contacts hold information about other people that you type in yourself (and the teachers you add to Classes appear there too). They, the sections you create and their entries are part of your data in every way described above: stored on your device, included in backups and exports, synced only to the place you choose, and encrypted when encryption is on. Opening a person's email address or phone number hands it to your device's mail or phone app; OpenTick sends nothing itself. A *pack* is a small file of sections and colours that you can export or add from a file or pasted text. A pack contains no code and cannot read your data; exporting one never includes the people linked to your entries, and adding one makes no network request. Please add other people's details only where you have a reason to keep them, and remove them if they ask.
+**Contacts, your own sections and packs.** Contacts hold information about other people that you type in yourself (and the teachers you add to Classes appear there too). They, the sections you create and their entries are part of your data in every way described above: stored on your device, included in backups and exports, synced only to the place you choose, and encrypted when encryption is on. Opening a person's email address or phone number hands it to your device's mail or phone app; OpenTick sends nothing itself. A *pack* is a small file of sections and colours that you can export, add from a file or pasted text, or get from the pack library (see section 8). A pack contains no code and cannot read your data; exporting one never includes the people linked to your entries, and adding one from a file or pasted text makes no network request. Please add other people's details only where you have a reason to keep them, and remove them if they ask.
 
 When encryption is on, home-screen widgets, the tray menu and background notifications show only generic text, unless you choose to allow a readable summary for them.
 
@@ -65,6 +65,8 @@ OpenTick does not request access to your contacts, location, camera, microphone 
 OpenTick makes network requests only when you ask it to: for example to sync with the provider you configured, to load an embedded video, audio or web player that you put in a note, or to check for a newer version (see below). Those services are governed by their own privacy policies.
 
 **Update check.** It is off by default. If you turn on Settings → About & privacy → "Check for updates automatically", OpenTick asks GitHub's public release information for this project (api.github.com) whether a newer release exists, at most once a day while the app is open. "Check now" sends one such request, only when you press it. The request contains nothing about you, your data or your settings; as with any web request, GitHub can see the IP address it comes from and a generic client name, and handles that under its own privacy policy. OpenTick uses the answer only to show the version number and a link to the release page, and never downloads or installs anything by itself.
+
+**Pack library.** Settings → Sections & packs → Pack library, "Add a pack by code" and the command palette entries ask the pack library (the project's OpenTick-Packs website on GitHub Pages, jebbycodes.github.io) for its list of packs, and for the one pack you pick, only when you press the button or type a code. Nothing is requested in the background or when you open Settings. The requests contain nothing about you, your data or your settings, and no account or identifier is used; as with any web request, GitHub can see the IP address it comes from and a generic client name, and handles that under its own privacy policy. What comes back is data (a list, and a pack of sections and colours): it is checked before it is shown, you see what is in a pack before anything is added, and what you add is stored like the rest of your data. A link such as `?pack=CODE` on the web app opens the "Add a pack by code" dialog for that code and asks the library only after the app has opened.
 
 Third-party services that you access independently, including GitHub when viewing the project's website or reporting an issue, are governed by their own privacy policies.
 

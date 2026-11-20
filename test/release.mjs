@@ -317,6 +317,7 @@ const rn = rd('.github/release.yml');
 assert.match(rn, /^changelog:/m); assert.match(rn, /labels: \["\*"\]/, 'unlabelled pull requests still land somewhere');
 for (const label of ['contacts', 'sections', 'packs', 'themes', 'sync', 'encryption', 'security', 'bug', 'documentation', 'dependencies']) assert.ok(new RegExp('\\b' + label + '\\b').test(rn), 'release notes have a place for the ' + label + ' label');
 assert.ok(rd('docs/RELEASING.md').includes('.github/release.yml'), 'RELEASING.md explains the release-notes categories');
-assert.match(ci, /npm run packs:check/, 'CI checks the pack library'); assert.match(rd('.github/workflows/deploy-pages.yml'), /site\/marketplace/, 'the website serves the pack library');
+assert.ok(!/marketplace|packs:check/.test(ci + rd('.github/workflows/deploy-pages.yml')), 'the pack library is its own repository (OpenTick-Packs), not part of this one');
+assert.ok(!existsSync(new URL('../marketplace', import.meta.url)), 'marketplace/ moved to the OpenTick-Packs repository');
 
 console.log('release pipeline tests passed');

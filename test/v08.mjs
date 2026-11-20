@@ -96,7 +96,7 @@ assert.ok(work && back, 'folder > list became list > sublist'); assert.ok(back.s
 const again = A.importApply(D([['TickTick Backup.csv', tt]]).draft, {}); assert.equal(again.added, 0, 're-importing the same file adds nothing'); assert.equal(again.skipped, 3);
 assert.equal(A.S.lists.filter(l => l.name === 'Backend' && l.parent === work.id).length, 1, 'existing lists are reused');
 const fx = A.S.tasks.find(t => t.title === 'Fix login'); eq([fx.listId === back.id, fx.priority, fx.repeat.unit, fx.due], [true, 3, 'week', '2024-05-11']);
-assert.ok(A.S.history.some(e => e.k === 'app' && /Imported 3 tasks from TickTick/.test(e.n)), 'imports are in the history');
+assert.ok(!A.S.history.some(e => e.k === 'app' && /Imported 3 tasks from TickTick/.test(e.n)), 'history is off by default, so an import is not logged'); A.S.settings.history.on = true; A.histNote('import', 'Imported 3 tasks from TickTick'); assert.ok(A.S.history.some(e => e.k === 'app' && /Imported 3 tasks from TickTick/.test(e.n)), 'imports are in the history once it is on');
 
 /* ---- ZIP ---- */
 const crc = b => { let c, t = []; for (let n = 0; n < 256; n++) { c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } let x = 0xffffffff; for (const v of b) x = t[(x ^ v) & 255] ^ (x >>> 8); return (x ^ 0xffffffff) >>> 0; };

@@ -122,7 +122,7 @@ for (const op of ['nav', 'page', 'note', 'newnote', 'focus', 'habit']) assert.ma
 {
   const bg = kt['OpenTickBg.kt'], bj = rd('src/js/bg.js'), bm = rd(wdir + 'manifest-bg.xml'), bp = rd(wdir + 'manifest-bg-permissions.xml');
   for (const cls of ['OpenTickBgReceiver', 'OpenTickTimetableService']) { assert.match(bg, new RegExp('class ' + cls + '\\b'), cls); assert.match(bm, new RegExp('__PACKAGE__\\.' + cls), cls + ' is in the manifest'); }
-  for (const perm of ['POST_NOTIFICATIONS', 'RECEIVE_BOOT_COMPLETED', 'FOREGROUND_SERVICE', 'FOREGROUND_SERVICE_SPECIAL_USE', 'SCHEDULE_EXACT_ALARM', 'USE_EXACT_ALARM']) assert.match(bp, new RegExp('android\\.permission\\.' + perm + '"'), perm);
+  for (const perm of ['POST_NOTIFICATIONS', 'RECEIVE_BOOT_COMPLETED', 'FOREGROUND_SERVICE', 'FOREGROUND_SERVICE_SPECIAL_USE', 'SCHEDULE_EXACT_ALARM', 'USE_EXACT_ALARM', 'VIBRATE']) assert.match(bp, new RegExp('android\\.permission\\.' + perm + '"'), perm);
   assert.match(bm, /BOOT_COMPLETED/); assert.match(bm, /foregroundServiceType="specialUse"/);
   for (const [, k] of bg.matchAll(/optString\("(\w+)"\)|optLong\("(\w+)"\)/g)) void k;
   const planKeys = bj.slice(bj.indexOf('function bgPlan'), bj.indexOf('/* ---- pushing it'));

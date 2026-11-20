@@ -15,6 +15,8 @@ const BED_CMDS = [
   { id: 'mention', label: 'Mention a person', hint: 'Link someone from Contacts', words: 'mention person people contact @', needs: () => S.contacts.length > 0 },
   { id: 'note', label: 'Link to a note', hint: 'A [[link]] to another note', words: 'link note wiki mention [[' },
   { id: 'task', label: 'Link a task', hint: 'Connect a task to this note', words: 'link task connect', only: 'n' },
+  { id: 'taskref', label: 'Show a task', hint: 'A live task card, or one of its properties', words: 'task embed card property due date priority show insert occurrence repeat' },
+  { id: 'tagref', label: 'Show a tag', hint: 'Everything with a tag: tasks, notes, people and more', words: 'tag tagged hash link related everything count' },
   { id: 'date', label: "Today's date", hint: 'Type the date', words: 'date today' },
 ];
 const bedHead = b => (b.kind === 'h' ? Math.min(6, (b.pre.match(/#/g) || []).length) : 0);
@@ -26,7 +28,7 @@ function bedDefs(inst) { // reference-link and footnote definitions are shared b
   inst.defN = L.length; return L.length ? L.join('\n') + '\n' : '';
 }
 function bedView(inst, b) {
-  const src = blkSrc(b), key = inst.defs + '\u0001' + src;
+  const src = blkSrc(b), key = inst.defs + '\u0001' + src + '\u0001' + tpSig(src) + tlSig(src);
   if (b._k !== key) { try { b._h = md(inst.defs + src); } catch (e) { b._h = '<p>' + esc(src) + '</p>'; } b._k = key; }
   let h = b._h;
   if (!String(h).trim()) h = b.kind === 'raw' && src.trim() ? `<div class="bk-def">${esc(src)}</div>` : inst.doc.blocks.length === 1 ? `<p class="bk-ph">${esc(inst.o.ph || "Type '/' for blocks…")}</p>` : '<p class="bk-gap">&nbsp;</p>';
@@ -163,6 +165,8 @@ async function bedPickMenu(inst, n) {
   if (c.id === 'notebed') { bedPaint(inst, { pos: start }); const cur = bedCur(inst); if (cur) { cur.text = cur.text.slice(0, start) + '![[' + cur.text.slice(start); bedPaint(inst, { pos: start + 3 }); bedOpenMenu(inst, 'wiki', start + 1); } return; }
   if (c.id === 'mention') { bedPaint(inst, { pos: start }); const cur = bedCur(inst); if (cur) { cur.text = cur.text.slice(0, start) + '@' + cur.text.slice(start); bedPaint(inst, { pos: start + 1 }); bedOpenMenu(inst, 'contact', start); } return; }
   if (c.id === 'note') { bedPaint(inst, { pos: start }); const t2 = bedTa(inst); if (t2) { const cur = bedCur(inst); cur.text = cur.text.slice(0, start) + '[[' + cur.text.slice(start); bedPaint(inst, { pos: start + 2 }); bedOpenMenu(inst, 'wiki', start); } return; }
+  if (c.id === 'tagref') { bedPaint(inst, { pos: start }); bedCommit(inst); const ta3 = bedTa(inst); if (ta3) tagRefInsert(ta3); return; }
+  if (c.id === 'taskref') { bedPaint(inst, { pos: start }); bedCommit(inst); const ta2 = bedTa(inst); if (ta2) taskRefInsert(ta2); return; }
   if (c.id === 'task') { bedPaint(inst, { pos: start }); bedCommit(inst); openLinkPicker('note', U.noteSel); return; }
   if (c.id === 'image' || c.id === 'file') {
     bedPaint(inst, { pos: start }); bedCommit(inst);

@@ -5,7 +5,7 @@ from lib import *
 
 LIT = "[...document.querySelectorAll('#side .pages .pg.on')].map(e=>e.dataset.pin?('pin:'+e.dataset.pin):(e.dataset.sec||e.dataset.page))"
 NAV = "[...document.querySelectorAll('#side .pages [data-nk]')].map(e=>e.dataset.nk)"
-PACKS = ROOT / 'marketplace' / 'packs'
+PACKS = ROOT / 'test' / 'fixtures' / 'packs'
 
 with sync_playwright() as p:
     # ---------------------------------------------------------------- the sidebar

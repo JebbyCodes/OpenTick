@@ -76,7 +76,7 @@ const BR_CMDS = {
     const min = Math.round(+a.minutes), ts = +a.endedAt || Date.now(); if (!(min >= 1 && min <= 600)) throw brErr('bad_args', 'minutes must be 1 to 600');
     const task = a.taskId ? getT(brStr(a.taskId, 40)) : null; if (a.taskId && (!task || task.deleted)) throw brErr('not_found', 'No such task');
     if (ts > Date.now() + 6e4 || ts < Date.now() - 30 * 864e5) throw brErr('bad_args', 'endedAt must be within the last 30 days');
-    S.pomo.push({ ts, min, task: task ? task.id : null, src: app }); save(); return { recorded: true };
+    S.pomo.push({ ts, min, task: task ? task.id : null, src: app }); actFocus(min, task ? task.id : null, ts); save(); return { recorded: true };
   } },
   'countdowns.list': { perm: 'countdowns:read', run: a => ({ countdowns: S.countdowns.filter(c => !c.archived && scopeHas(brStr(a.scope, 120), c)).map(brCountdown) }) },
   // bring OpenTick forward on a task, page or list

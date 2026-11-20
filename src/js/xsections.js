@@ -22,7 +22,7 @@ function xsNormalise(s) {
   s.view = ['list', 'cards', 'table'].includes(s.view) ? s.view : 'list'; s.checkable = !!s.checkable;
   const so = s.sort && typeof s.sort === 'object' ? s.sort : {}; s.sort = { f: typeof so.f === 'string' && so.f ? so.f.slice(0, 24) : 'created', dir: so.dir === 'asc' ? 'asc' : 'desc' };
   s.group = typeof s.group === 'string' && s.fields.some(f => f.id === s.group && (f.type === 'select' || f.type === 'check')) ? s.group : '';
-  s.pack = typeof s.pack === 'string' ? s.pack.slice(0, 60) : ''; s.created = s.created || Date.now();
+  s.pack = typeof s.pack === 'string' ? s.pack.slice(0, 60) : ''; s.packId = typeof s.packId === 'string' && /^[a-z0-9-]{1,40}$/.test(s.packId) ? s.packId : ''; s.packVer = typeof s.packVer === 'string' ? s.packVer.slice(0, 20) : ''; s.created = s.created || Date.now();
   return s;
 }
 function xeNormalise(e) {

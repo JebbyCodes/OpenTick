@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.9.0
+
+**Fixed**
+- Fixed: **the number keys now open the pinned view you pressed.** A pinned page counts as a section in the order shown, so 4 or 5 or 6 opens the pin sitting there instead of the section behind it.
+- Fixed: **holding a key no longer repeats its action.** Holding 2 used to open Tasks over and over so the page flickered; holding Space started and paused the timer and holding Enter pressed a button again and again. A held key now acts once. Typing in a field, the arrow keys, Page Up / Down, Home / End, Tab, J / K and undo / redo still repeat.
+- Fixed: **the task panel on a phone was cut off on the right** (most visible in the Reminder section). Every row now fits the screen, and the panel's rows share one layout (a label, then the control) so each part works the same way.
+- Fixed: **a note open on one device now updates when another device changes it.** Before, the old version stayed on screen until you opened another note and came back. It now refreshes in place, and if you are in the middle of typing your own text is kept and you are told a newer version arrived.
+
+**App**
+- New: **pack codes and the pack library.** Every pack in the new public library ([OpenTick-Packs](https://github.com/JebbyCodes/OpenTick-Packs)) has a code like `HN6G-1CE5`. Settings → Sections & packs → **Pack library** takes the code (any case, with or without the dash) and shows what the pack contains before you add it, or **Browse** lists, searches and filters every pack and marks the ones you have. A link ending in `?pack=CODE` opens the web app with that pack ready. OpenTick only contacts the library when you ask it to, and it checks each file's size and SHA-256 against the library's list before showing it. *Add a pack by code…* and *Browse the pack library…* are in the command palette.
+- New: **Statistics**, with a heatmap of everything you do, not only tasks: notes, edits, habits, focus sessions, lists, projects, contacts and more. Filter by period, by type, by action and by **project, list or sublist**, and switch each panel on or off. **Share** makes an image of what you see (PNG or SVG, made on your device).
+- New: **History is now optional and off by default** (Settings → Data → Keep a history of changes). Statistics need it and say so when it is off. It stays on this device, is not synced, and is encrypted with the rest of your data when you use encryption.
+- New: **batch editing everywhere.** Notes, contacts, habits and countdowns get the same select mode as tasks (a button in the page header, Ctrl / Cmd / Shift + click, or press and hold on a touch screen) with **All**, **Edit…** and **Delete**. The Edit sheet changes only the fields you touch, and every change can be undone.
+- New: **add many things from text** (Shift + A, the clipboard button in a page header, or the command palette). Tasks, calendar events, timeline items, weekly timetable slots, notes, habits and countdowns, one box, with a live preview and Undo. The format is quick add's (dates, times, `#tags`, `~List`, `+person`, `!high`, repeats, subtasks by indenting) plus time ranges, reminders, headings and notes. **Copy syntax for AI** copies the format, an example, today's date and your list names so an AI can write the text for you. Pasting several lines into the quick-add box offers the same dialog.
+- New: **show tasks inside notes.** `![[task:ID]]` is a live card of a task (tick it, open it); `{{task:ID.due}}` shows one property (title, status, due, priority, list, tags, subtasks, progress, repeat and more) that is always up to date. A **Task…** button and a `/` command pick the task for you and, for a repeating task, let you choose which time you mean.
+- New: **link things by tags.** Tasks, notes, lists, projects, people and countdowns that share a tag show each other under **Linked by tags**, and any tag opens **Everything tagged #x**. Lists and projects now have a Tags field. `![[tag:anna]]` and `{{tag:anna.count}}` show a live list or a count inside a note. Nothing extra is stored for the link: it is worked out from the tags.
+- New: **print more pages.** Notes, task lists (as a checklist), the calendar, week and day, boards, matrix, habits, countdowns and statistics have a printer button (Ctrl + P does the same) and print without menus and buttons.
+- New: **tactile feedback** (Settings → Accessibility, off by default): a small vibration for a press and a firmer one when something is done, deleted or goes wrong, on devices that can vibrate.
+- Changed: the Help guide and the About page cover all of the above (packs and codes, statistics and history, batch editing, adding from text, task and tag references, linking by tags, printing, held keys and tactile feedback), and the privacy policy explains what the pack library is sent and when.
+- Changed: **the pack marketplace folder is gone.** Packs now live in the separate OpenTick-Packs project, which has a website where you can browse and download them.
+
+**OpenTick-Packs (the pack library)**
+- New: **anyone can submit a pack as a pull request.** Each one gets automatic checks before review: OpenTick itself reads the file (so what passes is exactly what the app accepts), themes must be readable, nothing personal may be in it, a changed pack needs a new version, and a **performance check** starts a real OpenTick in a browser with the pack, slowed down like a mid-range phone, and compares start-up time, memory and drawing time with the same app without it, and fails on page errors, console errors, requests to the internet or a section that draws nothing. Results are posted on the pull request; the maintainer reviews and merges.
+- New: **codes** are worked out from the pack's id, so a pack keeps its code for ever, and a **website** (published from the repository) lets people browse, search, see what is inside, copy a code, download a pack or open it in OpenTick.
+
+**Sync and encryption**
+- **The sync file stays schema 7**, so devices on 0.8.0 keep syncing with this version. Lists and projects gain an optional `tags` field that older devices ignore; a record without tags links to nothing.
+- The history and the statistics tally are per device and are never part of the sync file; they are sealed with the rest of your data when encryption is on. Tests cover encryption on and off and merging edits from two devices with the new fields.
+
 ## 0.8.0
 
 **Fixed**

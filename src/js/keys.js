@@ -14,7 +14,16 @@ function skMove(d) {
   U.sel = n.dataset.id; renderDetail(); $$('#main .task.sel').forEach(x => x.classList.remove('sel')); n.classList.add('sel'); if (n.scrollIntoView) n.scrollIntoView({ block: 'nearest' });
 }
 const skTask = () => (U.page === 'tasks' || U.page === 'calendar' || U.page === 'timetable' || U.page === 'matrix' || U.page === 'home') && U.sel ? getT(U.sel) : null;
-const skPageGo = i => { const p = sectionsShown()[i]; if (p) ACT.page({ dataset: { page: sectionTarget(p[0]) } }); };
+/* The number keys follow the buttons as they are drawn: the sidebar's grid (and the phone's tab bar) is ONE list of sections and pinned views, in the
+   order the person put them, so key 3 is the third button whatever it is. (Before 0.9.0 only sections were counted, so with a pinned view among them the
+   numbers on the buttons and the keys disagreed, and a pinned view could not be reached by its number at all.) */
+const skNav = i => { const k = (typeof navShown === 'function' ? navShown() : [])[i]; return k || ''; };
+function skNavLabel(i) { const k = skNav(i); if (!k) return ''; if (k.startsWith('pin:')) { const p = pinInfo(k.slice(4)); return p ? p.label : ''; } const s = navSecOf(k); return s ? s[1] : ''; }
+function skPageGo(i) {
+  const k = skNav(i); if (!k) return false;
+  if (k.startsWith('pin:')) { pinGo(k.slice(4)); return true; }
+  const sec = k.slice(4); U.pinKey = null; ACT.page({ dataset: { page: sectionTarget(sec), sec } }); return true;
+}
 // V / Shift+V: the next / previous view of the section you are in (List, Board, Matrix, Timeline …)
 function skCycleView(d) { const sec = secOf(U.page); if (!sec) return; const vs = viewsOf(sec); if (vs.length < 2) return; const i = vs.indexOf(U.page); ACT.page({ dataset: { page: vs[(i + d + vs.length) % vs.length] } }); }
 const skCalPage = () => U.page === 'calendar' || U.page === 'timetable';
@@ -27,16 +36,18 @@ function skToday() {
   else if (U.page === 'timetable') { if (typeof schoolOn === 'function' && schoolOn() && S.settings.tt.mode === 'school') SC_ACT.scwk({ dataset: { d: 0 } }); else ACT.tttoday(); }
 }
 
-// [id, keys, label, group, when, run, legacy]
+// [id, keys, label, group, when, run, legacy]. repeat: ms = holding the key keeps going, at most once every so many ms (moving through tasks or weeks);
+// without it a held key does its job once (see skHeldGuard below)
 const SK_GROUPS = ['Go to', 'Create', 'Search & commands', 'Tasks', 'Calendar & timetable', 'Focus timer', 'Panels', 'Editing', 'This window'];
 const SK = [
-  ...Array.from({ length: 9 }, (_, i) => ({ id: 'go' + (i + 1), keys: [String(i + 1)], label: () => { const p = sectionsShown()[i]; return p ? 'Go to ' + p[1] : 'Go to section ' + (i + 1); }, group: 'Go to', run: () => skPageGo(i), when: () => !!sectionsShown()[i] })),
+  ...Array.from({ length: 9 }, (_, i) => ({ id: 'go' + (i + 1), keys: [String(i + 1)], label: () => { const n = skNavLabel(i); return n ? 'Go to ' + n : 'Go to button ' + (i + 1); }, group: 'Go to', run: () => skPageGo(i), when: () => !!skNav(i) })),
   { id: 'viewnext', keys: ['v'], label: 'Next view in this section (List, Board, Matrix …)', group: 'Go to', run: () => skCycleView(1), when: () => { const s = secOf(U.page); return !!s && viewsOf(s).length > 1; } },
   { id: 'viewprev', keys: ['Shift+V'], label: 'Previous view in this section', group: 'Go to', run: () => skCycleView(-1), when: () => { const s = secOf(U.page); return !!s && viewsOf(s).length > 1; } },
   { id: 'newtask', keys: ['n'], label: 'New task', group: 'Create', legacy: true },
   { id: 'newnote', keys: ['Shift+N'], label: 'New note', group: 'Create', run: () => { U.page = 'notes'; U.sel = null; render(); ACT.noteadd(); } },
   { id: 'newtpl', keys: ['Shift+T'], label: 'New template', group: 'Create', run: () => TPL_ACT.tpladd() },
   { id: 'newlist', keys: ['Shift+L'], label: 'New list', group: 'Create', run: () => ACT.addlist() },
+  { id: 'addtext', keys: ['Shift+A'], label: 'Add several from text (tasks, events, notes, habits …)', group: 'Create', run: () => tbOpen() },
   { id: 'search', keys: ['Mod+K', '/'], label: 'Search', group: 'Search & commands', legacy: true },
   { id: 'palette', keys: ['Mod+Shift+P'], label: 'Command palette', group: 'Search & commands', legacy: true },
   { id: 'settings', keys: ['Mod+,'], label: 'Settings', group: 'Search & commands', run: () => openSettings(), modal: false, typing: true },
@@ -45,10 +56,10 @@ const SK = [
   { id: 'duetoday', keys: ['d'], label: 'Due today', group: 'Tasks', run: () => ACT.qdate({ dataset: { w: 'today' } }), when: () => !!skTask() },
   { id: 'duetom', keys: ['Shift+D'], label: 'Due tomorrow', group: 'Tasks', run: () => ACT.qdate({ dataset: { w: 'tomorrow' } }), when: () => !!skTask() },
   { id: 'rename', keys: ['e'], label: 'Edit the title of the selected task', group: 'Tasks', run: () => { const i = $('#detail .dtitle'); if (i) { i.focus(); if (i.select) i.select(); } }, when: () => !!skTask() },
-  { id: 'next', keys: ['j'], label: 'Select the next task', group: 'Tasks', run: () => skMove(1), when: () => (U.page === 'tasks' || U.page === 'matrix') && skRow().length > 0 },
-  { id: 'prev', keys: ['k'], label: 'Select the previous task', group: 'Tasks', run: () => skMove(-1), when: () => (U.page === 'tasks' || U.page === 'matrix') && skRow().length > 0 },
-  { id: 'prevp', keys: ['ArrowLeft'], label: 'Previous day, week or month', group: 'Calendar & timetable', run: () => skShift(-1), when: skCalPage },
-  { id: 'nextp', keys: ['ArrowRight'], label: 'Next day, week or month', group: 'Calendar & timetable', run: () => skShift(1), when: skCalPage },
+  { id: 'next', keys: ['j'], label: 'Select the next task', group: 'Tasks', run: () => skMove(1), when: () => (U.page === 'tasks' || U.page === 'matrix') && skRow().length > 0, repeat: 60 },
+  { id: 'prev', keys: ['k'], label: 'Select the previous task', group: 'Tasks', run: () => skMove(-1), when: () => (U.page === 'tasks' || U.page === 'matrix') && skRow().length > 0, repeat: 60 },
+  { id: 'prevp', keys: ['ArrowLeft'], label: 'Previous day, week or month', group: 'Calendar & timetable', run: () => skShift(-1), when: skCalPage, repeat: 180 },
+  { id: 'nextp', keys: ['ArrowRight'], label: 'Next day, week or month', group: 'Calendar & timetable', run: () => skShift(1), when: skCalPage, repeat: 180 },
   { id: 'today', keys: ['t'], label: 'Jump to today', group: 'Calendar & timetable', run: () => skToday(), when: skCalPage },
   { id: 'timer', keys: [' '], label: 'Start or pause the timer', group: 'Focus timer', run: () => { ACT.ptoggle(); renderMain(); }, when: () => U.page === 'focus' && !/^(BUTTON|A)$/.test((document.activeElement || {}).tagName || '') },
   { id: 'side', keys: ['['], label: 'Show or hide the sidebar', group: 'Panels', legacy: true },
@@ -98,10 +109,39 @@ function skKey(e) {
     if (typing && !s.typing) continue;
     if (modal && s.modal !== false) continue;
     if (s.when && !s.when()) continue;
-    e.preventDefault(); s.run(e); return;
+    e.preventDefault();
+    if (e.repeat) { // a key that is held down: only the shortcuts made for it go on, and not faster than they can be followed
+      if (!s.repeat) return; const now = Date.now(); if (now - (s._at || 0) < s.repeat) return; s._at = now;
+    } else if (s.repeat) s._at = Date.now();
+    s.run(e); return;
   }
 }
 document.addEventListener('keydown', skKey);
+
+/* ---- a held key is not a stream of presses ----
+   Holding 2 used to go to Tasks over and over (the page flickered), holding Space started and paused the timer, holding Enter on a button clicked it again and
+   again. Keys are repeated by the system while they are held; this runs before everything else (the capture phase of the window) and drops the repeats that
+   mean nothing: the first press has already done its job. What stays: anything typed into a field (a held letter types more letters, Enter in a text box adds
+   lines), moving (arrows, Page Up / Down, Home / End, Tab), j and k, which step through tasks, and Ctrl + Z / Y (undo as far as you like). Escape and Enter in a
+   one-line field never repeat, and neither do the keys that open or toggle something (Ctrl + K, Ctrl + B ...). */
+const SK_HOLD = /^(Arrow(Up|Down|Left|Right)|Page(Up|Down)|Home|End|Tab|Shift|Control|Alt|Meta|CapsLock)$/;
+function skHeldGuard(e) {
+  if (!e || !e.repeat) return false;
+  const k = String(e.key == null ? '' : e.key), t = e.target || {}, tag = t.tagName || '';
+  const area = tag === 'TEXTAREA' || !!t.isContentEditable, field = area || /^(INPUT|SELECT)$/.test(tag);
+  let stop;
+  if (k === 'Escape') stop = true;
+  else if (k === 'Enter') stop = !area;               // Enter in a text area or the block editor is a new line; anywhere else it presses a button or submits a form once
+  else if ((e.ctrlKey || e.metaKey) && /^[kpbi,]$/i.test(k)) stop = true;
+  else if (e.altKey && /^Arrow/.test(k) && !field) stop = true; // Alt + arrows move a card or a task to another box: one step per press
+  else if (field || SK_HOLD.test(k) || (/^[jk]$/.test(k) && !e.ctrlKey && !e.metaKey && !e.altKey) || ((e.ctrlKey || e.metaKey) && /^[zy]$/i.test(k))) stop = false;
+  else stop = true;
+  if (!stop) return false;
+  if (e.stopImmediatePropagation) e.stopImmediatePropagation(); if (e.stopPropagation) e.stopPropagation();
+  if ((k !== ' ' || (typeof U !== 'undefined' && U.page === 'focus')) && e.preventDefault) e.preventDefault(); // (Space is left alone elsewhere, so that a held Space still scrolls a page)
+  return true;
+}
+if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('keydown', skHeldGuard, true);
 
 /* ---- hints on buttons, drawn after each render ----
    [selector, shortcut or a function giving it]. Two kinds, so a shortcut is never shown twice at once:

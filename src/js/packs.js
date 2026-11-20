@@ -1,10 +1,10 @@
 /* OpenTick packs: a pack is one small JSON file that carries sections (xsections.js) and/or themes (themes.js) from one person to another.
-   It is the groundwork for a marketplace: anything a marketplace will ever list is one of these files, so the format, the checks and the install
-   step live here first, and work from a file or pasted text today.
+   Packs come from a file, from pasted text, or from the pack library (packlib.js: browse it, or type a pack's code). All three go through the same
+   checks and the same install step, which live here.
    A pack is DATA ONLY. It cannot contain code, scripts, remote files or CSS rules: a section is fields and entries, a theme is a set of colour
    variables. Everything in it is checked and cut down to size before anything is kept (packClean); nothing in a file is ever run or inserted as HTML.
    Installing only adds: it never changes or removes what is already there, and it never reads anything from the person's data.
-   The format is documented for authors in docs/PACKS.md; marketplace/ in the repository holds examples that the tests check.
+   The format is documented for authors in docs/PACKS.md. The library itself lives in its own repository, JebbyCodes/OpenTick-Packs.
      { opentick: 'pack', format: 1, id, name, version, author, description, license, homepage,
        sections: [{ name, icon, color, title, view, checkable, sort { f, dir }, group, fields: [{ key, name, type, opts }],
                     entries: [{ title, vals { key: value }, notes, done }] }],
@@ -89,12 +89,13 @@ function packInstall(pack) {
   const now = Date.now(); let entries = 0; const made = [];
   for (const ps of pack.sections) {
     const ids = {}, fields = ps.fields.map(f => ({ id: (ids[f.key] = xsFid()), name: f.name, type: f.type, ...(f.type === 'select' ? { opts: f.opts } : {}) }));
-    const s = xsNormalise({ id: 'x-' + uid(), name: ps.name, icon: ps.icon, color: ps.color || '#4772fa', title: ps.title, fields, view: ps.view, checkable: ps.checkable, group: ids[ps.group] || '', sort: ps.sort.f === 'created' || ps.sort.f === 'title' ? ps.sort : { f: ids[ps.sort.f] || 'created', dir: ps.sort.dir }, pack: pack.name, created: now });
+    const s = xsNormalise({ id: 'x-' + uid(), name: ps.name, icon: ps.icon, color: ps.color || '#4772fa', title: ps.title, fields, view: ps.view, checkable: ps.checkable, group: ids[ps.group] || '', sort: ps.sort.f === 'created' || ps.sort.f === 'title' ? ps.sort : { f: ids[ps.sort.f] || 'created', dir: ps.sort.dir }, pack: pack.name, packId: pack.id, packVer: pack.version, created: now });
     S.csections.push(s); made.push(s);
     ps.entries.forEach((pe, i) => { const vals = {}; for (const [k, v] of Object.entries(pe.vals)) if (ids[k]) vals[ids[k]] = v; S.centries.push(xeNormalise({ id: uid(), sid: s.id, title: pe.title, vals, notes: pe.notes, done: pe.done, created: now - i })); entries++; });
   }
   let themes = 0;
   for (const t of pack.themes) { try { themeImport(JSON.stringify({ name: t.name, base: t.base, vars: t.vars }), t.name, false); themes++; } catch (e) { /* a bad theme must not stop the sections */ } }
+  (S.settings.packsDone = S.settings.packsDone && typeof S.settings.packsDone === 'object' ? S.settings.packsDone : {})[pack.id] = { v: pack.version, at: now }; // this device, so "Installed" also shows for theme packs
   save(); return { sections: made, entries, themes };
 }
 // one or more sections as a pack
@@ -118,11 +119,11 @@ async function packsExport(list, name) {
 const packsExportSection = s => packsExport([s], s.name);
 
 /* ---------- looking at a pack before it is added ---------- */
-function packPreview(pack, warnings, again) {
-  const c = packCounts(pack), dup = pack.sections.some(ps => S.csections.some(s => s.pack === pack.name && s.name === ps.name));
-  openModal(`<h3>${esc(pack.name)}</h3><p class="hint">${[pack.version ? 'Version ' + esc(pack.version) : '', pack.author ? 'by ' + esc(pack.author) : '', pack.license ? esc(pack.license) : ''].filter(Boolean).join(' · ')}</p>${pack.description ? `<p>${esc(pack.description)}</p>` : ''}`
+function packPreview(pack, warnings, again, entry) { // entry: the library's row for it (it adds the code line), or nothing for a file or pasted text
+  const c = packCounts(pack), dup = pack.sections.some(ps => S.csections.some(s => (pack.id !== 'pack' && s.packId === pack.id) || (s.pack === pack.name && s.name === ps.name)));
+  openModal(`<h3>${esc(pack.name)}</h3><p class="hint">${[pack.version ? 'Version ' + esc(pack.version) : '', pack.author ? 'by ' + esc(pack.author) : '', pack.license ? esc(pack.license) : '', entry ? 'Code <code class="pkl-cc">' + esc(entry.code) + '</code>' : ''].filter(Boolean).join(' · ')}</p>${pack.description ? `<p>${esc(pack.description)}</p>` : ''}`
     + `<div class="pk-list">${pack.sections.map(s => `<div class="pk-i" style="--c:${esc(s.color || 'var(--acc)')}"><span>${iconAny(s.icon, 18, 'layers')}</span><b>${esc(s.name)}</b><small>${s.fields.length} field${s.fields.length === 1 ? '' : 's'}${s.entries.length ? ` · ${s.entries.length} entr${s.entries.length === 1 ? 'y' : 'ies'}` : ''}</small></div>`).join('')}${pack.themes.map(t => `<div class="pk-i" style="--c:${esc(t.vars['--acc'])}"><span><i class="pk-sw" style="background:${esc(t.vars['--bg'])}"><u style="background:${esc(t.vars['--acc'])}"></u></i></span><b>${esc(t.name)}</b><small>Theme</small></div>`).join('')}</div>`
-    + (dup ? '<p class="hint">You already have a section from this pack. Adding it again makes a second copy.</p>' : '') + (warnings.length ? `<p class="hint">${warnings.map(esc).join('<br>')}</p>` : '')
+    + (dup ? '<p class="hint">You already have a section from this pack. Adding it again makes a second copy next to it.</p>' : '') + (warnings.length ? `<p class="hint">${warnings.map(esc).join('<br>')}</p>` : '')
     + `<p class="hint">${ic('shield', 13)} A pack only adds ${c.sections ? 'sections' : ''}${c.sections && c.themes ? ' and ' : ''}${c.themes ? 'colours' : ''}. It cannot run anything, and it does not touch what you already have.${pack.homepage ? ` <a href="${esc(pack.homepage)}" target="_blank" rel="noopener noreferrer">${esc(pack.homepage.replace(/^https?:\/\//, '').slice(0, 50))}</a>` : ''}</p>`
     + `<div class="mact"><span class="sp"></span><button type="button" data-m="no">Cancel</button><button type="button" class="pri" data-m="ok">Add to OpenTick</button></div>`, m => {
     m.onclick = e => {
@@ -132,19 +133,19 @@ function packPreview(pack, warnings, again) {
     };
   }, 'wide xs-modal');
 }
-function packOpenText(text, again) { try { const r = packParse(text); packPreview(r.pack, r.warnings, again); } catch (e) { toast(e.message || 'That is not a pack'); if (again) again(); } }
+function packOpenText(text, again) { if (typeof pkCode === 'function' && !/[{\[]/.test(text) && pkCode(text)) { packCodeOpen(text, again); return; } try { const r = packParse(text); packPreview(r.pack, r.warnings, again); } catch (e) { toast(e.message || 'That is not a pack'); if (again) again(); } }
 async function packFromFile(again) { try { const f = await pickText(['json', 'txt'], 'OpenTick pack', true); if (f) packOpenText(f.text, again); else if (again) again(); } catch (e) { toast('Could not read that file'); if (again) again(); } }
 function packPaste(again) {
-  openModal(`<h3>Paste a pack</h3><p class="hint">Paste the text of a pack file.</p><textarea id="pk-ta" class="th-ta" spellcheck="false" placeholder='{ "opentick": "pack", "format": 1, … }'></textarea><div class="mact"><span class="sp"></span><button type="button" data-m="no">Cancel</button><button type="button" class="pri" data-m="ok">Continue</button></div>`, m => {
+  openModal(`<h3>Paste a pack</h3><p class="hint">Paste the text of a pack file, or a pack code.</p><textarea id="pk-ta" class="th-ta" spellcheck="false" placeholder='{ "opentick": "pack", "format": 1, … }'></textarea><div class="mact"><span class="sp"></span><button type="button" data-m="no">Cancel</button><button type="button" class="pri" data-m="ok">Continue</button></div>`, m => {
     const ta = $('#pk-ta', m); ta.focus();
     m.onclick = e => { const b = e.target.closest('[data-m]'); if (!b) { if (e.target.classList.contains('mback')) { closeModal(); if (again) again(); } return; } if (b.dataset.m === 'ok') { const t = ta.value; closeModal(); packOpenText(t, again); } else { closeModal(); if (again) again(); } };
   }, 'wide');
 }
 // the small block on the "New section" dialog
-const packsImportHtml = () => `<div class="pk-imp"><span>${ic('package', 15)} Have a pack from someone else?</span><button type="button" class="btn sm" data-m="packfile">${ic('upload', 13)} From a file…</button><button type="button" class="btn sm" data-m="packpaste">${ic('file-text', 13)} Paste…</button></div>`;
+const packsImportHtml = () => `<div class="pk-imp"><span>${ic('package', 15)} Have a pack from someone else?</span><button type="button" class="btn sm" data-m="packcode">${ic('hash', 13)} By code…</button><button type="button" class="btn sm" data-m="packfile">${ic('upload', 13)} From a file…</button><button type="button" class="btn sm" data-m="packpaste">${ic('file-text', 13)} Paste…</button></div>`;
 function packsHandle(b) { // clicks in the New section dialog
   const a = b.dataset.m; closeModal();
-  if (a === 'packfile') packFromFile(xsNew); else if (a === 'packpaste') packPaste(xsNew);
+  if (a === 'packfile') packFromFile(xsNew); else if (a === 'packpaste') packPaste(xsNew); else if (a === 'packcode') packCodeOpen('', xsNew);
 }
 
 /* ---------- Settings: Sections & packs ---------- */
@@ -153,14 +154,15 @@ function packsSettingsHtml() {
   return `<h4 class="mh">Your sections</h4><p class="hint">Make a section for anything you keep a list of: books, recipes, spending, gift ideas. It appears in the sidebar beside Tasks and Notes, and you can order, pin or hide it in Layout like the rest.</p>`
     + (rows ? `<div class="pk-rows">${rows}</div>` : '<p class="hint">You have not made a section yet.</p>')
     + `<div class="ct-acts"><button type="button" class="btn pri" data-m="xsnew">${ic('plus', 14)} New section</button><button type="button" class="btn" data-m="packfile">${ic('upload', 14)} Add a pack…</button><button type="button" class="btn" data-m="packpaste">${ic('file-text', 14)} Paste a pack…</button>${S.csections.length ? `<button type="button" class="btn" data-m="packall">${ic('download', 14)} Export all…</button>` : ''}</div>`
-    + `<h4 class="mh">Marketplace</h4><div class="pk-market"><span>${ic('package', 22)}</span><div><b>Coming soon</b><p class="hint">A place to find sections and themes made by other people, and to share your own. Everything in it will be a pack, the same file you can add above today, so a pack you make now will work there.</p><p class="hint">Want to make one? <a href="https://github.com/${esc(UPD_REPO)}/blob/main/docs/PACKS.md" target="_blank" rel="noopener noreferrer">How packs work</a>. Packs hold only sections and colours: they cannot run code or see your data.</p></div></div>`;
+    + packLibHtml();
 }
 // Settings clicks that belong here; returns true when handled
-function packsSettingsAct(a, b) {
+function packsSettingsAct(a, b, m) {
   const back = () => openSettings('sections');
   if (a === 'xsnew') { closeModal(); xsNew(); return true; }
   if (a === 'packfile') { closeModal(); packFromFile(back); return true; }
   if (a === 'packpaste') { closeModal(); packPaste(back); return true; }
+  if (typeof packLibAct === 'function' && packLibAct(a, b, m, back)) return true;
   if (a === 'packall') { closeModal(); packsExport(S.csections.slice()).then(back); return true; }
   if (a === 'xsexp') { const s = xsById(b.dataset.id); if (s) { closeModal(); packsExport([s], s.name).then(back); } return true; }
   if (a === 'xsgo') { const s = xsById(b.dataset.id); if (s) { closeModal(); U.page = s.id; U.pinKey = null; render(); } return true; }

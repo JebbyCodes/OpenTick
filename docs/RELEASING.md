@@ -75,7 +75,7 @@ the `build-*` and `publish-*` files are building blocks that Release calls (each
 | `publish-chocolatey.yml` | builds the Chocolatey package, attaches it to the release, pushes it | called by Release (stable only) |
 | `publish-scoop.yml` | opens a pull request on the Scoop bucket | called by Release (stable only) |
 | `publish-winget.yml` | opens a pull request on `microsoft/winget-pkgs` (off until configured) | called by Release (stable only) |
-| `deploy-pages.yml` | website (and `/eink/`, `/watch/`, the privacy policy and the `/marketplace/` pack library) on GitHub Pages | pushes to `main` |
+| `deploy-pages.yml` | website (and `/eink/`, `/watch/` and the privacy policy) on GitHub Pages | pushes to `main` |
 
 Besides the workflows: `.github/release.yml` (the release-notes categories, see below), `.github/dependabot.yml` (daily pull requests for npm, Cargo and GitHub Actions version updates) and the two local actions in `.github/actions/`.
 The helper scripts the workflows call live in `scripts/release/` (`bump-version`, `collect-assets`, `release-notes`, `run-summary`), `scripts/ci/lint-workflows.py` and `scripts/packs/validate-packs.mjs`; `test/release.mjs` keeps all of them honest.
@@ -115,13 +115,11 @@ Pull requests labelled `skip-changelog`, `duplicate`, `invalid`, `wontfix` or `q
 `ci.yml` runs three independent jobs on every pull request and every push to `main`, and again as the first gate of every release:
 
 1. **Tests and checks:** every file carries the same version (`npm run version:check`), the workflow files are consistent (`python scripts/ci/lint-workflows.py`),
-   the pack library is valid (`npm run packs:check`), the unit and regression tests (`npm test`), and the web app builds.
+   the unit and regression tests (`npm test`), and the web app builds.
 2. **Browser tests:** the built app in headless Chromium (`npm run test:browser`).
 3. **Rust check:** `cargo check --locked`, so a stale `Cargo.lock` is an error.
 
-**The pack library** (`marketplace/`) holds the sample section packs and themes, and is published read-only at `/marketplace/` on the website. `npm run packs:check` opens every file
-the way the app opens a pack someone gives it, and fails if the app would drop or change anything (a wrong licence, a version that is not `1.2.3`, a field of an unknown type,
-a theme colour that is not allowed, a file missing from `index.json`, …). Anyone adding a pack runs it first; [PACKS.md](PACKS.md) has the rules.
+**The pack library** lives in its own repository, [OpenTick-Packs](https://github.com/JebbyCodes/OpenTick-Packs): packs are sent there as pull requests, checked by robots (the format, and a performance and error run in a real OpenTick built from this repository's `main`), reviewed, and published as a website and an index the app reads. Nothing in this repository needs to change when a pack is added. What does matter here: the pack format (`src/js/packs.js`, [PACKS.md](PACKS.md)) and the index format (`src/js/packlib.js`). Change either and the library's checks (they import this repository's test harness) show whether the library still works.
 
 ## Secrets and variables
 
@@ -202,7 +200,6 @@ Start with the **Summary** job at the bottom of the run: it names the stage that
 | *Prepare release* pushed a branch but opened no pull request | Tick Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests", or open it from the link in the run summary. |
 | No CI checks on the release pull request | A pull request opened with the built-in token does not start CI by itself. *Prepare release* starts CI on the branch; if that failed, start it by hand (Actions → CI → Run workflow → the branch). |
 | *Prepare release* says the branch or tag exists | A release for that version was already prepared or made. Merge or delete `release/vX.Y.Z`, or pick the next version. |
-| `npm run packs:check` fails | The message names the pack and the rule it broke. [PACKS.md](PACKS.md) explains each rule; `npm test` runs the same check. |
 | Docker image cannot be pulled by others | The package is still private: Packages → `opentick` → Package settings → Change visibility → Public (first release only). |
 
 ## Removed workflows and what is not built

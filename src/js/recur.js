@@ -7,7 +7,7 @@ function repeatMoreHtml(t) {
   if (!t.repeat) return '';
   const ex = excList(t), ends = t.until ? 'date' : 'never';
   return `<div class="dr sub"><span class="dlab">Ends</span><select data-f="endmode" aria-label="When the repeat ends">${opts([['never', 'Never'], ['date', 'On a date']], ends)}</select>${t.until ? `<input type="date" data-f="until" value="${esc(t.until)}" min="${esc(t.due || '')}" aria-label="Last day">` : ''}</div>
-<div class="dr top sub"><span class="dlab">Changes</span><div class="exl">${ex.map(k => `<button type="button" class="remchip exc${(t.exc[k] || {}).skip ? ' skip' : ''}" data-act="excedit" data-d="${esc(k)}" title="Edit this exception">${ic('clock', 12)} ${esc(excText(t, k))}</button>`).join('')}<button type="button" class="btn sm" data-act="excadd">${ic('plus', 12)} A different time on one date…</button></div></div>`;
+<div class="dr al sub"><span class="dlab">Changes</span><div class="exl">${ex.map(k => `<button type="button" class="remchip exc${(t.exc[k] || {}).skip ? ' skip' : ''}" data-act="excedit" data-d="${esc(k)}" title="Edit this exception">${ic('clock', 12)} ${esc(excText(t, k))}</button>`).join('')}<button type="button" class="btn sm" data-act="excadd">${ic('plus', 12)} A different time on one date…</button></div></div>`;
 }
 
 // every N days / weeks / months / years, or on chosen weekdays

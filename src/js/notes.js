@@ -8,7 +8,7 @@ MD_WIKI = name => { const n = noteByTitle(name); return n ? { id: n.id, title: n
 const NOTE_FMT = [
   ['bold', 'bold', 'Bold (Ctrl+B)'], ['italic', 'italic', 'Italic (Ctrl+I)'], ['strike', 'strike', 'Strikethrough'],
   ['code', 'code', 'Code'], ['link', 'link', 'Link (Ctrl+K)'], ['h', 'heading', 'Heading'], ['ul', 'list', 'Bulleted list'], ['ol', 'list-ol', 'Numbered list'],
-  ['task', 'check-square', 'Checklist'], ['quote', 'quote', 'Quote'], ['table', 'table', 'Insert a table'], ['img', 'image', 'Insert an image'], ['embed', 'embed', 'Embed a video, audio, PDF or music player (paste its link)'], ['nembed', 'sticky', 'Embed another note'], ['mention', 'at', 'Mention a person from Contacts'], ['hr', 'minus', 'Divider'],
+  ['task', 'check-square', 'Checklist'], ['quote', 'quote', 'Quote'], ['table', 'table', 'Insert a table'], ['img', 'image', 'Insert an image'], ['embed', 'embed', 'Embed a video, audio, PDF or music player (paste its link)'], ['nembed', 'sticky', 'Embed another note'], ['mention', 'at', 'Mention a person from Contacts'], ['tref', 'check-circle', 'Show a task: a live card, or one of its properties'], ['tgref', 'hash', 'Show everything with a tag: a live list or a count'], ['hr', 'minus', 'Divider'],
 ];
 const mdToolbar = target => NOTE_FMT.map(([k, l, tt]) => `<button class="fmt" data-act="nfmt" data-k="${k}" data-for="${target}" title="${tt}" aria-label="${esc(tt)}">${ic(l, 17)}</button>`).join('');
 const edModeSeg = (mode, pre) => `<div class="seg" role="tablist">${[['blocks', 'Edit', 'pencil'], ['write', 'Source', 'code'], ['split', 'Split', 'columns'], ['preview', 'Preview', 'eye']].map(([m, n, i]) => `<button class="${mode === m ? 'on' : ''}${m === 'split' ? ' hide-m' : ''}" data-ed="${pre}" data-mode="${m}" role="tab" aria-label="${n}" title="${{ blocks: 'Edit with blocks: type / for a menu', write: 'Edit the Markdown text', split: 'Markdown beside a live preview', preview: 'Read it' }[m]}"><span class="sg-i">${ic(i, 17)}</span><span class="sg-t">${n}</span></button>`).join('')}</div>`;
@@ -91,6 +91,7 @@ function noteEditorHtml(n) {
     + `<button class="ib${n.pinned ? ' on' : ''}" data-act="notepin" title="${n.pinned ? 'Unpin' : 'Pin to the top'}">${ic('star', 18)}</button>${edModeSeg(mode, 'n')}<button class="ib hide-m ne-lt" data-act="notelist" title="${noteListOn() ? 'Hide the note list' : 'Show the note list'}" aria-label="Toggle the note list" aria-pressed="${!noteListOn()}">${ic(noteListOn() ? 'sidebar-close' : 'sidebar-open', 18)}</button><button class="ib ne-fs" data-act="notefull" title="${U.nFull ? 'Leave full screen (Esc)' : 'Full screen'}" aria-label="Full screen" aria-pressed="${!!U.nFull}">${ic(U.nFull ? 'minimize-2' : 'maximize-2', 18)}</button><button class="ib" data-act="notemenu" title="More">${ic('more', 18)}</button></div>`
     + `<div class="ne-det" id="n-det"><div class="ne-props"><div class="ne-tags"><span>${ic('tag', 14)}</span><input data-f="ntags" value="${esc(n.tags.map(g => '#' + g).join(' '))}" placeholder="#tags" autocomplete="off"></div><label class="ne-home" title="Where this note is filed"><span>${ic('folder', 14)}</span><select data-f="nhome" aria-label="List or project">${noteHomeOptions(noteHomeValue(n))}</select></label></div>`
     + `<div class="ne-links" id="n-links">${noteLinksHtml(n)}</div>`
+    + `<div id="n-tl">${n.tags.length ? tlBlock('note', n) : ''}</div>`
     + `<details class="ne-att"${(n.files || []).length ? ' open' : ''}><summary>${ic('paperclip', 14)} Attachments${(n.files || []).length ? ` <span class="fcnt">${n.files.length}</span>` : ''}</summary>${filesHtml('note', n.id)}</details></div>`
     + `<div class="ne-tool${mode === 'blocks' ? ' bm' : ''}" id="n-tool"${mode === 'preview' ? ' hidden' : ''}>${mdToolbar('#n-ta')}</div>`
     + edBody('n', n.body, mode, 'nbody', 'Start writing… Markdown is supported: # headings, **bold**, - lists, [[links to other notes]], tables and more.')
@@ -120,6 +121,7 @@ function notePaint() {
   const pv = $('#n-pv'), blocks = BE.cur && BE.cur.o.pre === 'n' && $('#n-ed') && $('#n-ed').classList.contains('ed-blocks');
   if (blocks) { if (BE.cur.cur !== n.body) bedReload(BE.cur); } else if (pv) pv.innerHTML = previewHtml(n.body);
   const st = $('#n-stat'); if (st) st.innerHTML = noteFoot(n);
+  const tl = $('#n-tl'); if (tl) tl.innerHTML = n.tags.length ? tlBlock('note', n) : '';
   renderNoteList();
 }
 function noteInput(field, v) {
@@ -211,18 +213,19 @@ function edSetMode(pre, mode) {
 function openNoteExpand(tid) {
   const t = getT(tid); if (!t) return;
   let mode = edMode('auto'), timer = 0; U.xTask = tid;
-  const paint = () => { const pv = $('#x-pv'); if (pv) pv.innerHTML = previewHtml(t.notes); const st = $('#x-stat'); if (st) st.textContent = edStats(t.notes); };
-  U._xStart = () => { const host = $('#x-bed'); if (host) bedMount({ pre: 'x', host, ph: host.dataset.ph, get: () => t.notes || '', set: v => { t.notes = v; const ta = $('#x-ta'); if (ta) ta.value = v; save(); clearTimeout(timer); timer = setTimeout(paint, 100); } }); };
+  const T = () => getT(tid) || t; // (looked up each time: a sync replaces the task objects, and typing must land in the live one)
+  const paint = () => { const pv = $('#x-pv'); if (pv) pv.innerHTML = previewHtml(T().notes); const st = $('#x-stat'); if (st) st.textContent = edStats(T().notes); };
+  U._xStart = () => { const host = $('#x-bed'); if (host) bedMount({ pre: 'x', host, ph: host.dataset.ph, get: () => T().notes || '', set: v => { T().notes = v; const ta = $('#x-ta'); if (ta) ta.value = v; save(); clearTimeout(timer); timer = setTimeout(paint, 100); } }); };
   const finish = () => { clearTimeout(timer); if (BE.cur && BE.cur.o.pre === 'x') BE.cur = null; U._xStart = null; closeModal(); renderMain(); renderDetail(); renderSide(); };
   openModal(`<div class="xhead"><button class="ib" data-x="close" title="Back to the task (Esc)" aria-label="Close">${ic('left', 20)}</button><div class="xt"><b>${titleHtml(t)}</b><small>Notes · ${esc(listOf(t.listId).name)}${t.due ? ' · ' + esc(dueLabel(t)) : ''}</small></div>${edModeSeg(mode, 'x')}<button class="ib" data-fa="add" data-k="task" data-o="${tid}" title="Attach a file (PDF, image, document…)" aria-label="Attach a file">${ic('paperclip', 18)}</button><button class="btn pri" data-x="close">Done</button></div>`
     + `<div class="ne-tool${mode === 'blocks' ? ' bm' : ''}" id="x-tool">${mdToolbar('#x-ta')}</div>`
     + edBody('x', t.notes, mode, 'xnotes', 'Write your notes in Markdown…')
     + `<div class="ne-foot"><span id="x-stat">${edStats(t.notes)}</span><span class="hide-m">Esc to close · changes save as you type</span></div>`, m => {
     if (mode === 'blocks') U._xStart(); else { const ta = $('#x-ta', m); if (ta && narrow(900) === false) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } }
-    m.oninput = e => { if (e.target.id !== 'x-ta') return; t.notes = e.target.value; save(); clearTimeout(timer); timer = setTimeout(paint, 100); };
+    m.oninput = e => { if (e.target.id !== 'x-ta') return; T().notes = e.target.value; save(); clearTimeout(timer); timer = setTimeout(paint, 100); };
     m.onchange = e => {
       if (!(e.target.classList && e.target.classList.contains('mdchk'))) return;
-      const box = $('#x-ta', m); box.value = mdToggleLine(box.value, +e.target.dataset.mdl); t.notes = box.value; save(); sfx('tick'); paint();
+      const box = $('#x-ta', m); box.value = mdToggleLine(box.value, +e.target.dataset.mdl); T().notes = box.value; save(); sfx('tick'); paint();
     };
     m.onclick = async e => {
       const fa = e.target.closest('[data-fa]'); if (fa) { if (fa.dataset.fa === 'add') { const fs = await pickFiles(); if (fs.length) await filesIntoText($('#x-ta', m), fs); } else fileAction(fa); return; }
@@ -291,3 +294,47 @@ function noteVV() {
   st.setProperty('--vvh', Math.round(v.height) + 'px'); st.setProperty('--vvt', Math.round(v.offsetTop) + 'px');
 }
 if (typeof window !== 'undefined' && window.visualViewport && window.visualViewport.addEventListener) { window.visualViewport.addEventListener('resize', noteVV); window.visualViewport.addEventListener('scroll', noteVV); }
+
+
+/* ---------- a newer copy arrived from another device (sync) ----------
+   What is on screen is brought up to date where it stands. An open note that stayed on its old text would be worse than stale: the next
+   keystroke would write the old text back over the newer one. afterRemote (sync.js) calls these. */
+function liveSet(el, v) { // put a value into a field without moving the caret more than the new text forces
+  if (!el || el.value === v) return false;
+  const f = el === document.activeElement; let a = 0, b = 0, end = false; if (f) { a = el.selectionStart; b = el.selectionEnd; end = a === b && a >= el.value.length; } // (a caret at the end of the text stays at the end)
+  el.value = v; if (f) { try { el.setSelectionRange(end ? v.length : Math.min(a, v.length), end ? v.length : Math.min(b, v.length)); } catch (e) { /* not a text field */ } }
+  return true;
+}
+// the note that is open on the Notes page: title, tags, text (every editing mode), the list beside it and the header's small controls
+function noteLive() {
+  const n = U.page === 'notes' && U.noteSel && noteById(U.noteSel); if (!n) return false;
+  const ae = document.activeElement, tg = $('[data-f=ntags]');
+  liveSet($('.ne-title'), n.title || ''); liveSet($('#n-ta'), n.body || '');
+  if (tg && tg !== ae) liveSet(tg, n.tags.map(g => '#' + g).join(' ')); // (while the tags are being typed the field holds text that is not yet a tag list)
+  notePaint(); // preview, word count, the note list, and the block editor
+  const lk = $('#n-links'); if (lk && !(ae && lk.contains(ae))) lk.innerHTML = noteLinksHtml(n);
+  const hm = $('[data-f=nhome]'); if (hm && hm !== ae) hm.value = noteHomeValue(n);
+  const pin = $('[data-act=notepin]'); if (pin) pin.classList.toggle('on', !!n.pinned);
+  return true;
+}
+// the wide editor for a task's notes, when it is open
+function taskExpandLive() {
+  const x = U.xTask && getT(U.xTask), ta = $('#x-ta'); if (!x || !ta) return;
+  liveSet(ta, x.notes || ''); const pv = $('#x-pv'); if (pv) pv.innerHTML = previewHtml(x.notes || '');
+  if (BE.cur && BE.cur.o.pre === 'x') bedReload(BE.cur);
+}
+// Someone is typing, so the screen is not redrawn around them. What they are typing in is updated in place instead.
+// Returns true when that was enough (nothing is left to retry).
+function liveRefresh(a) {
+  if (U.page === 'notes' && a.closest('#main')) {
+    if (U.noteSel && !noteById(U.noteSel)) { if (a.blur) a.blur(); return false; } // the note was deleted elsewhere: the normal redraw takes over
+    if (noteLive()) { renderSide(); return true; }
+    return false;
+  }
+  if (a.closest('#detail')) {
+    const t = U.sel && getT(U.sel); if (!t) { if (a.blur) a.blur(); return false; }
+    liveSet($('#detail .dtitle'), t.title || ''); const nt = $('#detail textarea[data-f="notes"]'); if (nt && liveSet(nt, t.notes || '')) fitTa(nt);
+    renderSide(); renderMain(); return true; // the list behind the panel follows too
+  }
+  return false;
+}

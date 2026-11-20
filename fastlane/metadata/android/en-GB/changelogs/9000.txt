@@ -1,0 +1,6 @@
+• New: pack library with short pack codes, like a shared deck code
+• New: Statistics with a heatmap and filters, shareable as an image (History is opt-in)
+• New: batch editing for notes, contacts, habits and countdowns; add many things from text
+• New: show task details in notes, link anything by tags, print more pages
+• New: tactile feedback
+• Fixed: number keys and pinned views, held keys, phone task panel, notes updating across devices

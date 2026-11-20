@@ -40,7 +40,7 @@ with sync_playwright() as p:
     # ---- sections: five places in the sidebar, a switcher inside each
     pg.evaluate("U.page = 'tasks'; render()")
     names = pg.evaluate("[...document.querySelectorAll('#side .pages .pg')].map(b => b.innerText.trim())")
-    assert names == ['Projects', 'Tasks', 'Notes', 'Calendar', 'Habits', 'Contacts'], names
+    assert names == ['Projects', 'Tasks', 'Notes', 'Calendar', 'Habits', 'Contacts', 'Statistics'], names
     tabs = pg.evaluate("[...document.querySelectorAll('#main > .vtabs button')].map(b => b.innerText.trim())")
     assert tabs == ['List', 'Board', 'Matrix', 'Timeline'], tabs
     pg.click('#main > .vtabs button:has-text("Matrix")'); pg.wait_for_selector('.matrix')

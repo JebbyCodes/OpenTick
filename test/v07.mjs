@@ -53,7 +53,7 @@ h.log['2026-09-29'] = 1; h.log['2026-10-01'] = 1; assert.equal(A.streak(h), 2, '
 h.goal = { per: 'week', n: 99 }; assert.equal(A.habitGoal(h).n, 7, 'a weekly goal is capped at 7');
 
 /* history */
-S.history.length = 0; A.flush(); A.initSeen();
+S.settings.history.on = true; S.history.length = 0; A.flush(); A.initSeen(); // history is opt-in (0.9)
 const t1 = A.quickAdd('History probe', {}); clock.t += 1000; A.flush();
 t1.title = 'History probe 2'; t1.priority = 3; clock.t += 1000; A.flush();
 t1.due = '2026-10-20'; clock.t += 1000; A.flush();
@@ -73,6 +73,7 @@ assert.equal('history' in A.snapshot(), false, 'history stays out of the sync sn
 const keep = A.S.history.length; A.replaceAll(JSON.parse(JSON.stringify({ ...A.snapshot(), tasks: [] }))); assert.equal(A.S.history.length, keep, 'a restore keeps this device log');
 const B = makeApp(); const bt = B.quickAdd('from B', {}); B.flush(); const before = A.S.history.length;
 A.applyMerged(A.mergeData(A.snapshot(), B.snapshot())); assert.ok(A.S.tasks.some(x => x.title === 'from B')); assert.equal(A.S.history.length, before, 'changes that arrive by sync are not logged');
+A.S.settings.history.on = true; // (restoring data replaced the settings with the defaults)
 for (let i = 0; i < 2100; i++) A.S.history.push({ t: 1, k: 'task', a: 'edit', id: 'x' + i, n: 'x' }); A.flush(); t1.title = 'x'; // trimmed on the next record
 A.S.tasks.push(mk('trim')); clock.t += 1000; A.flush(); assert.ok(A.S.history.length <= 2000, 'the log is capped');
 

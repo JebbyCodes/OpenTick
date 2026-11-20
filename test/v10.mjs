@@ -118,7 +118,7 @@ const ser = d => A.blkSerialize(d);
   const B = makeApp(), T = B.S; B.U.page = 'notes';
   T.tasks.push(B.newTask({ title: 'keep me?' })); T.notes.push(B.newNote({ title: 'n1' })); T.projects.push({ id: 'pp', name: 'P', color: '#111111', listIds: [], created: 1 });
   const c = B.dataCounts(); assert.ok(c.tasks >= 1 && c.notes >= 2 && c.projects === 1); assert.match(B.dataCountsText(c), /task/);
-  T.settings.theme = 'light'; const key = await B.wipeAll({ files: false });
+  T.settings.theme = 'light'; T.settings.history.on = true; const key = await B.wipeAll({ files: false });
   const S2 = B.S; assert.equal(B.dataCounts().tasks, 0, 'no tasks left'); assert.equal(S2.notes.length, 0); assert.equal(S2.projects.length, 0); assert.equal(S2.habits.length, 0);
   assert.ok(S2.lists.some(l => l.id === 'inbox') && S2.lists.length === 1, 'only the Inbox remains'); assert.equal(S2.settings.theme, 'light', 'settings are kept unless asked');
   assert.ok(Object.keys(S2.tomb).length > 0, 'deletions are recorded so sync passes them on'); assert.equal(S2.history.length, 1, 'the history log starts afresh'); assert.equal(typeof key, 'string');

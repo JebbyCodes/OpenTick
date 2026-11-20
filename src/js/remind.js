@@ -95,10 +95,10 @@ function remEntries(from, to) {
 /* the reminders editor inside the task panel: the list that is set, plus one control to add another */
 function remListHtml(t) {
   const rs = remsOf(t);
-  return `<div class="remlist" data-rl="task">${rs.map((r, i) => `<span class="remchip">${ic('bell', 12)} ${esc(remItemLabel(r))}<button type="button" data-act="remdel" data-i="${i}" aria-label="Remove reminder ${esc(remItemLabel(r))}">${ic('x', 11)}</button></span>`).join('')}${rs.length ? '' : '<span class="hint">No reminder</span>'}</div>
+  return `<div class="remf rem-task"><div class="remlist" data-rl="task">${rs.map((r, i) => `<span class="remchip">${ic('bell', 12)} ${esc(remItemLabel(r))}<button type="button" data-act="remdel" data-i="${i}" aria-label="Remove reminder ${esc(remItemLabel(r))}">${ic('x', 11)}</button></span>`).join('')}${rs.length ? '' : '<span class="hint">No reminder</span>'}</div>
 <div class="remadd" data-rl="add"><select class="rsel" aria-label="Add a reminder">${opts([['', '+ Add a reminder'], ...REM_PRESETS, ['custom', 'Custom amount…'], ['abs', 'At an exact date and time…']], '')}</select>
 <div class="remc" hidden><input type="number" inputmode="decimal" class="rn" min="0" step="any" value="30" aria-label="How long before"><select class="ru" aria-label="Unit">${opts(REM_UNITS, 1)}</select><span class="hint">before</span><button type="button" class="btn sm" data-act="remcustom">Add</button></div>
-<div class="rema" hidden><input type="date" class="rad" aria-label="Reminder date" value="${t.due || todayStr()}"><input type="time" class="rat" aria-label="Reminder time" value="${validHM(tmEff(t)) ? tmEff(t) : '09:00'}"><button type="button" class="btn sm" data-act="remabs">Add</button></div></div>`;
+<div class="rema" hidden><input type="date" class="rad" aria-label="Reminder date" value="${t.due || todayStr()}"><input type="time" class="rat" aria-label="Reminder time" value="${validHM(tmEff(t)) ? tmEff(t) : '09:00'}"><button type="button" class="btn sm" data-act="remabs">Add</button></div></div></div>`;
 }
 
 function checkReminders() {

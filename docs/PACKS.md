@@ -1,11 +1,11 @@
 # OpenTick packs
 
 A **pack** is one small JSON file that carries **sections** and/or **themes** from one person to another. It is the format behind
-*Settings → Sections & packs* (export, add from a file, add from pasted text) and the future **marketplace**: anything a marketplace lists is one of
-these files, so a pack you make today will work there.
+*Settings → Sections & packs* (export, add from a file, add from pasted text, **add by code**) and the **pack library**: everything the library lists is
+one of these files.
 
 - [What a pack is (and is not)](#what-a-pack-is-and-is-not) · [Format](#format) · [Sections](#sections) · [Fields](#fields) · [Entries](#entries) · [Themes](#themes) · [Limits](#limits)
-- [How the app reads a pack](#how-the-app-reads-a-pack) · [Making and sharing one](#making-and-sharing-one) · [The library](#the-library-marketplace) · [Compatibility](#compatibility)
+- [How the app reads a pack](#how-the-app-reads-a-pack) · [Making and sharing one](#making-and-sharing-one) · [The pack library](#the-pack-library) · [Compatibility](#compatibility)
 
 ## What a pack is (and is not)
 
@@ -37,7 +37,7 @@ removes what you already have, never reads your data, never contacts the interne
 | `opentick` | Always `"pack"`. A file without it is refused. |
 | `format` | `1`. A higher number means a newer OpenTick is needed (the app says so). |
 | `id` | Lower-case words joined by hyphens (40 characters at most). |
-| `name`, `description`, `author`, `version`, `license`, `homepage` | Shown when the pack is previewed. `homepage` must be `https://` or `http://`. The library asks for a semantic version (`1.2.3`) and an open licence (see [The library](#the-library-marketplace)). |
+| `name`, `description`, `author`, `version`, `license`, `homepage` | Shown when the pack is previewed. `homepage` must be `https://` or `http://`. The library asks for a semantic version (`1.2.3`) and an open licence (see [The pack library](#the-pack-library)). |
 | `sections`, `themes` | At least one of them must have something in it. |
 
 ## Sections
@@ -78,6 +78,10 @@ Each field is `{ "key", "name", "type", "opts" }`. `key` (letters, digits, `-` a
 | `url` | `"https://…"` | only `http` and `https` links are ever made clickable |
 | `tags` | `["a", "b"]` | lower-case words |
 
+## Library-only: `tags`
+
+A pack that is submitted to the [pack library](https://github.com/JebbyCodes/OpenTick-Packs) may carry one more top-level field, `"tags": ["study", "school"]`: up to six lower-case words that the library's website and the in-app browser use to find the pack by topic. OpenTick itself ignores the field when it adds a pack, so a pack with or without it behaves the same.
+
 ## Entries
 
 ```json
@@ -110,35 +114,31 @@ A value is a colour (`#rgb`, `#rrggbb`, `rgb()`, `rgba()`, `hsl()`) or, for `--s
 
 1. Build the section in the app. Set up its fields, view, sort and grouping.
 2. *Settings → Sections & packs → Export as a pack*. Choose the sections and whether to include the entries. Give it a name, author and licence.
-3. Check the file: `npm run packs:check` (in the repository) reads every pack in `marketplace/` the way the app does and fails if the app would change anything in it.
-4. Send the file to someone, or add it to the library.
+3. Send the file to someone, or share it with everyone by adding it to the [pack library](#the-pack-library) (below). The library's checks read your file the way the app does and tell you if the app would change anything in it.
 
-## The library (marketplace)
+## The pack library
 
-`marketplace/` in the repository is the pack library. Until a marketplace is built into the app it is a plain folder of files you can download and add by hand.
+The library is its own repository, **[OpenTick-Packs](https://github.com/JebbyCodes/OpenTick-Packs)**, and its website lists every pack with a preview, a download button and a **code**.
 
-```
-marketplace/
-  index.json          the list of packs
-  packs/<id>.json     one file per pack
-```
+**Using it, in the app.** *Settings → Sections & packs → Pack library* (or the command palette, or *New section → By code…*):
 
-`index.json`:
+- **Type a code.** Every pack has a code like `K7QM-3XRD` (8 letters and digits, no I, L, O or U, so nothing looks like anything else). Type it in any case, with or without the dash. OpenTick finds the pack, shows what is in it, and adds it when you say so.
+- **Browse.** Search by name, author, topic or code, filter by sections or themes, and open any pack to look inside before adding it.
+- **From the website.** Each pack on the website has the same code, a Download button (the plain file, which *Add a pack…* reads) and an *Open in OpenTick* link for the web app.
 
-```json
-{ "opentick": "marketplace", "format": 1, "updated": "2026-11-10",
-  "packs": [ { "id": "study-planner", "file": "packs/study-planner.json", "name": "Study planner", "version": "1.0.0",
-               "author": "OpenTick", "description": "…", "license": "CC0-1.0", "sections": 1, "themes": 0, "entries": 3, "tags": ["study"] } ] }
-```
+OpenTick contacts the library only when you press one of those buttons. It sends nothing about you or your data. Everything it fetches goes through the same checks as a file from disk, and the file must match the size and SHA-256 the library's index lists.
 
-To add a pack: put the file in `marketplace/packs/`, add its entry to `index.json` (the counts must match the file), and open a pull request. CI runs `npm run packs:check` and the pack tests. A pack is accepted when:
+**Adding yours.** Open a pull request to OpenTick-Packs with one file, `packs/<id>.json` (the repository's `CONTRIBUTING.md` has the steps; the GitHub web editor is enough). Robots check it and the maintainer reviews it:
 
 - the app reads it **with no warnings** (nothing had to be dropped or changed);
-- its `id` matches its file name and its index entry, and `version` looks like `1.2.3`;
+- its `id` matches its file name, and `version` looks like `1.2.3` (and goes up when you update a pack that is already there);
 - it is under a licence that lets everyone use and share it: `CC0-1.0`, `CC-BY-4.0`, `CC-BY-SA-4.0`, `MIT`, `Apache-2.0`, `ISC` or `Unlicense`;
-- it has an author and a description, contains no personal data, and is under 400 KB.
+- it has an author and a description, contains no personal data, and is under 400 KB;
+- **a performance and error run:** the pack is installed into a real OpenTick in a headless browser (with the processor slowed down to about a phone's speed), and the app's start-up time, memory, screen-drawing time and console are compared with the same app without the pack. A pack that makes start-up or a section slow, or that makes the app throw an error, fails.
 
-The in-app marketplace will list this same index and install packs through the same checks as a file; nothing about the format will need to change. Because packs are data only, installing one from anywhere is as safe as opening a text file.
+Once the pull request is merged, the library's website and index are rebuilt, and the pack's code starts working in every OpenTick within a few minutes. The code is worked out from the pack's `id`, so it never changes, and the check shows it in the pull request before it is merged.
+
+**How the library is built** (for the curious, and for forks). `index.json` has one row per pack: `code`, `id`, `file`, `name`, `version`, `author`, `description`, `license`, `sections`, `themes`, `entries`, `tags`, `size`, `sha256`, `updated`. The app (`src/js/packlib.js`) reads it from the library's website, drops any row that is not well formed, and refuses a file that does not match its row. Point `PKL.base` at your own copy to run a library of your own.
 
 ## Compatibility
 

@@ -205,7 +205,7 @@ function pAdd(min) {
 }
 function pDone() {
   const wasFocus = P.mode === 'focus';
-  if (wasFocus) { S.pomo.push({ ts: Date.now(), min: Math.max(1, Math.round(P.total / 60)), task: P.task || null }); save(); }
+  if (wasFocus) { const fm = Math.max(1, Math.round(P.total / 60)); S.pomo.push({ ts: Date.now(), min: fm, task: P.task || null }); actFocus(fm, P.task); save(); }
   beep(); notify(wasFocus ? 'Focus session complete 🎉' : 'Break is over', wasFocus ? 'Time for a break.' : 'Ready to focus again?');
   const n = S.pomo.filter(p => ymd(new Date(p.ts)) === todayStr()).length;
   pSet(wasFocus ? (n % 4 === 0 ? 'long' : 'short') : 'focus');
@@ -289,7 +289,7 @@ ${tasksSettingsHtml()}
 <label>Long break (min)<input type="number" min="1" max="120" data-p="long" value="${s.pomo.long}"></label></div>`)
   + sec('keys', keysSettingsHtml())
   + sec('sections', packsSettingsHtml())
-  + sec('data', `<h4 class="mh">Data, sync &amp; backup</h4><div class="dgrid">
+  + sec('data', `${historySettingsHtml()}<h4 class="mh">Data, sync &amp; backup</h4><div class="dgrid">
 <button data-m="vault">${ic(vaultOn() ? 'lock' : 'shield', 18)}<span><b>Encryption</b><small>${!vaultAvail() ? 'Needs https or the app' : vaultOn() ? 'On · ' + esc(vScopeLine(Vault.cfg)) + (Vault.key ? '' : ' · locked') : 'Off — protect your data with a passphrase'}</small></span></button>
 <button data-m="sync">${ic('cloud', 18)}<span><b>Sync</b><small>${Sync.on ? 'On · ' + esc((PROVIDERS[Sync.cfg.provider] || {}).label || '') : 'Off — WebDAV, Git, S3 or a file'}</small></span></button>
 <button data-m="export">${ic('download', 18)}<span><b>Export backup</b><small>Everything as one JSON file</small></span></button>
@@ -340,6 +340,7 @@ ${privacySettingsHtml()}`)
       if (!b) { if (e.target.classList.contains('mback')) { closeModal(); render(); } return; }
       const a = b.dataset.m;
       if (typeof packsSettingsAct === 'function' && packsSettingsAct(a, b, m)) return;
+      if (statsSettingsAct(a)) return;
       if (a === 'ok') { closeModal(); render(); }
       else if (a === 'vault') { closeModal(); openVault(); }
       else if (a === 'export') exportData();
@@ -663,6 +664,7 @@ function openListForm(l, parent = '') {
 <label>Name<input id="pk-name" value="${esc(d.name)}" placeholder="e.g. Groceries" autocomplete="off"></label>
 ${iconColourFields(d)}
 <label>Inside<select id="pk-parent">${parents()}</select></label>
+<label>Tags<input id="pk-tags" value="${esc(tlTags(l).map(g => '#' + g).join(' '))}" placeholder="#anna #website" autocomplete="off"></label>${l ? tlFormHint(l) : '<p class="hint">Everything with the same tag is linked to this list: tasks, notes, projects, people.</p>'}
 ${bannerFields(d, d.color)}</div>
 <div class="mact">${isNew ? '' : '<button class="danger" data-m="del">Delete</button>'}<span class="sp"></span><button data-m="no">Cancel</button><button class="pri" data-m="save">Save</button></div>`, m => {
     const click = iconColourWire(m, d); $('#pk-name', m).focus();
@@ -678,8 +680,9 @@ ${bannerFields(d, d.color)}</div>
       else if (b.dataset.m === 'save') {
         d.name = $('#pk-name', m).value.trim(); if (!d.name) { toast('Give the list a name'); $('#pk-name', m).focus(); return; }
         const em = $('#pk-emoji', m).value.trim(); if (em) d.icon = em;
-        if (isNew) { const nl = { id: uid(), name: d.name, color: d.color, sections: [], created: Date.now(), parent: d.parent || null }; if (d.icon) nl.icon = d.icon; bannerSet(nl, d.banner); S.lists.push(nl); if (d.parent) S.settings.ui.fold['l:' + d.parent] = false; save(); closeModal(); sfx('add'); setNav('list:' + nl.id); }
-        else { l.name = d.name; l.color = d.color; l.parent = d.parent || null; if (d.icon) l.icon = d.icon; else delete l.icon; bannerSet(l, d.banner); save(); closeModal(); refresh(); }
+        const tg = tlParse($('#pk-tags', m).value);
+        if (isNew) { const nl = { id: uid(), name: d.name, color: d.color, sections: [], created: Date.now(), parent: d.parent || null }; if (d.icon) nl.icon = d.icon; if (tg.length) nl.tags = tg; bannerSet(nl, d.banner); S.lists.push(nl); if (d.parent) S.settings.ui.fold['l:' + d.parent] = false; save(); closeModal(); sfx('add'); setNav('list:' + nl.id); }
+        else { l.name = d.name; l.color = d.color; l.parent = d.parent || null; if (d.icon) l.icon = d.icon; else delete l.icon; if (tg.length) l.tags = tg; else delete l.tags; bannerSet(l, d.banner); save(); closeModal(); refresh(); }
       } else if (b.dataset.m === 'del') { closeModal(); U.nav = 'list:' + l.id; ACT.listmenu({ dataset: { lid: l.id } }); }
     };
   }, 'wide');
@@ -691,6 +694,7 @@ function openProjectForm(p) {
   const tree = listTree(), pickers = () => tree.length ? tree.map(({ l, depth }) => `<label class="pk-l" style="--d:${depth}"><input type="checkbox" data-lid="${esc(l.id)}"${d.ids.has(l.id) ? ' checked' : ''}><span class="ni" style="color:${l.color}">${listIcon(l, 16)}</span><span>${esc(l.name)}</span></label>`).join('') : '<p class="hint">Create a list first, then link it here.</p>';
   openModal(`<h3>${isNew ? 'New project' : 'Edit project'}</h3><div class="pk-prev" id="pk-prev"></div><div class="form one">
 <label>Name<input id="pk-name" value="${esc(d.name)}" placeholder="e.g. Website relaunch" autocomplete="off"></label>
+<label>Tags<input id="pk-tags" value="${esc(tlTags(p).map(g => '#' + g).join(' '))}" placeholder="#anna #website" autocomplete="off"></label>${p ? tlFormHint(p) : '<p class="hint">Everything with the same tag is linked to this project: tasks, notes, lists, people.</p>'}
 <div class="lbl">Lists in this project<div class="pk-lists">${pickers()}</div><p class="hint">Ticking a list brings its sublists along. A list can belong to several projects.</p></div>
 ${iconColourFields(d)}
 ${bannerFields(d, d.color)}</div>
@@ -706,9 +710,9 @@ ${bannerFields(d, d.color)}</div>
       else if (b.dataset.m === 'save') {
         d.name = $('#pk-name', m).value.trim(); if (!d.name) { toast('Give the project a name'); $('#pk-name', m).focus(); return; }
         const em = $('#pk-emoji', m).value.trim(); if (em) d.icon = em;
-        const ids = tree.map(x => x.l.id).filter(id => d.ids.has(id));
-        if (isNew) { const np = { id: uid(), name: d.name, color: d.color, listIds: ids, created: Date.now() }; if (d.icon) np.icon = d.icon; bannerSet(np, d.banner); S.projects.push(np); save(); closeModal(); sfx('add'); setNav('project:' + np.id); }
-        else { Object.assign(p, { name: d.name, color: d.color, listIds: ids }); if (d.icon) p.icon = d.icon; else delete p.icon; bannerSet(p, d.banner); save(); closeModal(); refresh(); }
+        const ids = tree.map(x => x.l.id).filter(id => d.ids.has(id)), tg = tlParse($('#pk-tags', m).value);
+        if (isNew) { const np = { id: uid(), name: d.name, color: d.color, listIds: ids, created: Date.now() }; if (d.icon) np.icon = d.icon; if (tg.length) np.tags = tg; bannerSet(np, d.banner); S.projects.push(np); save(); closeModal(); sfx('add'); setNav('project:' + np.id); }
+        else { Object.assign(p, { name: d.name, color: d.color, listIds: ids }); if (tg.length) p.tags = tg; else delete p.tags; if (d.icon) p.icon = d.icon; else delete p.icon; bannerSet(p, d.banner); save(); closeModal(); refresh(); }
       } else if (b.dataset.m === 'del') {
         closeModal();
         if (await askConfirm(`Delete the project “${p.name}”? Its lists, tasks and notes are not affected.`)) { notesDetach('project', p.id); S.projects = S.projects.filter(x => x !== p); save(); if (U.nav === 'project:' + p.id) setNav('today'); else refresh(); } else openProjectForm(p);
@@ -871,7 +875,7 @@ const ACT = {
   hkind: el => { const k = el.dataset.k, l = U.hist.kinds; U.hist.kinds = l.includes(k) ? l.filter(x => x !== k) : [...l, k]; U.hist.shown = 150; renderMain(); },
   hreset: () => { U.hist.acts = []; U.hist.kinds = []; U.hist.q = ''; U.hist.shown = 150; renderMain(); },
   hmore: () => { U.hist.shown += 150; $('#hlist').innerHTML = histListHtml(); },
-  hclear: async () => { if (await askConfirm('Clear the whole history? Your tasks and notes are not affected.', 'Clear')) { S.history = []; save(); renderMain(); } },
+  hclear: async () => { if (await askConfirm('Clear the whole history list? Your tasks and notes are not affected, and Statistics keep their counts.', 'Clear')) { S.history = []; save(); renderMain(); } },
   hopen: el => {
     const k = el.dataset.k, id = el.dataset.id;
     if (k === 'task') {
@@ -925,6 +929,7 @@ const ACT = {
   pcustom: () => { const i = $('#pcus'); if (i && pCustom(i.value)) renderMain(); },
   pskip: () => { pSet(P.mode === 'focus' ? 'short' : 'focus'); renderMain(); },
 };
+Object.assign(ACT, ST_ACT, B2_ACT, TB_ACT, PR_ACT); // Statistics' (stats.js) and the batch bar's (batch2.js) buttons
 document.addEventListener('click', e => {
   if (U.suppress && Date.now() - U.suppress < 80) { U.suppress = 0; e.preventDefault(); return; } // the click that ends a block resize
   const a = e.target.closest('a[href]');
@@ -987,6 +992,7 @@ document.addEventListener('change', async e => {
     save(); P.act = pActive(); wlSync(); renderMain(); return;
   }
   if (el.dataset.hsel) { U.hist[el.dataset.hsel] = el.value; renderMain(); return; }
+  if (el.dataset.stf !== undefined) { stChange(el); return; }
   if (el.dataset.gs) { if (el.dataset.gs === 'list') U.gList = el.value; else { S.settings.gantt[el.dataset.gs] = el.value; save(); } U.gScrollReset = true; renderMain(); return; }
   if (el.dataset.sel) {
     if (el.dataset.sel === 'ptask') P.task = el.value; else if (el.dataset.sel === 'projlist') { U.projList[el.dataset.pid] = el.value; renderMain(); } else { S.settings[el.dataset.sel] = el.value; if (el.dataset.sel === 'sort') S.settings.sortDir = null; /* each sort starts in its natural direction */ save(); renderMain(); }
@@ -1084,6 +1090,8 @@ function mdFormat(kind, ta) {
   else if (kind === 'h') lines(/^#{1,6}\s/, '## ', /^#{1,6}\s+/);
   else if (kind === 'hr') insert('---\n', 4, 0);
   else if (kind === 'table') insert('| Column | Column |\n|---|---|\n|  |  |\n', 2, 6);
+  else if (kind === 'tref') { taskRefInsert(ta); return; }
+  else if (kind === 'tgref') { tagRefInsert(ta); return; }
   else if (kind === 'mention') { ctMentionPick(ta); return; } // pick a person from Contacts; @[Name] goes in at the caret
   ta.value = v; ta.setSelectionRange(a, b); ta.focus();
   ta.dispatchEvent(new Event('input', { bubbles: true })); // the editor's own input handler stores the text, so every editor behaves the same

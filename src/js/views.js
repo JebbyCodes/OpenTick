@@ -70,6 +70,7 @@ const IC = {
   flame: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
   'arrow-up': '<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>',
   'arrow-down': '<line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/>',
+  chart: '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="3" y1="20" x2="21" y2="20"/>',
   history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/><polyline points="12 7 12 12 15 14"/>',
   folder: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
   home: '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
@@ -108,12 +109,12 @@ const LIST_ICONS = ['list', 'inbox', 'sun', 'calendar', 'star', 'flag', 'heart',
 const listIcon = (o, n = 18) => { const i = o && o.icon; return i && IC[i] ? ic(i, n) : i ? `<span class="emo" style="font-size:${Math.round(n * 0.9)}px">${esc(i)}</span>` : ic(o && o.listIds ? 'layers' : 'list', n); };
 const U = { projList: {}, tagSel: [], tagMode: 'all', hist: { acts: [], kinds: [], q: '', sort: 'new', shown: 150 },  page: 'tasks', nav: 'today', q: '', sel: null, pinKey: null, calD: new Date(), fx: [], showDone: {}, drag: null, _rn: null, ttDate: null, ttTray: null, ttV: null };
 const SMART = [['inbox', 'Inbox', 'inbox'], ['today', 'Today', 'sun'], ['tomorrow', 'Tomorrow', 'sunrise'], ['week', 'Next 7 Days', 'calendar'], ['all', 'All', 'layers']];
-const PAGES = [['home', 'Projects', 'dashboard'], ['tasks', 'Tasks', 'check-circle'], ['notes', 'Notes', 'notes'], ['calendar', 'Calendar', 'calendar'], ['timetable', 'Week & day', 'table'], ['gantt', 'Timeline', 'gantt'], ['matrix', 'Matrix', 'grid'], ['habits', 'Habits', 'activity'], ['focus', 'Focus', 'clock'], ['templates', 'Templates', 'copy'], ['countdowns', 'Countdowns', 'hourglass'], ['zones', 'Time zones', 'globe'], ['kanban', 'Board', 'columns'], ['contacts', 'Contacts', 'contact']];
+const PAGES = [['home', 'Projects', 'dashboard'], ['tasks', 'Tasks', 'check-circle'], ['notes', 'Notes', 'notes'], ['calendar', 'Calendar', 'calendar'], ['timetable', 'Week & day', 'table'], ['gantt', 'Timeline', 'gantt'], ['matrix', 'Matrix', 'grid'], ['habits', 'Habits', 'activity'], ['focus', 'Focus', 'clock'], ['templates', 'Templates', 'copy'], ['countdowns', 'Countdowns', 'hourglass'], ['zones', 'Time zones', 'globe'], ['kanban', 'Board', 'columns'], ['contacts', 'Contacts', 'contact'], ['stats', 'Statistics', 'chart'], ['history', 'History', 'history']];
 // The sidebar and the phone tab bar show SECTIONS; each section groups related views (the pages above, whose ids are what everything else
 // uses: shortcuts, widgets, links, settings). A slim switcher under the page header moves between a section's views.
-const SECTIONS = [['home', 'Projects', 'dashboard', ['home']], ['tasks', 'Tasks', 'check-circle', ['tasks', 'kanban', 'matrix', 'gantt']], ['notes', 'Notes', 'notes', ['notes', 'templates']], ['calendar', 'Calendar', 'calendar', ['calendar', 'timetable', 'countdowns', 'zones']], ['habits', 'Habits', 'activity', ['habits', 'focus']], ['contacts', 'Contacts', 'contact', ['contacts']]];
+const SECTIONS = [['home', 'Projects', 'dashboard', ['home']], ['tasks', 'Tasks', 'check-circle', ['tasks', 'kanban', 'matrix', 'gantt']], ['notes', 'Notes', 'notes', ['notes', 'templates']], ['calendar', 'Calendar', 'calendar', ['calendar', 'timetable', 'countdowns', 'zones']], ['habits', 'Habits', 'activity', ['habits', 'focus']], ['contacts', 'Contacts', 'contact', ['contacts']], ['stats', 'Statistics', 'chart', ['stats', 'history']]];
 // how a view is named inside its section: [label, icon]
-const VIEW_TAB = { home: ['Projects', 'dashboard'], tasks: ['List', 'list'], kanban: ['Board', 'columns'], matrix: ['Matrix', 'grid'], gantt: ['Timeline', 'gantt'], notes: ['Notes', 'notes'], templates: ['Templates', 'copy'], calendar: ['Calendar', 'calendar'], timetable: ['Week & day', 'table'], countdowns: ['Countdowns', 'hourglass'], zones: ['Time zones', 'globe'], habits: ['Habits', 'activity'], focus: ['Focus', 'clock'], contacts: ['Contacts', 'contact'] };
+const VIEW_TAB = { home: ['Projects', 'dashboard'], tasks: ['List', 'list'], kanban: ['Board', 'columns'], matrix: ['Matrix', 'grid'], gantt: ['Timeline', 'gantt'], notes: ['Notes', 'notes'], templates: ['Templates', 'copy'], calendar: ['Calendar', 'calendar'], timetable: ['Week & day', 'table'], countdowns: ['Countdowns', 'hourglass'], zones: ['Time zones', 'globe'], habits: ['Habits', 'activity'], focus: ['Focus', 'clock'], contacts: ['Contacts', 'contact'], stats: ['Overview', 'chart'], history: ['History', 'history'] };
 const FLAT = ['done', 'trash', 'wontdo', 'search'];
 // inline markdown in titles, never as links (rows are click targets)
 const FULLDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -267,7 +268,7 @@ function vtabsHtml() {
   return `<nav class="vtabs" role="tablist" aria-label="${esc(name)} views">${vs.map(k => `<button role="tab" class="${U.page === k ? 'on' : ''}" aria-selected="${U.page === k}" data-act="page" data-page="${k}">${ic(viewTab(k)[1], 15)}<span>${esc(viewTab(k)[0])}</span></button>`).join('')}</nav>`;
 }
 const topHtml = (title, tools = '') => vtabsHtml() ? topHead(title, tools) + vtabsHtml() : topHead(title, tools);
-const topHead = (title, tools = '') => `<header class="top"><button class="ib burger" data-act="burger" aria-label="Menu">${ic('menu', 22)}</button><h1>${title}</h1><div class="tools">${tools}</div><button class="ib pt pt-det" data-act="uitoggle" data-k="detail" title="Show / hide task details  ]" aria-label="Show or hide the task details">${ic('panel-right', 20)}</button></header>`;
+const topHead = (title, tools = '') => `<header class="top"><button class="ib burger" data-act="burger" aria-label="Menu">${ic('menu', 22)}</button><h1>${title}</h1><div class="tools">${tools}${typeof tbTool === 'function' ? tbTool() : ''}${typeof prTool === 'function' ? prTool() : ''}${typeof b2Tool === 'function' ? b2Tool() : ''}</div><button class="ib pt pt-det" data-act="uitoggle" data-k="detail" title="Show / hide task details  ]" aria-label="Show or hide the task details">${ic('panel-right', 20)}</button></header>`;
 function render() {
   // a section reopens on the view you last used in it (Classes is the exception: it is not a view of the Calendar to come back to, it has its own button or pin)
   { const s = typeof secOf === 'function' ? secOf(U.page) : null; if (s && !(U.page === 'timetable' && typeof schoolOn === 'function' && schoolOn())) (U.secLast = U.secLast || {})[s] = U.page; }
@@ -278,7 +279,7 @@ function render() {
   if (typeof watchLeave === 'function') watchLeave();
   if (U.gFull && U.page !== 'gantt') { U.gFull = false; document.body.classList.remove('gtfull'); try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) { /* not in full screen */ } }
   if (U.nFull && (U.page !== 'notes' || !U.noteSel)) { U.nFull = false; document.body.classList.remove('nfull'); }
-  document.body.classList.toggle('pg-notes', U.page === 'notes' || U.page === 'history'); // the Notes page uses the whole width: no details panel
+  document.body.classList.toggle('pg-notes', U.page === 'notes' || U.page === 'history' || U.page === 'stats'); // the Notes page uses the whole width: no details panel
   renderSide(); renderMain(); renderDetail(); renderTabbar();
 }
 // phone navigation: the sections and pinned views as bottom tabs (in the order they have in the sidebar), "More" opens the full menu
@@ -287,7 +288,7 @@ function renderTabbar() {
   el.innerHTML = navHtml('bar') + `<button data-act="burger">${ic('menu', 22)}<small>More</small></button>`;
 }
 function renderTimetable() { schoolOn() ? renderSchool() : renderTimetablePlan(); }
-function renderMain() { if (typeof WIDGET !== 'undefined' && WIDGET) return renderWidget(); if (typeof csecOn === 'function' && csecOn(U.page)) { renderCustomSection(); fxFlush(); return; } ({ contacts: renderContacts, home: renderHome, tasks: renderTasks, notes: renderNotes, templates: renderTemplates, calendar: renderCal, timetable: renderTimetable, gantt: renderGantt, matrix: renderMatrix, habits: renderHabits, help: renderHelp, focus: renderFocus, history: renderHistory, countdowns: renderCountdowns, zones: renderZones, kanban: renderKanbanPage })[U.page](); fxFlush(); if (typeof batchPaint === 'function') batchPaint(); }
+function renderMain() { if (typeof WIDGET !== 'undefined' && WIDGET) return renderWidget(); if (typeof csecOn === 'function' && csecOn(U.page)) { renderCustomSection(); fxFlush(); return; } ({ contacts: renderContacts, home: renderHome, tasks: renderTasks, notes: renderNotes, templates: renderTemplates, calendar: renderCal, timetable: renderTimetable, gantt: renderGantt, matrix: renderMatrix, habits: renderHabits, help: renderHelp, focus: renderFocus, history: renderHistory, stats: renderStats, countdowns: renderCountdowns, zones: renderZones, kanban: renderKanbanPage })[U.page](); fxFlush(); if (typeof batchPaint === 'function') batchPaint(); }
 
 function renderSide() {
   const q = $('#q'), keep = q ? q.value : '';
@@ -324,7 +325,7 @@ ${sec('projects', 'Projects', `<button class="ib sm" data-act="addproject" title
 ${folded('projects') ? '' : projRows.join('') || '<p class="hint nohint">Link lists together in a project.</p>'}
 ${tags.length ? sec('tags', 'Tags') + (folded('tags') ? '' : tags.map(g => item('tag:' + g, g, 'tag', tagColor(g), openCount('tag:' + g))).join('')) : ''}
 ${sec('more', 'More')}
-${folded('more') ? '' : item('done', 'Completed', 'check-circle') + item('wontdo', "Won't Do", 'slash') + item('trash', 'Trash', 'trash') + `<button class="nav${U.page === 'history' ? ' on' : ''}" data-act="page" data-page="history"><span class="ni">${ic('history', 18)}</span><span class="nl">History</span></button>`}
+${folded('more') ? '' : item('done', 'Completed', 'check-circle') + item('wontdo', "Won't Do", 'slash') + item('trash', 'Trash', 'trash')}
 </div>`;
   const nq = $('#q'); if (nq) nq.value = keep || U.q;
 }
@@ -398,7 +399,7 @@ function renderTasks() {
   if (!flat && !kan) tools += `<select data-sel="group" title="Group by">${opts([['none', 'No grouping'], ['date', 'Group: date'], ['priority', 'Group: priority'], ['list', 'Group: list'], ['tag', 'Group: tag']], S.settings.group)}</select><select data-sel="sort" title="Sort by">${opts([['manual', 'Sort: manual'], ['due', 'Sort: due date'], ['priority', 'Sort: priority'], ['title', 'Sort: title'], ['created', 'Sort: created'], ['tags', 'Sort: tags']], S.settings.sort)}</select><button class=\"ib\" data-act=\"sortdir\" title=\"${sortDir() === 'asc' ? 'Ascending' : 'Descending'} — click to reverse\" aria-label=\"Reverse the sort order\">${ic(sortDir() === 'asc' ? 'arrow-up' : 'arrow-down')}</button>`;
   if (isList && list.id !== 'inbox') tools += `<button class="ib" data-act="listmenu" title="List options">${ic('more')}</button>`;
   if (proj) tools += `<button class="btn" data-act="projmenu" data-pid="${esc(proj.id)}">${ic('sliders', 15)} Edit project</button>`;
-  if (eff.startsWith('tag:')) tools += `<button class="ib" data-act="tagmenu" data-tag="${esc(eff.slice(4))}" title="Tag colour & name">${ic('more')}</button>`;
+  if (eff.startsWith('tag:')) tools += `<button class="ib" data-tlall="${esc(eff.slice(4))}" title="Everything tagged #${esc(eff.slice(4))}: tasks, notes, lists, projects, people" aria-label="Everything with this tag">${ic('hash')}</button><button class="ib" data-act="tagmenu" data-tag="${esc(eff.slice(4))}" title="Tag colour & name">${ic('more')}</button>`;
   if (eff === 'trash' && all.length) tools += `<button class="btn" data-act="emptytrash">Empty trash</button>`;
   if (eff === 'done' && all.length) tools += `<button class="btn" data-act="cleardone">Clear</button>`;
   let body;
@@ -476,10 +477,12 @@ function histListHtml() {
   return out + (sorted.length > shown.length ? `<button class="btn hmore" data-act="hmore">Show ${Math.min(150, sorted.length - shown.length)} more (${sorted.length - shown.length} left)</button>` : '');
 }
 function renderHistory() {
+  if (!histOn() && !S.history.length) { $('#main').innerHTML = topHtml('History') + `<div class="body stpage">${stOffHtml('History')}</div>`; return; }
   const h = U.hist, base = histFiltered(), cnt = a => base.filter(e => e.a === a).length;
   const acts = Object.keys(HIST_ACT).filter(a => S.history.some(e => e.a === a));
   const kinds = ['task', 'list', 'project', 'habit', 'note', 'template', 'countdown', 'zone', 'board', 'slot', 'contact', 'section', 'entry'].filter(k => S.history.some(e => e.k === k));
   $('#main').innerHTML = topHtml('History', `<select data-hsel="sort" title="Order">${opts([['new', 'Newest first'], ['old', 'Oldest first'], ['action', 'By action'], ['name', 'By name']], h.sort)}</select>${S.history.length ? `<button class="btn" data-act="hclear">Clear</button>` : ''}`)
+    + (histOn() ? '' : `<div class="stoff sm" role="status"><p><b>History is off.</b> Nothing new is being recorded. These are the entries from before you turned it off.</p><button class="btn pri" data-act="histon">Turn on history</button></div>`)
     + `<div class="hfilters"><div class="search hs">${ic('search', 16)}<input id="hq" placeholder="Search the history" autocomplete="off" value="${esc(h.q)}"></div><div class="hchips">${acts.map(a => `<button class="tfc hc a-${a}${h.acts.includes(a) ? ' on' : ''}" data-act="hact" data-a="${a}" aria-pressed="${h.acts.includes(a)}">${HIST_ACT[a]}<small>${cnt(a)}</small></button>`).join('')}${kinds.length > 1 ? '<span class="hsep"></span>' + kinds.map(k => `<button class="tfc${h.kinds.includes(k) ? ' on' : ''}" data-act="hkind" data-k="${k}" aria-pressed="${h.kinds.includes(k)}">${HIST_KIND_NAME[k]}s</button>`).join('') : ''}${h.acts.length || h.kinds.length || h.q ? '<button class="btn sm" data-act="hreset">Reset</button>' : ''}</div></div>`
     + `<div class="body hist" id="hlist">${histListHtml()}</div><p class="hint pad">Kept on this device only (last ${HIST_MAX}). Quick edits to one item are combined.</p>`;
 }
@@ -696,14 +699,14 @@ function renderDetail() {
 <div class="dhead"><button class="chk p${t.priority}${t.status === 'done' ? ' on' : ''}" data-act="toggle" data-id="${t.id}" aria-label="Complete task">${t.status === 'done' ? ic('check', 13) : ''}</button><input class="dtitle" data-f="title" value="${esc(t.title)}" placeholder="Task title"><button class="ib mob" data-act="closedetail" aria-label="Close">${ic('x', 20)}</button></div>
 <div class="dstat"><span class="sv" data-sv aria-live="polite"></span><span id="d-ed">${editedText(t)}</span><span class="dc">Created ${esc(fmtDate(ymd(new Date(t.created || Date.now()))))}</span></div>
 <div class="dbody">
-<div class="dr"><span>${ic('calendar', 16)}</span><input type="date" data-f="due" value="${t.due || ''}"><input type="time" data-f="time" value="${t.time || ''}"${t.due ? '' : ' disabled'}></div>${t.due && t.time && typeof tzTaskOptions === 'function' ? `<div class="dr" title="The zone this time was planned in. Your own time follows it when you travel."><span>${ic('globe', 16)}</span><select data-f="tz" aria-label="Planned in time zone">${opts(tzTaskOptions(t), t.tz || '')}</select></div>` : ''}
-<div class="chips"><button class="btn sm${t.due === td ? ' on' : ''}" data-act="qdate" data-w="today">Today</button><button class="btn sm${t.due === tm ? ' on' : ''}" data-act="qdate" data-w="tomorrow">Tomorrow</button><button class="btn sm${t.due === nw ? ' on' : ''}" data-act="qdate" data-w="next">Next week</button><button class="btn sm${!t.due ? ' on' : ''}" data-act="qdate" data-w="none">No date</button></div>
-<div class="dr top"><span>${ic('clock', 16)}</span>${durHtml('task', t.dur)}</div>${slots.length ? `<div class="dr"><span>${ic('table', 16)}</span><select data-f="slot" title="Timetable slot">${opts([['', 'No timetable slot'], ...slots.map(x => [x.id, `${x.title} · ${x.days.map(d => DAYS[d]).join('/')} ${fmtTime(x.start)}`])], t.slotId && slotById(t.slotId) ? t.slotId : '')}</select></div>` : ''}
+<div class="dr"><span>${ic('calendar', 16)}</span><input type="date" data-f="due" value="${t.due || ''}"><input type="time" data-f="time" value="${t.time || ''}"${t.due ? '' : ' disabled'}></div>
+<div class="chips"><button class="btn sm${t.due === td ? ' on' : ''}" data-act="qdate" data-w="today">Today</button><button class="btn sm${t.due === tm ? ' on' : ''}" data-act="qdate" data-w="tomorrow">Tomorrow</button><button class="btn sm${t.due === nw ? ' on' : ''}" data-act="qdate" data-w="next">Next week</button><button class="btn sm${!t.due ? ' on' : ''}" data-act="qdate" data-w="none">No date</button></div>${t.due && t.time && typeof tzTaskOptions === 'function' ? `<div class="dr" title="The zone this time was planned in. Your own time follows it when you travel."><span>${ic('globe', 16)}</span><select data-f="tz" aria-label="Planned in time zone">${opts(tzTaskOptions(t), t.tz || '')}</select></div>` : ''}
+<div class="dr al"><span>${ic('clock', 16)}</span>${durHtml('task', t.dur)}</div>${slots.length ? `<div class="dr"><span>${ic('table', 16)}</span><select data-f="slot" title="Timetable slot">${opts([['', 'No timetable slot'], ...slots.map(x => [x.id, `${x.title} · ${x.days.map(d => DAYS[d]).join('/')} ${fmtTime(x.start)}`])], t.slotId && slotById(t.slotId) ? t.slotId : '')}</select></div>` : ''}
 ${classRows(t)}<div class="dr"><span>${ic('flag', 16)}</span><div class="pri">${[3, 2, 1, 0].map(p => `<button class="pf p${p}${t.priority === p ? ' on' : ''}" data-act="prio" data-p="${p}">${PRIO[p]}</button>`).join('')}</div></div>
 <div class="dr"><span>${ic('list', 16)}</span><select data-f="list">${opts(listOpts(), t.listId)}</select>${secs.length ? `<select data-f="section">${opts([['', 'Not sectioned'], ...secs.map(s => [s, s])], t.section || '')}</select>` : ''}</div>
 <div class="dr"><span>${ic('repeat', 16)}</span><select data-f="repeat">${opts([['none', 'Does not repeat'], ...Object.keys(RN).map(k => [k, RN[k]]), ...(rk === 'custom' ? [['custom', repeatLabel(t.repeat)]] : []), ['edit', 'Custom…']], rk)}</select></div>
 ${repeatMoreHtml(t)}
-<div class="dr top"><span>${ic('bell', 16)}</span>${remListHtml(t)}</div>
+<div class="dr al"><span>${ic('bell', 16)}</span>${remListHtml(t)}</div>
 <div class="dr"><span>${ic('sparkles', 16)}</span><button class="btn sm ticbtn" data-act="taskicon" title="Give this task an icon">${t.icon ? iconAny(t.icon, 16) + ' Change icon' : 'Add an icon'}</button>${t.icon ? '<button class="btn sm" data-act="taskiconx">Remove</button>' : ''}</div>
 <div class="dr"><span>${ic('tag', 16)}</span><input data-f="tags" value="${esc(t.tags.map(g => '#' + g).join(' '))}" placeholder="#tags"></div>
 ${gtDetailHtml(t)}
@@ -711,8 +714,9 @@ ${t.tags.length ? `<div class="chips tg">${t.tags.map(g => `<button class="tag t
 ${notesHtml(t)}
 ${linkedNotesHtml(t)}
 ${typeof ctPeopleHtml === 'function' ? ctPeopleHtml('task', t) : ''}
+${typeof tlBlock === 'function' ? tlBlock('task', t) : ''}
 ${filesHtml('task', t.id)}
-<div class="subs"><h4>Subtasks</h4>${t.subtasks.map(s => `<div class="sub"><button class="chk sm${s.done ? ' on' : ''}" data-act="subtog" data-sid="${s.id}">${s.done ? ic('check', 11) : ''}</button><input data-sf="${s.id}" value="${esc(s.title)}" class="${s.done ? 'fin' : ''}">${s.start || s.due ? `<small class="sd" title="Subtask dates (shown in the Gantt view)">${esc(s.start && s.due ? fmtDate(s.start) + ' – ' + fmtDate(s.due) : fmtDate(s.start || s.due))}</small>` : ''}<button class="ib sm" data-act="subdel" data-sid="${s.id}">${ic('x', 14)}</button></div>`).join('')}<input id="d-subnew" placeholder="+ Add subtask" autocomplete="off"></div>
+<div class="subs lnks"><div class="fh"><b>${ic('check-square', 14)} Subtasks</b>${t.subtasks.length ? `<span class="fcnt">${t.subtasks.filter(x => x.done).length}/${t.subtasks.length}</span>` : ''}</div>${t.subtasks.map(s => `<div class="sub"><button class="chk sm${s.done ? ' on' : ''}" data-act="subtog" data-sid="${s.id}">${s.done ? ic('check', 11) : ''}</button><input data-sf="${s.id}" value="${esc(s.title)}" class="${s.done ? 'fin' : ''}">${s.start || s.due ? `<small class="sd" title="Subtask dates (shown in the Gantt view)">${esc(s.start && s.due ? fmtDate(s.start) + ' – ' + fmtDate(s.due) : fmtDate(s.start || s.due))}</small>` : ''}<button class="ib sm" data-act="subdel" data-sid="${s.id}">${ic('x', 14)}</button></div>`).join('')}<input id="d-subnew" placeholder="+ Add subtask" autocomplete="off"></div>
 </div>
 <div class="dfoot">${t.deleted ? `<button class="btn" data-act="restore">Restore</button><button class="btn danger" data-act="purge">Delete forever</button>` : `<button class="btn" data-act="wontdo">${t.status === 'wontdo' ? 'Reopen' : "Won't do"}</button><button class="btn" data-act="dup">Duplicate</button><button class="btn danger" data-act="del">Delete</button>`}</div>`;
   fitTa($('#detail textarea[data-f="notes"]'));

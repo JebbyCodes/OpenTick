@@ -245,7 +245,7 @@ async function snapSave(force, tag) {
   try {
     flush(); const key = 'snap:' + todayStr() + (tag ? '~' + tag + '-' + Date.now().toString(36) : ''), fp = fingerprint(snapshot()), cur = tag ? null : await snapUnpack(await idb('readonly', s => s.get(key)));
     if (cur && cur.fp === fp && !force) return false;
-    const rec = await snapPack(Date.now(), tag, S.tasks.filter(t => !t.deleted).length, fp, JSON.stringify({ ...S, history: [] }));
+    const rec = await snapPack(Date.now(), tag, S.tasks.filter(t => !t.deleted).length, fp, JSON.stringify({ ...S, history: [], activity: undefined }));
     await idb('readwrite', s => s.put(rec, key));
     const keys = await snapKeys(); for (const k of keys.slice(0, Math.max(0, keys.length - SNAP_KEEP))) await idb('readwrite', s => s.delete(k));
     return key;
@@ -393,13 +393,19 @@ async function syncNow(manual) {
 function afterRemote() {
   if (U.sel && !getT(U.sel)) U.sel = null;
   const a = document.activeElement;
-  if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.closest && a.closest('#main,#detail')) { setTimeout(afterRemote, 1500); return; }
-  refresh();
+  if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.closest && a.closest('#main,#detail')) {
+    // typing in a field: update the open note / task text in place (otherwise it stays an old version, and the next keystroke would save that over the new one)
+    if (typeof liveRefresh === 'function' && liveRefresh(a)) { if (typeof taskExpandLive === 'function') taskExpandLive(); return; }
+    if (document.activeElement === a) { setTimeout(afterRemote, 1500); return; } // (when what they were typing in is gone, it let go of the focus: redraw now)
+  }
+  if (typeof U.noteSel !== 'undefined' && U.noteSel && !noteById(U.noteSel)) U.noteSel = null;
+  refresh(); if (typeof noteLive === 'function') noteLive(); if (typeof taskExpandLive === 'function') taskExpandLive();
 }
 function startSync() {
   if (typeof WIDGET !== 'undefined' && WIDGET) return;
   hooks.change = () => scheduleSync(5000); // 5 s after the last local edit
-  setInterval(() => { if (Sync.cfg.auto && !document.hidden) syncNow(); }, 180000);
+  // every 3 minutes, and every 45 seconds while a note is open (so an edit made on another device shows up while you read the note)
+  setInterval(() => { if (Sync.cfg.auto && !document.hidden && Date.now() - (Sync.cfg.last || 0) >= (U.page === 'notes' && U.noteSel ? 45000 : 180000) - 2000) syncNow(); }, 15000);
   window.addEventListener('online', () => syncNow());
   document.addEventListener('visibilitychange', () => { if (!document.hidden && Sync.cfg.auto && Date.now() - Sync.cfg.last > 30000) syncNow(); });
   if (Sync.on) setTimeout(() => syncNow(), 600);

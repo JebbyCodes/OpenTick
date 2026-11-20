@@ -31,7 +31,7 @@ const EMPTY_DATA = () => ({ v: 1, tasks: [], lists: [], habits: [], tags: [], sl
 async function wipeAll(o = {}) {
   let key = ''; try { key = (await snapSave(true, 'before-delete')) || ''; } catch (e) { key = ''; }
   const d = EMPTY_DATA(); if (!o.settings) d.settings = S.settings;
-  S.history = [];
+  S.history = []; S.activity = actNew(); // the log and the Statistics tally go with the data
   replaceAll(d);
   if (o.files !== false) await filesWipe();
   if (o.settings && typeof csoundWipe === 'function') await csoundWipe(); // the settings go back to their defaults, and so does the sound

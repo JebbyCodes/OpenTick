@@ -9,6 +9,8 @@ const MD_URL = /^(?:https?:\/\/|mailto:|tel:)[^\s"'<>]*$/i;
 const MD_IMG = /^(?:ot-file:[\w-]+|https?:\/\/[^\s"'<>]*|data:image\/(?:png|jpe?g|gif|webp);base64,[A-Za-z0-9+/=]+)$/i;
 const MD_EMOJI = { smile: '😄', grin: '😁', joy: '😂', wink: '😉', heart: '❤️', thumbsup: '👍', '+1': '👍', '-1': '👎', tada: '🎉', fire: '🔥', star: '⭐', check: '✅', white_check_mark: '✅', x: '❌', warning: '⚠️', bulb: '💡', memo: '📝', book: '📖', calendar: '📅', clock: '🕒', rocket: '🚀', eyes: '👀', thinking: '🤔', pray: '🙏', clap: '👏', muscle: '💪', coffee: '☕', zap: '⚡', bug: '🐛', lock: '🔒', pushpin: '📌', question: '❓', sparkles: '✨' };
 let MD_NOTE = null, MD_DEPTH = 0; const MD_NSEEN = []; // MD_NOTE(title) -> { id, title, body, self } | null lets ![[Note]] show another note
+let MD_TAG = null; // MD_TAG.embed(ref) / MD_TAG.prop(ref, noLinks): ![[tag:anna]] lists and {{tag:anna.count}} values (taglinks.js)
+let MD_TASK = null; // MD_TASK.embed(ref) / MD_TASK.prop(ref, noLinks): ![[task:ID]] cards and {{task:ID.due}} values (taskref.js)
 let MD_CONTACT = null; // MD_CONTACT(name) -> { id, name } | null turns @[Name] into a link to a contact (contacts.js)
 let MD_REFS = {}, MD_FN = null, MD_WIKI = null; // per-render state: link definitions, footnotes; MD_WIKI(title) -> { id, title } | null is set by the notes page
 const MD_ITEM = /^(\s*)([-*+]|\d{1,9}[.)])\s+(.*)$/;
@@ -62,6 +64,10 @@ function mdInline(src, noLinks) {
     const label = (shown || name).trim(), n = !noLinks && MD_WIKI ? MD_WIKI(name.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")) : null;
     return hold(n ? `<a class="wl" data-note="${esc(n.id)}">${label}</a>` : `<span class="wl miss">${label}</span>`);
   });
+  // {{task:ID.due}}: one property of a task, filled in live (taskref.js)
+  if (MD_TASK) t = t.replace(/\{\{task:([^}\n]{1,200})\}\}/g, (m, ref) => hold(MD_TASK.prop(MD_UNESC(ref.trim()), noLinks)));
+  // {{tag:anna.count}}: how many things carry a tag, or the tag itself as a link (taglinks.js)
+  if (MD_TAG) t = t.replace(/\{\{tag:([^}\n]{1,100})\}\}/g, (m, ref) => hold(MD_TAG.prop(MD_UNESC(ref.trim()), noLinks)));
   // @[Name]: a mention of a contact (a link to their profile; plain text where links are not wanted, or when nobody has that name)
   t = t.replace(/(^|[^\w@])@\[([^\]\n]{1,120})\](?!\()/g, (m, pre, name) => {
     const raw = name.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'"), c = !noLinks && MD_CONTACT ? MD_CONTACT(raw) : null;
@@ -123,6 +129,8 @@ function mdEmbed(raw, alt) {
 // one of your own attachments, filled in by files.js once the bytes are read from this device's storage
 const mdFileEmbed = (id, alt) => `<div class="embed emb-fe" data-fe="${esc(id)}" data-alt="${esc(alt || '')}"><span class="hint">Loading…</span></div>`;
 function mdNoteEmbed(name) {
+  if (MD_TASK && /^task:/i.test(name)) return MD_TASK.embed(name.replace(/^task:\s*/i, ''));
+  if (MD_TAG && /^tag:/i.test(name)) return MD_TAG.embed(MD_UNESC(name.replace(/^tag:\s*/i, '')));
   const n = MD_NOTE ? MD_NOTE(name) : null;
   if (!n) return `<div class="embed emb-note miss"><span class="wl miss">${esc(name)}</span><small>No note with this title</small></div>`;
   const head = `<div class="emb-h">${typeof ic === 'function' ? ic('notes', 14) : ''}<a class="wl" data-note="${esc(n.id)}">${esc(n.title)}</a></div>`;

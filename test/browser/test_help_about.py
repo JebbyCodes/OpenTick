@@ -10,17 +10,17 @@ with sync_playwright() as p:
     pg.click('[data-m="help"]'); pg.wait_for_selector('#help-doc')
     assert pg.evaluate("U.page") == 'help' and pg.evaluate("document.body.classList.contains('on-help')")
     heads = pg.evaluate("[...document.querySelectorAll('.help-s h2')].map(h=>h.textContent)")
-    assert len(heads) == 34, heads
-    need = ['Getting started', 'Contacts', 'Your own sections', 'Navigating', 'Timetable', 'matrix', 'Selecting several', 'Attachments', 'Habits', 'history graph', 'Time, dates', 'Reminders', 'Appearance', 'animated background', 'Keyboard, mouse', 'backups and sync', 'Common problems', 'About, source']
+    assert len(heads) == 39, heads
+    need = ['Getting started', 'Contacts', 'Your own sections', 'Navigating', 'Timetable', 'matrix', 'Selecting and editing several', 'Adding many things from text', 'Attachments', 'The pack library', 'Linking things by tags', 'Statistics and the change history', 'Printing', 'Habits', 'history graph', 'Time, dates', 'Reminders', 'Appearance', 'animated background', 'Keyboard, mouse', 'backups and sync', 'Common problems', 'About, source']
     for n in need: assert any(n.lower() in h.lower() for h in heads), n
-    assert pg.evaluate("document.querySelectorAll('.help-toc a').length") == 34
+    assert pg.evaluate("document.querySelectorAll('.help-toc a').length") == 39
     # contents link scrolls to the section and moves focus there
     pg.click('.help-toc a[data-t="h-habits"]'); pg.wait_for_timeout(1200)
     assert pg.evaluate("document.activeElement.closest('section')?.id") == 'h-habits' and pg.evaluate("document.getElementById('h-habits').getBoundingClientRect().top") < 300
     assert pg.evaluate("location.hash") == '', 'the app does not navigate away'
     # every claim about a feature points at something that exists in the app
     txt = pg.inner_text('#help-doc')
-    for must in ('Alt', 'Interface size', 'Background effects', 'Hide the quiet hours', 'Open this day', 'Copy diagnostics'): assert must in txt, must
+    for must in ('Pack library', 'Copy syntax for AI', 'Keep a history of changes', 'tactile feedback', '![[task:ID]]', 'Alt', 'Interface size', 'Background effects', 'Hide the quiet hours', 'Open this day', 'Copy diagnostics'): assert must in txt, must
     assert 'undefined' not in txt and 'NaN' not in txt and '${' not in txt
     # print button exists on desktop
     assert pg.locator('[data-act="hprint"]').count() == 1

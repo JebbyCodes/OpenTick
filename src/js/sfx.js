@@ -50,17 +50,38 @@ function sfxPlay(name) {
   }
   return true;
 }
+/* ---------- tactile feedback (Settings → Accessibility, off by default) ----------
+   A short buzz for what you do: a light tap when you press a button, a firmer pattern when something is finished, deleted or goes wrong. It does not depend
+   on the sound setting (it is for people who turn the sound off, or cannot hear it), and "Vibrate on phones" under Sound is left as it was. Browsers that
+   cannot vibrate (iPhone and iPad, most computers) simply do nothing. Per device, like the other accessibility options. */
+const TACTILE = { tap: [6], tick: [7], add: [9], sched: [10], done: [14, 35, 9], undo: [9], trash: [22], start: [12], chime: [30, 60, 30], streak: [10, 40, 10, 40, 24], error: [40, 40, 40], press: [14] };
+const tactileOn = () => !!(S && S.settings && S.settings.a11y && S.settings.a11y.tactile);
+const tactileCan = () => typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
+let TACTILE_LAST = 0;
+// one buzz of the named kind (a key of TACTILE); true when it was asked of the device
+function tactile(kind = 'tap', force) {
+  try {
+    if (!(force || tactileOn()) || !tactileCan()) return false;
+    const pat = TACTILE[kind] || TACTILE.tap, t = Date.now();
+    if (!force && kind === 'tap' && t - TACTILE_LAST < 40) return false; TACTILE_LAST = t;
+    navigator.vibrate(pat); return true;
+  } catch (e) { return false; /* a buzz is a nicety, never a failure */ }
+}
 // play a named cue; honours the on/off setting, and never throws
 function sfx(name, force) {
   try {
-    const c = sfxCfg();
+    const c = sfxCfg(), tac = !force && tactileOn();
+    if (tac && TACTILE[name]) tactile(name); // the cue is felt even when the sound is off
     if (!force && c.on === false) return;
     const t = Date.now(); if (!force && SFX.last[name] && t - SFX.last[name] < 45) return; SFX.last[name] = t;
     sfxPlay(name);
-    if (!force && c.haptic !== false && SOUNDS[name] && typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(SOUNDS[name].buzz);
+    if (!force && !tac && c.haptic !== false && SOUNDS[name] && typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(SOUNDS[name].buzz);
   } catch (e) { /* sound is a nicety, never a failure */ }
 }
 function sfxUnlock() { if (sfxCfg().on !== false) sfxCtx(); }
 if (typeof document !== 'undefined' && document.addEventListener) {
   for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, sfxUnlock, { passive: true, capture: true });
+  // a light tap under the finger for anything that can be pressed (touch and pen only: a mouse click needs no buzz)
+  const TAC_SEL = 'button,a[href],[data-act],[data-m],[role=button],[role=tab],summary,select,input[type=checkbox],input[type=radio],.chk,.pg,.nav,.task,.card,.blk,.chip';
+  document.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse' || e.isPrimary === false || !tactileOn()) return; const t = e.target; if (t && t.closest && t.closest(TAC_SEL) && !t.closest('[disabled],[aria-disabled=true]')) tactile('tap'); }, { passive: true, capture: true });
 }

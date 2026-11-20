@@ -8,9 +8,10 @@ function prefSet(path, v) {
   o[last] = v; save(); prefApplied(path);
 }
 function prefApplied(path) {
+  if (path === 'history.on') histToggled();
   if (path === 'bridge.on' && typeof bridgeNative === 'function') bridgeNative(); // register (or remove) the opentick:// scheme with the system
   if (path.startsWith('ui.')) { uiApply(); if (path === 'ui.density' || path === 'ui.autoDetail') { S.settings.ui.compact = S.settings.ui.density === 'compact'; renderDetail(); } }
-  else if (path.startsWith('a11y.')) a11yApply();
+  else if (path.startsWith('a11y.')) { a11yApply(); if (path === 'a11y.tactile' && S.settings.a11y.tactile && typeof tactile === 'function') { if (!tactile('done')) toast('This device cannot vibrate from a web page, so there is nothing to feel here.'); } }
   else if (path.startsWith('eink.')) { motionApply(); a11yApply(); }
   else if (path.startsWith('watch.')) watchApply();
   else if (path.startsWith('keys.')) skHintsRefresh();
@@ -45,6 +46,7 @@ const A11Y_GROUPS = [
   ]],
   ['Moving and tapping', [
     ['tap', 'check', 'Larger tap targets', 'Buttons, rows and fields are at least 44 px tall.'],
+    ['tactile', 'check', 'Tactile feedback', 'A small vibration when you press a button and a firmer one when something is done, deleted or goes wrong. Works on Android phones and tablets; iPhones, iPads and most computers cannot vibrate a web page.'],
     ['focus', 'check', 'Strong focus outline', 'A thick, bright outline around whatever the keyboard is on.'],
     ['tips', 'check', 'Button tooltips', 'Hover a button, or press and hold it on a touch screen, to see what it does.'],
   ]],
@@ -129,10 +131,10 @@ const SET_ALIAS = {
   general: 'start screen home week monday sunday clock time 24-hour banners sidebar views default list priority reminder tasks pin pinned views shortcuts layout sections order',
   appearance: 'theme dark light colours colors font size zoom scale density spacing animation motion background effects e-ink eink smartwatch watch wear os round square wrist',
   notifications: 'reminders alerts notify notifications push banner',
-  access: 'accessibility contrast reduce motion large text tap targets screen reader dyslexia',
+  access: 'accessibility contrast reduce motion large text tap targets screen reader dyslexia tactile haptic vibration vibrate feedback buzz touch',
   sound: 'sound volume vibrate haptic focus pomodoro timer break chime custom notification sound ringtone reminder tone audio file mp3',
   keys: 'keyboard shortcuts keys hotkeys hints key caps',
-  data: 'data sync backup export import encryption vault passphrase delete wipe webdav git s3 restore snapshot',
+  data: 'history statistics stats activity log changes heatmap data sync backup export import encryption vault passphrase delete wipe webdav git s3 restore snapshot',
   widgets: 'widgets home screen android floating window',
   integrations: 'integrations bridge api link tools connect',
   about: 'about privacy policy help guide version licence license credits update updates upgrade new version release check for updates automatically',

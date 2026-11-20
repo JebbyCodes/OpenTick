@@ -1,0 +1,34 @@
+{
+  "opentick": "pack",
+  "format": 1,
+  "id": "garden-journal",
+  "name": "Garden journal",
+  "version": "1.0.0",
+  "author": "OpenTick",
+  "description": "What you planted, where, and how often it wants watering.",
+  "license": "CC0-1.0",
+  "homepage": "https://github.com/JebbyCodes/OpenTick",
+  "sections": [
+    {
+      "name": "Garden",
+      "icon": "leaf",
+      "color": "#34b36b",
+      "title": "Plant",
+      "view": "cards",
+      "checkable": false,
+      "sort": { "f": "title", "dir": "asc" },
+      "group": "where",
+      "fields": [
+        { "key": "where", "name": "Where", "type": "select", "opts": ["Front garden", "Back garden", "Greenhouse", "Windowsill"] },
+        { "key": "planted", "name": "Planted", "type": "date" },
+        { "key": "water", "name": "Water every (days)", "type": "number" },
+        { "key": "sun", "name": "Likes sun", "type": "check" },
+        { "key": "tags", "name": "Kind", "type": "tags" }
+      ],
+      "entries": [
+        { "title": "Tomatoes", "vals": { "where": "Greenhouse", "water": 2, "sun": true, "tags": ["vegetable"] }, "notes": "Pinch out the side shoots." },
+        { "title": "Lavender", "vals": { "where": "Front garden", "water": 10, "sun": true, "tags": ["flower", "herb"] } }
+      ]
+    }
+  ]
+}

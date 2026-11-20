@@ -18,28 +18,28 @@ app.S.settings.ui.detail = true;
 const c = UIC.side; assert.equal(app.uiSetWidth(c, 50), 220); assert.equal(app.uiSetWidth(c, 5000) <= 520, true);
 
 /* sidebar views: order + hide, but the page you are on never disappears */
-eq(pagesShown().map(p => p[0]), ['home', 'tasks', 'notes', 'calendar', 'timetable', 'gantt', 'matrix', 'habits', 'focus', 'templates', 'countdowns', 'zones', 'kanban', 'contacts']);
+eq(pagesShown().map(p => p[0]), ['home', 'tasks', 'notes', 'calendar', 'timetable', 'gantt', 'matrix', 'habits', 'focus', 'templates', 'countdowns', 'zones', 'kanban', 'contacts', 'stats', 'history']);
 uiMovePage('gantt', -1); eq(pagesShown().map(p => p[0]).slice(0, 6), ['home', 'tasks', 'notes', 'calendar', 'gantt', 'timetable']);
 app.S.settings.ui.hidePages = ['habits', 'gantt']; U.page = 'gantt';
-eq(pagesShown().map(p => p[0]), ['home', 'tasks', 'notes', 'calendar', 'gantt', 'timetable', 'matrix', 'focus', 'templates', 'countdowns', 'zones', 'kanban', 'contacts'], 'current page stays; habits hidden');
+eq(pagesShown().map(p => p[0]), ['home', 'tasks', 'notes', 'calendar', 'gantt', 'timetable', 'matrix', 'focus', 'templates', 'countdowns', 'zones', 'kanban', 'contacts', 'stats', 'history'], 'current page stays; habits hidden');
 U.page = 'tasks'; assert.equal(pagesShown().some(p => p[0] === 'gantt'), false);
 
-/* sections: 14 views live in 6 places, and every view is in exactly one of them */
+/* sections: 16 views live in 7 places, and every view is in exactly one of them */
 app.S.settings.ui.hidePages = []; app.S.settings.ui.pageOrder = []; U.page = 'tasks'; U.secLast = {};
-eq(sectionsShown().map(s => s[0]), ['home', 'tasks', 'notes', 'calendar', 'habits', 'contacts']);
+eq(sectionsShown().map(s => s[0]), ['home', 'tasks', 'notes', 'calendar', 'habits', 'contacts', 'stats']);
 eq(SECTIONS.flatMap(s => s[3]).sort(), pagesShown().map(p => p[0]).sort(), 'every view belongs to a section, none twice');
 for (const [k, , , vs] of SECTIONS) for (const v of vs) assert.equal(secOf(v), k);
 eq(viewsOf('tasks'), ['tasks', 'kanban', 'matrix', 'gantt']); eq(viewsOf('calendar'), ['calendar', 'countdowns', 'zones'], 'the Timetable is the Calendar\'s week and day now: one view');
-assert.equal(secOf('help'), null, 'Help and History belong to no section');
+assert.equal(secOf('help'), null, 'Help belongs to no section'); assert.equal(secOf('history'), 'stats', 'History sits beside Statistics'); eq(viewsOf('stats'), ['stats', 'history']);
 U.page = 'tasks'; assert.match(vtabsHtml(), /data-page="kanban"[\s\S]*data-page="matrix"[\s\S]*data-page="gantt"/, 'the switcher lists the views of the section');
 U.page = 'home'; assert.equal(vtabsHtml(), '', 'a section with one view has no switcher');
 U.page = 'zones'; assert.equal(secOf(U.page), 'calendar'); U.secLast = { calendar: 'zones' }; assert.equal(sectionTarget('calendar'), 'zones', 'a section reopens on the view last used');
 app.S.settings.ui.hidePages = ['zones', 'countdowns']; U.page = 'tasks'; U.secLast = { calendar: 'zones' };
 eq(viewsOf('calendar'), ['calendar']); assert.equal(sectionTarget('calendar'), 'calendar', 'a hidden view is not opened');
-app.S.settings.ui.hidePages = ['habits', 'focus']; eq(sectionsShown().map(s => s[0]), ['home', 'tasks', 'notes', 'calendar', 'contacts'], 'a section with every view hidden goes');
+app.S.settings.ui.hidePages = ['habits', 'focus']; eq(sectionsShown().map(s => s[0]), ['home', 'tasks', 'notes', 'calendar', 'contacts', 'stats'], 'a section with every view hidden goes');
 U.page = 'focus'; assert.ok(sectionsShown().some(s => s[0] === 'habits'), 'but not while you are in it');
 app.S.settings.ui.hidePages = []; U.page = 'tasks';
-uiMoveSection('calendar', -1); eq(sectionsShown().map(s => s[0]), ['home', 'tasks', 'calendar', 'notes', 'habits', 'contacts']);
+uiMoveSection('calendar', -1); eq(sectionsShown().map(s => s[0]), ['home', 'tasks', 'calendar', 'notes', 'habits', 'contacts', 'stats']);
 uiMoveSection('calendar', -5); eq(sectionsShown().map(s => s[0]).slice(0, 3), ['home', 'tasks', 'calendar'], 'moving past the top does nothing');
 app.S.settings.ui.pageOrder = []; app.S.settings.ui.hidePages = [];
 

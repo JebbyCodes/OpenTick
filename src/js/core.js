@@ -229,7 +229,7 @@ const PREF_DEF = {
   quiet: { on: false, from: '22:00', to: '07:00' },
   digest: { on: false, at: '08:00' },
   keys: { hints: true },
-  a11y: { contrast: false, bold: false, dys: false, spacing: 'normal', links: false, nocol: false, gray: false, cursor: 'normal', tap: false, focus: false, labels: false, notrans: false, toast: 3 },
+  a11y: { contrast: false, bold: false, dys: false, spacing: 'normal', links: false, nocol: false, gray: false, cursor: 'normal', tap: false, focus: false, labels: false, notrans: false, toast: 3, tactile: false },
   svc: { on: true, tray: true, autostart: false, persist: true, keep: true },
   tips: { on: true },
   eink: { mode: 'auto', pager: true },
@@ -238,6 +238,8 @@ const PREF_DEF = {
   tz: { start: 8, end: 18, base: '' },
   bridge: { on: false, apps: {}, openUrl: '' },
   ct: { sort: 'name', filter: 'all' }, // the Contacts page (contacts.js)
+  history: { on: false }, // 0.9: the change log and Statistics are opt-in, per device (Settings → General → History)
+  stats: { range: '90', from: '', to: '', kinds: [], acts: [], scope: '', hide: [] }, // the Statistics page's filters (stats.js); `hide` = panels switched off
 };
 function migrate(r) {
   r.lists = r.lists || [];
@@ -282,6 +284,7 @@ function migrate(r) {
   if (r.settings.tt.v !== 2) { if (r.settings.tt.from === 7 && r.settings.tt.to === 21) { r.settings.tt.from = 0; r.settings.tt.to = 24; } r.settings.tt.v = 2; }
   r.projects = Array.isArray(r.projects) ? r.projects : []; // projects link lists (and, with them, their sublists) together
   r.history = Array.isArray(r.history) ? r.history : []; // this device's log of changes (never synced)
+  r.activity = actNormalise(r.activity); // and its per-day tally for Statistics (never synced either)
   r.settings.cal = { view: 'month', ...(r.settings.cal || {}) };
   r.settings.clock = { on: true, h24: false, sec: false, ...(r.settings.clock || {}) };
   r.settings.sound = { on: true, vol: 0.7, haptic: true, custom: null, ...(r.settings.sound || {}) };
@@ -352,7 +355,7 @@ function stamp() {
     }
     for (const id of [...SEEN[c].keys()]) if (!live.has(id)) { seen.push([c, SEEN[c].get(id), null]); SEEN[c].delete(id); S.tomb[id] = Math.max(now, (S.tomb[id] || 0) + 1); changed = true; }
   }
-  if (seen.length) { try { histRecord(seen, now); } catch (e) { /* the log is a convenience: never let it break saving */ } }
+  if (seen.length && histOn()) { try { histRecord(seen, now); } catch (e) { /* the log is a convenience: never let it break saving */ } }
   return changed;
 }
 
@@ -377,7 +380,7 @@ function histChange(k, o, n) {
     const on = [], off = [];
     for (const d of Object.keys(n.log || {})) if (n.log[d] && !(o.log || {})[d]) on.push(d);
     for (const d of Object.keys(o.log || {})) if (o.log[d] && !(n.log || {})[d]) off.push(d);
-    if (on.length || off.length) { const e = { a: on.length ? 'done' : 'reopen', d: (on.length ? 'Checked in ' : 'Unchecked ') + (on.length ? on : off).sort().join(', ') }; return e; }
+    if (on.length || off.length) { const e = { a: on.length ? 'done' : 'reopen', d: (on.length ? 'Checked in ' : 'Unchecked ') + (on.length ? on : off).sort().join(', ') }; if ((on.length || off.length) > 1) e.c = on.length || off.length; return e; }
   }
   const f = {};
   for (const key of new Set([...Object.keys(o), ...Object.keys(n)])) {
@@ -392,19 +395,19 @@ function histRecord(seen, now) {
   for (const [c, prev, cur] of seen) if (c === 'tasks' && !prev && cur && cur.log && cur.status === 'done') clones.add(cur.title);
   for (const [c, prevJson, cur] of seen) {
     const k = HIST_KIND[c]; if (!k) continue;
-    const o = prevJson ? JSON.parse(prevJson) : null;
-    if (!o && cur) { out.push(cur.log && cur.status === 'done' ? { k, a: 'done', id: cur.id, n: histName(k, cur), d: 'Repeating task: this occurrence' } : { k, a: 'add', id: cur.id, n: histName(k, cur) }); continue; }
-    if (o && !cur) { out.push({ k, a: k === 'task' ? 'purge' : 'delete', id: o.id, n: histName(k, o) }); continue; }
+    const o = prevJson ? JSON.parse(prevJson) : null, s = actScope(c, cur || o); // s: where it is filed, for the Statistics tally (dropped before the entry is stored)
+    if (!o && cur) { out.push(cur.log && cur.status === 'done' ? { k, a: 'done', id: cur.id, n: histName(k, cur), d: 'Repeating task: this occurrence', s } : { k, a: 'add', id: cur.id, n: histName(k, cur), s }); continue; }
+    if (o && !cur) { out.push({ k, a: k === 'task' ? 'purge' : 'delete', id: o.id, n: histName(k, o), s }); continue; }
     if (!o || !cur) continue;
     const ch = histChange(k, o, JSON.parse(hashOf(cur)));
     if (!ch) continue;
     // the next-date change of a repeating task that was just ticked is already told by its "completed" entry
     if (k === 'task' && ch.f && clones.has(cur.title) && cur.repeat && Object.keys(ch.f).every(x => x === 'due' || x === 'subtasks' || x === 'time')) continue;
-    out.push({ k, ...ch, id: cur.id, n: histName(k, cur) });
+    out.push({ k, ...ch, id: cur.id, n: histName(k, cur), s });
   }
   const H = S.history;
   for (const e of out) {
-    e.t = now;
+    e.t = now; actTally(e, now); delete e.s;
     if (e.a === 'edit' && e.f) { // fold into a recent edit of the same record
       const prev = H.slice(-25).reverse().find(x => x.id === e.id && x.a === 'edit' && x.f && now - x.t < HIST_MERGE);
       if (prev) {
@@ -418,8 +421,70 @@ function histRecord(seen, now) {
     H.push(e);
   }
   if (H.length > HIST_MAX) H.splice(0, H.length - HIST_MAX);
+  actPrune();
 }
-function histNote(a, text) { S.history.push({ t: Date.now(), k: 'app', a, id: '', n: text }); }
+function histNote(a, text) { if (!histOn()) return; S.history.push({ t: Date.now(), k: 'app', a, id: '', n: text }); }
+
+/* ---------- activity tally (what Statistics reads) ----------
+   The log above keeps the last 2000 entries; Statistics wants far more than that, so each entry is also counted per day:
+   S.activity.days['2026-11-17']['task.done|<list id>|14'] = 3  (kind.action | where it is filed | hour of the day, '' when unknown).
+   Only while history is on. Per device and never synced; it rides along inside the encrypted data like the log does. */
+const ACT_KEEP = 800, ACT_EDIT = new Map();
+const histOn = () => !!(S.settings && S.settings.history && S.settings.history.on);
+const actNew = () => ({ v: 1, on: 0, filled: 0, days: {} });
+function actNormalise(a) {
+  const o = actNew(); if (!a || typeof a !== 'object') return o;
+  o.on = +a.on || 0; o.filled = +a.filled || 0;
+  if (a.days && typeof a.days === 'object') for (const [d, m] of Object.entries(a.days)) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !m || typeof m !== 'object') continue;
+    const r = {}; for (const [k, n] of Object.entries(m)) if (k.length <= 90 && Number.isFinite(n) && n > 0) r[k] = Math.round(n);
+    if (Object.keys(r).length) o.days[d] = r;
+  }
+  return o;
+}
+function actScope(c, o) {
+  if (!o) return '';
+  if (c === 'tasks') return o.listId || 'inbox';
+  if (c === 'lists') return o.id;
+  if (c === 'notes') return o.listId || (o.projectId ? 'p:' + o.projectId : '');
+  if (c === 'projects') return 'p:' + o.id;
+  return '';
+}
+function actCount(kind, act, scope, n, t, noHour) { // noHour: the time of day is not known (a habit check-in only has a date)
+  if (!S.activity || !(n > 0)) return;
+  const d = new Date(t), day = S.activity.days[ymd(d)] || (S.activity.days[ymd(d)] = {});
+  const key = `${kind}.${act}|${String(scope || '').replace(/\|/g, '').slice(0, 40)}|${noHour ? '' : d.getHours()}`;
+  day[key] = (day[key] || 0) + Math.round(n);
+}
+function actTally(e, now) {
+  if (!histOn() || e.k === 'app') return;
+  if (e.a === 'edit') { // typing in one record is one edit, not one per pause (the same fold as the log's)
+    const last = ACT_EDIT.get(e.id); ACT_EDIT.set(e.id, now);
+    if (ACT_EDIT.size > 500) ACT_EDIT.clear();
+    if (last && now - last < HIST_MERGE) return;
+  }
+  actCount(e.k, e.a, e.s, e.c || 1, now);
+}
+// a focus session (the timer, or another app through the bridge): counted as a "completed" focus entry plus its minutes
+function actFocus(min, taskId, ts) {
+  if (!histOn()) return;
+  const t = taskId ? getT(taskId) : null, sc = t ? t.listId || 'inbox' : '';
+  actCount('focus', 'done', sc, 1, ts || Date.now()); actCount('focus', 'min', sc, Math.max(1, Math.round(min || 0)), ts || Date.now());
+}
+function actPrune() {
+  const ks = Object.keys(S.activity.days); if (ks.length <= ACT_KEEP + 30) return;
+  ks.sort(); for (const d of ks.slice(0, ks.length - ACT_KEEP)) delete S.activity.days[d];
+}
+// turning history on starts Statistics from what is already stored: when each task, note and habit check-in was made (done once)
+function actBackfill() {
+  const A = S.activity; if (A.filled) return 0; let n = 0;
+  const at = (kind, act, scope, t, noHour) => { if (t > 0 && t <= Date.now()) { actCount(kind, act, scope, 1, t, noHour); n++; } };
+  for (const t of S.tasks) { if (t.created) at('task', 'add', actScope('tasks', t), t.created); if (t.status === 'done' && t.doneAt) at('task', 'done', actScope('tasks', t), t.doneAt); }
+  for (const x of S.notes) { at('note', 'add', actScope('notes', x), x.created); if (x.updated && x.updated - x.created > 120000) at('note', 'edit', actScope('notes', x), x.updated); }
+  for (const h of S.habits) for (const d of Object.keys(h.log || {})) if (h.log[d]) { at('habit', 'done', '', pYmd(d).getTime(), true); }
+  for (const p of S.pomo || []) { const tk = p.task ? getT(p.task) : null, sc = tk ? tk.listId || 'inbox' : ''; actCount('focus', 'done', sc, 1, p.ts); actCount('focus', 'min', sc, Math.max(1, p.min || 1), p.ts); n++; }
+  A.filled = Date.now(); actPrune(); return n;
+}
 
 let S = load();
 initSeen();
@@ -495,8 +560,8 @@ function applyMerged(m) {
 // Replace everything (import / undo) in a way that sync treats as a deliberate edit: gone records become tombstones, kept ones are re-stamped
 function replaceAll(d) {
   const old = {}; for (const c of COLL) old[c] = S[c].map(o => o.id);
-  const tomb = { ...S.tomb }, now = Date.now(), hist = S.history;
-  S = migrate({ ...d, tomb: {} }); S.history = hist;
+  const tomb = { ...S.tomb }, now = Date.now(), hist = S.history, act = S.activity;
+  S = migrate({ ...d, tomb: {} }); S.history = hist; S.activity = act;
   for (const c of COLL) {
     const ids = new Set(S[c].map(o => o.id));
     for (const id of old[c]) if (!ids.has(id)) tomb[id] = now;
@@ -579,7 +644,7 @@ function toggleDone(t) {
         // the finished occurrence is kept as a record with its own copy of the notes, links and files; the live task carries
         // all of them into the next occurrence (ticked checklist items in its notes start again, like subtasks).
         // The record keeps the time and length that occurrence really had (an exception, if there was one).
-        const copy = { ...t, id: uid(), status: 'done', doneAt: Date.now(), log: 1, repeat: null, reminder: null, subtasks: t.subtasks.map(s => ({ ...s })), tags: [...t.tags], links: [...(t.links || [])], files: (t.files || []).map(f => ({ ...f })), time: tmEff(t), dur: durEff(t) };
+        const copy = { ...t, id: uid(), status: 'done', doneAt: Date.now(), log: 1, of: t.id, repeat: null, reminder: null, subtasks: t.subtasks.map(s => ({ ...s })), tags: [...t.tags], links: [...(t.links || [])], files: (t.files || []).map(f => ({ ...f })), time: tmEff(t), dur: durEff(t) };
         delete copy.until; delete copy.exc; delete copy.rems; if (!copy.dur) delete copy.dur;
         S.tasks.push(copy);
         t.due = nx; t.subtasks.forEach(s => { s.done = false; });

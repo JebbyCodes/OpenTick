@@ -240,7 +240,10 @@ function navButtonHtml(key, where) {
     ? `<button class="${on ? 'on' : ''}" data-act="page" data-page="${esc(sectionTarget(k))}" data-sec="${esc(k)}" data-nk="${esc(key)}">${ico(i, 22)}<small>${esc(n)}</small></button>`
     : `<button class="pg${on ? ' on' : ''}" data-act="page" data-page="${esc(sectionTarget(k))}" data-sec="${esc(k)}" data-nk="${esc(key)}" title="${esc(n)} — drag to reorder" draggable="true">${ico(i, 20)}<small>${esc(n)}</small></button>`;
 }
-const navHtml = where => navShown().map(k => navButtonHtml(k, where)).join('');
+// The phone's tab bar has room for six sections and More. Statistics (the seventh) is opened from More (the full menu), and shows in the bar while you are in it;
+// pin it (right-click / press and hold its tab) to keep it in the bar.
+const navBarSkips = k => k === 'sec:stats' && !['stats', 'history'].includes(U.page);
+const navHtml = where => navShown().filter(k => where !== 'bar' || !navBarSkips(k)).map(k => navButtonHtml(k, where)).join('');
 // Settings → Layout: every button in the order it has, each with the arrows that move it; sections also list their views
 function uiSidebarSettings() {
   const u = S.settings.ui, keys = navKeys().filter(navVisible), arrows = (k, label, i) => `<span><button class="ib sm" data-navmv="${esc(k)}" data-d="-1"${i ? '' : ' disabled'} title="Move up" aria-label="Move ${esc(label)} up">${ic('up', 14)}</button><button class="ib sm" data-navmv="${esc(k)}" data-d="1"${i < keys.length - 1 ? '' : ' disabled'} title="Move down" aria-label="Move ${esc(label)} down">${ic('down', 14)}</button></span>`;
@@ -318,12 +321,11 @@ function paletteItems(q) {
   const out = [
     ...PAGES.map(([k, n]) => go('Go to ' + n, 'View', () => { U.page = k; U.sel = null; render(); })),
     ...(typeof csecEntries === 'function' ? csecEntries().map(([k, n]) => go('Go to ' + n, 'Section', () => { U.page = k; U.sel = null; render(); })) : []),
-    go('Go to History', 'View', () => { U.page = 'history'; U.sel = null; render(); }),
     ...(typeof pinHere === 'function' && pinHere() ? [go(pinList().includes(pinHere()) ? 'Unpin this view from the ' + pinWhere() : 'Pin this view to the ' + pinWhere(), 'View', () => pinToggle(pinHere()))] : []),
     ...SMART.map(([k, n]) => go('Open ' + n, 'List', () => setNav(k))),
     ...S.lists.filter(l => l.id !== 'inbox').map(l => go('Open list: ' + listLabel(l.id), 'List', () => setNav('list:' + l.id))),
     ...S.projects.map(p => go('Open project: ' + p.name, 'Project', () => setNav('project:' + p.id))),
-    go('Import from another app…', 'Action', () => openImport()), go('New list…', 'Action', () => openListForm(null, '')), go('New project…', 'Action', () => openProjectForm(null)),
+    go('Import from another app…', 'Action', () => openImport()), go('Add a pack by code…', 'Packs', () => packCodeOpen('')), go('Browse the pack library…', 'Packs', () => packLibraryOpen()), go('Add several from text…', 'Action', () => tbOpen()), go('New list…', 'Action', () => openListForm(null, '')), go('New project…', 'Action', () => openProjectForm(null)),
     go('Open Completed', 'List', () => setNav('done')), go('Open Trash', 'List', () => setNav('trash')),
     go('Toggle sidebar', '[', () => uiToggle('side')), go('Toggle task details', ']', () => uiToggle('detail')),
     go('Focus mode: hide both panels', '\\', uiFocus),

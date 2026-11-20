@@ -10,7 +10,7 @@ const base0 = () => ({ tasks: [], lists: [], tags: [], habits: [], slots: [], no
 /* ============ 1. the sidebar ============ */
 {
   const A = makeApp(), { S, U } = A;
-  eq(A.sectionsShown().map(s => s[0]), ['home', 'tasks', 'notes', 'calendar', 'habits', 'contacts'], 'Contacts is a section of its own, last');
+  eq(A.sectionsShown().map(s => s[0]), ['home', 'tasks', 'notes', 'calendar', 'habits', 'contacts', 'stats'], 'Contacts is a section of its own, and Statistics follows it');
   assert.ok(A.pagesShown().some(p => p[0] === 'contacts'));
   assert.equal(A.secOf('contacts'), 'contacts');
 
@@ -40,12 +40,13 @@ const base0 = () => ({ tasks: [], lists: [], tags: [], habits: [], slots: [], no
   // pins and sections are one list, in one order, that can be changed from either side
   S.settings.ui.navOrder = []; const k0 = A.navKeys();
   eq(k0.slice(-2), ['pin:school', 'pin:page:kanban'], 'new pins start after the sections');
-  assert.equal(A.navMove('pin:page:kanban', -1), true); assert.equal(A.navMove('pin:page:kanban', -1), true);
+  assert.equal(A.navMove('pin:page:kanban', -1), true); assert.equal(A.navMove('pin:page:kanban', -1), true); assert.equal(A.navMove('pin:page:kanban', -1), true); // past the pin before it, then Statistics, then Contacts
   const ks = A.navKeys(); assert.ok(ks.indexOf('pin:page:kanban') < ks.indexOf('sec:contacts'), 'a pin moved up past a section');
-  A.navMove('sec:contacts', 1); // already last among the visible ones: pins follow, so it moves below them
-  assert.ok(A.navKeys().indexOf('sec:contacts') > A.navKeys().indexOf('pin:school'), 'a section can sit below a pin');
+  A.navMove('sec:stats', 1); // already last among the visible ones: pins follow, so it moves below them
+  assert.ok(A.navKeys().indexOf('sec:stats') > A.navKeys().indexOf('pin:school'), 'a section can sit below a pin');
   const order = A.navShown(); eq(A.navHtml('side').match(/data-nk="([^"]+)"/g).map(x => x.slice(9, -1)), order, 'the sidebar draws the stored order');
-  eq(A.navHtml('bar').match(/data-nk="([^"]+)"/g).map(x => x.slice(9, -1)), order, 'and so does the phone tab bar');
+  eq(A.navHtml('bar').match(/data-nk="([^"]+)"/g).map(x => x.slice(9, -1)), order.filter(k => k !== 'sec:stats'), 'and so does the phone tab bar (Statistics, the seventh section, is opened from More there)');
+  U.page = 'stats'; assert.ok(A.navHtml('bar').includes('data-nk="sec:stats"'), 'but it shows in the bar while you are in it'); U.page = 'tasks';
   A.navReorder('pin:school', 'sec:habits'); assert.ok(A.navKeys().indexOf('pin:school') < A.navKeys().indexOf('sec:habits'), 'dragging a pin onto a section takes that section\'s place');
   eq(S.settings.ui.pins, ['school', 'page:kanban'].filter(k => S.settings.ui.pins.includes(k)).sort((a, b) => A.navKeys().indexOf('pin:' + a) - A.navKeys().indexOf('pin:' + b)), 'ui.pins keeps the pins in their order');
   // unknown, damaged and duplicate entries are ignored; a new section turns up by itself
@@ -225,7 +226,7 @@ const base0 = () => ({ tasks: [], lists: [], tags: [], habits: [], slots: [], no
   // it is a section like any other: in the sidebar, in the order, hidden and pinned like the rest
   assert.ok(A.sectionsShown().some(x => x[0] === 'x-1'), 'it is in the sidebar'); assert.ok(A.navKeys().includes('sec:x-1')); assert.ok(A.navHtml('side').includes('data-sec="x-1"') && A.navHtml('bar').includes('data-sec="x-1"'), 'and in the phone tab bar');
   assert.equal(A.secOf('x-1'), 'x-1'); eq(A.viewsOf('x-1'), ['x-1']);
-  A.navMove('sec:x-1', -1); { const k = A.navKeys(); assert.ok(k.indexOf('sec:x-1') < k.indexOf('sec:contacts')); }
+  A.navMove('sec:x-1', -1); A.navMove('sec:x-1', -1); { const k = A.navKeys(); assert.ok(k.indexOf('sec:x-1') < k.indexOf('sec:contacts')); } // (it joined after Statistics)
   S.settings.ui.hidePages = ['x-1']; U.page = 'tasks'; assert.ok(!A.sectionsShown().some(x => x[0] === 'x-1'), 'it can be hidden'); S.settings.ui.hidePages = [];
   assert.ok(A.uiSidebarSettings().includes('x-1')); assert.doesNotThrow(() => A.render());
   // the actions
@@ -290,7 +291,7 @@ const base0 = () => ({ tasks: [], lists: [], tags: [], habits: [], slots: [], no
   { const back = A.packClean(JSON.parse(outText)).pack; assert.equal(back.sections[0].entries.length, 2); assert.equal(back.sections[0].fields.length, 4); assert.equal(back.sections[0].group, fs.id, 'keys are the old field ids'); eq(back.sections[0].entries.find(e => e.title === 'Dune').vals, { [fa.id]: 'Herbert', [fs.id]: 'Done', [fr.id]: 5, [sec.fields.find(f => f.name === 'Link').id]: 'https://x.y' }); }
   assert.equal(A.packFromSections([sec], { name: 'Mine' }, false).sections[0].entries.length, 0, 'the entries are optional');
   // the settings page and the New section dialog
-  assert.ok(A.packsSettingsHtml().includes('Marketplace') && A.packsSettingsHtml().includes('Reading')); assert.ok(A.packsImportHtml().includes('data-m="packfile"'));
+  assert.ok(A.packsSettingsHtml().includes('Pack library') && A.packsSettingsHtml().includes('Reading')); assert.ok(A.packsImportHtml().includes('data-m="packfile"'));
   assert.equal(A.packsSettingsAct('nothing', { dataset: {} }), false);
   // none of it is device-local state that leaks: the packs themselves are ordinary synced sections
   const snap = A.snapshot(); assert.ok(snap.csections.length >= 2 && snap.centries.length >= 4 && Array.isArray(snap.contacts));
