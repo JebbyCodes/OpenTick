@@ -7,6 +7,9 @@
    All three end in the same place, matrixDrop / mxMove, so priority, due date, order and saving behave identically. */
 
 // where an arrow key sends a task. `stacked` = the boxes are in one column (narrow screens)
+// How near the grid's top or bottom edge the pointer must be before the grid scrolls by itself: `base` px, grown with the zoom, but never more than a fifth of the grid
+// (at 150% on a phone the zones would otherwise take almost half of it and the second box could not be reached without scrolling).
+const mxZone = (b, base) => Math.min(base * Z.r, b.height * 0.2);
 function mxTarget(qi, key, stacked) {
   if (stacked) return key === 'ArrowUp' ? Math.max(0, qi - 1) : key === 'ArrowDown' ? Math.min(3, qi + 1) : qi;
   return key === 'ArrowLeft' || key === 'ArrowRight' ? (qi ^ 1) : key === 'ArrowUp' || key === 'ArrowDown' ? (qi ^ 2) : qi;
@@ -65,7 +68,7 @@ document.addEventListener('keydown', e => {
       place(g.x, g.y);
       g.tick = setInterval(() => { // scroll the grid while the finger sits near its top or bottom edge
         const sc = $('#main .matrix'); if (!sc || !g) return; const b = sc.getBoundingClientRect();
-        const gy = zc(g.y); if (gy < b.top + 70 * Z.r) sc.scrollTop -= 12; else if (gy > b.bottom - 70 * Z.r) sc.scrollTop += 12;
+        const gy = zc(g.y), zn = mxZone(b, 70); if (gy < b.top + zn) sc.scrollTop -= 12; else if (gy > b.bottom - zn) sc.scrollTop += 12;
         place(g.x, g.y);
       }, 16);
     }, 450);
@@ -118,7 +121,7 @@ document.addEventListener('keydown', e => {
     document.body.appendChild(gh); g.el.classList.add('drag'); document.body.classList.add('mdrag');
     g.tick = setInterval(() => { // a single-column matrix (narrow window) scrolls while the pointer sits near its edge
       const sc = $('#main .matrix'); if (!sc || !g) return; const b = sc.getBoundingClientRect(), gy = zc(g.y);
-      if (sc.scrollHeight > sc.clientHeight) { if (gy < b.top + 50 * Z.r) sc.scrollTop -= 12; else if (gy > b.bottom - 50 * Z.r) sc.scrollTop += 12; }
+      if (sc.scrollHeight > sc.clientHeight) { const zn = mxZone(b, 50); if (gy < b.top + zn) sc.scrollTop -= 12; else if (gy > b.bottom - zn) sc.scrollTop += 12; }
       place(g.x, g.y);
     }, 16);
   };

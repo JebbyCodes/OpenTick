@@ -1,7 +1,7 @@
 """Shared helpers for the real-browser tests (Chromium via Playwright). Run them all with:  python3 test/browser/run.py
 They need `pip install playwright && playwright install chromium` and a built app (`npm run build`). They are not part of
 `npm test`, which stays dependency-free."""
-import os, pathlib
+import os, pathlib, re
 from playwright.sync_api import sync_playwright
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DIST = os.environ.get('DIST', str(ROOT / 'dist' / 'index.html'))
@@ -15,7 +15,13 @@ def launch(p, mobile=False, w=None, h=None, init=None, ready='#main', dist=None,
     if init: ctx.add_init_script(init)
     pg = ctx.new_page(); errs = []
     pg.on('pageerror', lambda e: errs.append(str(e)))
-    pg.on('console', lambda m: errs.append('console.' + m.type + ': ' + m.text) if m.type == 'error' else None)
+    def on_console(m):
+        if m.type != 'error': return
+        where = (m.location or {}).get('url', '') or ''
+        # a player the note embeds (YouTube, Vimeo, Spotify) is someone else's page: what it logs about itself (for example that it may not focus without a click) is not the app's
+        if re.match(r'https://([\w-]+\.)*(youtube-nocookie\.com|youtube\.com|vimeo\.com|spotify\.com)/', where): return
+        errs.append('console.' + m.type + ': ' + m.text + (f' [{where}]' if where and not where.startswith('file:') else ''))
+    pg.on('console', on_console)
     pg.goto('file://' + (dist or DIST)); pg.wait_for_selector(ready); pg.errs = errs
     return b, ctx, pg
 

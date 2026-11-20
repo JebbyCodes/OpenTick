@@ -63,10 +63,15 @@ with sync_playwright() as p:
     q1 = pg.locator('.quad[data-qi="1"] .qb').bounding_box(); x, y = center(pg, f'.task[data-id="{tid}"]')
     touch(cdp, 'touchStart', x, y); pg.wait_for_timeout(650)
     g = pg.locator('.tghost').bounding_box(); assert abs((g['x'] + g['width'] / 2) - x) < 3 and abs((g['y'] + g['height'] / 2) - y) < 3, f'ghost under the finger at 150%: {g} vs {x},{y}'
+    # the grid is about one and a half boxes tall at 150%: scroll it (as the auto-scroll does) so the second box sits in the middle, then drop there
+    pg.evaluate("""(()=>{const m=document.querySelector('.matrix'), q=document.querySelector('.quad[data-qi="1"]'), top=()=>q.getBoundingClientRect().top, t0=top();
+      m.scrollTop += 100; const k = (t0 - top()) / 100;  // drawn pixels moved per unit of scrollTop (it is not 1 under zoom)
+      m.scrollTop += (top() - m.getBoundingClientRect().top - m.getBoundingClientRect().height * 0.3) / k})()"""); pg.wait_for_timeout(100)
     mb = pg.evaluate("(()=>{const r=document.querySelector('.matrix').getBoundingClientRect();return [r.top,r.bottom]})()")
     qt = pg.locator('.quad[data-qi="1"]').bounding_box()['y']
-    ty = qt + 20  # just inside the second box, inside the scrolling grid and clear of its auto-scroll edge zones
-    assert mb[0] + 105 < ty < mb[1] - 105, ('target is in the grid, outside the scroll zones', mb, ty)
+    ty = qt + 20  # just inside the second box
+    zone = min(105, (mb[1] - mb[0]) * 0.2)  # the grid's auto-scroll zone (mxZone)
+    assert mb[0] + zone < ty < mb[1] - zone, ('target is in the grid, outside the scroll zones', mb, ty)
     for i in range(1, 6): touch(cdp, 'touchMove', x, y + (ty - y) * i / 5); pg.wait_for_timeout(40)
     touch(cdp, 'touchEnd'); pg.wait_for_timeout(250)
     assert pg.evaluate(f"mxOf(getT('{tid}'))") == 1, 'dropped in the right box at 150%'
