@@ -7,7 +7,7 @@
 It cannot test GitHub itself (the real Releases API, `gh attestation verify`, the pull request): docs/SCREENSHOTS.md says so."""
 import atexit, hashlib, http.server, importlib.util, io, json, os, re, shutil, stat, subprocess, sys, tempfile, threading, time, zipfile
 from pathlib import Path
-from PIL import Image
+from PIL import Image, ImageChops
 from lib import ROOT
 
 SHOTS = ROOT / 'scripts' / 'screenshots'
@@ -280,7 +280,10 @@ r, o = publish('check', real, rr); assert o['needed'] == 'false'
 # the same pixels on a second capture (and a clean profile for each picture, so nothing carries over)
 again = TMP / 'again'; r = py('capture.py', '--site', out / 'site', '--out', again, '--only', 'dashboard,tasks,habits,boards'); assert r.returncode == 0, r.stderr[-600:]
 for n in ['desktop-dashboard.png', 'desktop-tasks.png', 'desktop-habits.png', 'desktop-boards.png', 'mobile-dashboard.png', 'mobile-tasks.png', 'mobile-habits.png', 'mobile-boards.png']:
-    assert (again / n).read_bytes() == (out / 'images' / n).read_bytes(), 'identical on a second run: ' + n
+    a, b = Image.open(again / n).convert('RGB'), Image.open(out / 'images' / n).convert('RGB'); assert a.size == b.size, n
+    diff = ImageChops.difference(a, b).convert('L').point(lambda v: 255 if v > 24 else 0)   # a pixel counts only if it differs clearly (not a faint anti-aliasing shade)
+    share = diff.histogram()[255] / (a.size[0] * a.size[1])
+    assert share <= 0.002, f'the same page drawn twice differs on {share:.2%} of its pixels (more than anti-aliasing): ' + n
 r = py('capture.py', '--site', out / 'site', '--out', TMP / 'bad-name', '--only', 'nope'); assert r.returncode == 1 and 'no picture called' in r.stderr
 r = py('capture.py', '--site', TMP / 'empty', '--out', TMP / 'bad-site'); assert r.returncode == 1 and 'does not exist' in r.stderr
 
