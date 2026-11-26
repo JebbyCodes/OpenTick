@@ -5,8 +5,9 @@
    A provider is { label, read(cfg, rev), write(cfg, text, rev, isNew) }, so adding S3, Dropbox etc. means adding one object.
      read  → { status: 'ok'|'nochange'|'missing', text?, rev? }
      write → { rev } or { conflict: true }
-   Device-local and never synced: settings, view preferences, reminder history, and the credentials below. */
-const SYNC_KEY = 'opentick.sync.v1', SYNC_FILE = 'opentick.json', SYNC_V = 7; // 7: adds contacts, custom sections and their entries (and task.contactIds, note.contactIds, teacher.contactId); 6: adds countdowns, saved time zones and boards (and task.kb, task.tz); 5: adds templates, repeat end dates and exceptions; 2: adds tag colours + timetable slots; 3: adds notes; 4: encrypted files + classes in the planner (older apps refuse the file instead of silently dropping or exposing anything)
+   Device-local and never synced: the device's own settings (layout, services, bridge, update checks, e-ink and watch layouts, sounds, view state: PREF_SYNC in core.js is the allow-list
+   of the preferences that DO sync), the History list, which reminders have fired here, and the credentials below. */
+const SYNC_KEY = 'opentick.sync.v1', SYNC_FILE = 'opentick.json', SYNC_V = 8; // 8: adds installed packs, pack permissions, pack activity, pack reminders and keyboard shortcuts; 7: adds contacts, custom sections and their entries (and task.contactIds, note.contactIds, teacher.contactId); 6: adds countdowns, saved time zones and boards (and task.kb, task.tz); 5: adds templates, repeat end dates and exceptions; 2: adds tag colours + timetable slots; 3: adds notes; 4: encrypted files + classes in the planner (older apps refuse the file instead of silently dropping or exposing anything)
 const syncErr = msg => Object.assign(new Error(msg), { sync: true });
 
 /* ---------- config (kept out of S so credentials never end up in backups or on the server) ---------- */
@@ -283,7 +284,7 @@ function parsePayload(text) {
   let d; try { d = JSON.parse(text); } catch (e) { throw syncErr('The remote file is not valid JSON — leaving it alone'); }
   if (!d || d.app !== 'opentick' || !Array.isArray(d.tasks) || !Array.isArray(d.lists)) throw syncErr('The remote file is not an OpenTick sync file — refusing to overwrite it');
   if ((d.schema || 1) > SYNC_V) throw syncErr('The remote data was written by a newer OpenTick — please update this app');
-  d.habits = d.habits || []; d.tags = d.tags || []; d.slots = d.slots || []; d.notes = d.notes || []; d.projects = d.projects || []; d.school = d.school || []; d.pomo = d.pomo || []; d.templates = d.templates || []; d.countdowns = d.countdowns || []; d.zones = d.zones || []; d.boards = d.boards || []; d.contacts = d.contacts || []; d.csections = d.csections || []; d.centries = d.centries || []; d.tomb = d.tomb || {};
+  d.pomo = d.pomo || []; d.tomb = d.tomb || {}; for (const c of COLL) d[c] = d[c] || [];
   return d;
 }
 /* ---------- encrypted sync ----------

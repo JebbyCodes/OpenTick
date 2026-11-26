@@ -1,0 +1,198 @@
+name: Update screenshots
+
+# =====================================================================================================================================
+#  Update screenshots: genuine pictures of the RELEASED app, kept up to date in the README and the docs
+# =====================================================================================================================================
+#  What it does
+#    1. asks the GitHub Releases API for the latest STABLE release (not a draft, not a pre-release), or for the tag it was given;
+#    2. downloads that release's  OpenTick_<version>_web.zip  and checks it: the size and digest GitHub lists, the line in the release's
+#       SHA256SUMS.txt, and the signed build attestation (`gh attestation verify`). A release without the file, or a file that does not
+#       check out, STOPS the run with a message. It never falls back to the source code in the repository: the pictures are of the app
+#       people actually download.
+#    3. stops here when the pictures in the repository already show that release (the scheduled check usually ends at this step);
+#    4. unpacks the zip, serves it on this machine only, and opens it in Chromium with a fresh browser profile for every picture, invented
+#       demo data (scripts/screenshots/demo.js), a stopped clock and no animation: nine pages at a desktop size and at a phone size;
+#    5. puts the pictures, metadata.json (which release they show) and the README / docs/SCREENSHOTS.md blocks into the branch
+#       bot/screenshots and opens (or updates) ONE pull request. Nothing is pushed to main: a person looks at the pictures and merges.
+#       If nothing changed, nothing is committed.
+#
+#  When it runs
+#    Release        called by Release (release.yml) for every stable release, with the tag. This is the path that matters: a release
+#                   created with the built-in GITHUB_TOKEN does not start workflows that wait for "release: published", so Release calls this
+#                   one itself, the same way it calls the publishers.
+#    release        "published", for a release made some other way (by hand, or with a personal token). Pre-releases and drafts are ignored.
+#    schedule       every Monday: a safety net that finds a stable release no run has photographed (it ends at step 3 when none is new).
+#    by hand        Actions -> Update screenshots -> Run workflow. A tag can be given (a stable release); "force" photographs it again.
+#
+#  It cannot run twice at once, and it cannot start itself: the only things it writes are a branch and a pull request, and no trigger below
+#  listens to either. Pull requests opened with the built-in GITHUB_TOKEN do not start the test workflow (GitHub's rule): see docs/SCREENSHOTS.md
+#  for the repository setting this needs and for the optional SCREENSHOTS_TOKEN secret that makes the tests run on the pull request.
+#
+#  Locally:  docs/SCREENSHOTS.md.
+# =====================================================================================================================================
+
+on:
+  release:
+    types: [published]
+  workflow_call:
+    inputs:
+      tag:
+        description: The stable release to photograph (v1.2.3); empty means the latest stable release
+        required: false
+        type: string
+        default: ''
+      force:
+        description: Photograph it again even though the pictures in the repository already show this release
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      SCREENSHOTS_TOKEN:
+        description: Optional personal or app token used to push the branch and open the pull request, so that the tests run on it
+        required: false
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The stable release to photograph (v1.2.3); empty means the latest stable release
+        required: false
+        type: string
+        default: ''
+      force:
+        description: Photograph it again even though the pictures in the repository already show this release
+        required: false
+        type: boolean
+        default: false
+  schedule:
+    - cron: '23 5 * * 1'
+
+permissions:
+  contents: read
+
+# One run at a time, and a run that has started is never cancelled halfway (the next one waits, then finds nothing new to do).
+concurrency:
+  group: update-screenshots
+  cancel-in-progress: false
+
+jobs:
+  screenshots:
+    name: Screenshots of the latest stable release
+    # a release event for a pre-release or a draft does nothing; fetch-release.py refuses them as well
+    if: ${{ github.event_name != 'release' || (github.event.release.prerelease == false && github.event.release.draft == false) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write        # push the bot/screenshots branch
+      pull-requests: write   # open or update the pull request
+    env:
+      TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.tag }}
+      FORCE: ${{ inputs.force && 'true' || 'false' }}
+      GITHUB_TOKEN: ${{ github.token }}      # read by fetch-release.py (public release data; only for the higher rate limit)
+      GH_TOKEN: ${{ github.token }}          # read by `gh attestation verify`
+    steps:
+      # main, not the tag: the pictures are taken of the downloaded release, so the tools that take them can be improved without a new release.
+      - name: Check out main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          token: ${{ secrets.SCREENSHOTS_TOKEN || github.token }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+
+      # Fails, with the reason, if there is no stable release, no web zip, no SHA256SUMS.txt, or any value disagrees. With a tag it waits up to ten
+      # minutes for the files of a release that was only just published.
+      - name: Download and check the web zip of the release
+        id: fetch
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(--repo "$GITHUB_REPOSITORY" --out .build/shots)
+          if [ -n "$TAG" ]; then args+=(--tag "$TAG" --wait 600); fi
+          python3 -I scripts/screenshots/fetch-release.py "${args[@]}"
+
+      - name: Verify the signed build attestation of the zip
+        shell: bash
+        env:
+          VERSION: ${{ steps.fetch.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh attestation verify ".build/shots/OpenTick_${VERSION}_web.zip" --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml"
+
+      - name: Do the pictures in the repository already show this release?
+        id: check
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(check --release .build/shots/release.json)
+          if [ "$FORCE" = "true" ]; then args+=(--force); fi
+          python3 -I scripts/screenshots/publish.py "${args[@]}" | tee .build/shots/check.txt
+          { echo "### Screenshots"; echo; sed 's/^/- /' .build/shots/check.txt; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Install Playwright, Pillow and Chromium
+        if: ${{ steps.check.outputs.needed == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check playwright Pillow
+          python -m playwright install --with-deps chromium
+
+      - name: Take the pictures
+        if: ${{ steps.check.outputs.needed == 'true' }}
+        shell: bash
+        run: python3 -I scripts/screenshots/capture.py --site .build/shots/site --out .build/shots/images
+
+      - name: Put the pictures, the metadata and the README blocks in place
+        id: apply
+        if: ${{ steps.check.outputs.needed == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(apply --release .build/shots/release.json --images .build/shots/images --pr-body .build/shots/pr-body.md)
+          if [ "$FORCE" = "true" ]; then args+=(--force); fi
+          python3 -I scripts/screenshots/publish.py "${args[@]}" | tee .build/shots/apply.txt
+          { echo; sed 's/^/- /' .build/shots/apply.txt; } >> "$GITHUB_STEP_SUMMARY"
+
+      # The branch is only ever written by this workflow, so it is simply replaced: one commit on top of the current main, one pull request.
+      - name: Commit to bot/screenshots and open or update the pull request
+        id: pr
+        if: ${{ steps.apply.outputs.changed == 'true' }}
+        shell: bash
+        env:
+          VERSION: ${{ steps.apply.outputs.version }}
+          GH_TOKEN: ${{ secrets.SCREENSHOTS_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          branch=bot/screenshots
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C "$branch"
+          git add -A -- docs/images README.md docs/SCREENSHOTS.md
+          if git diff --cached --quiet; then echo "Nothing to commit."; exit 0; fi
+          git commit -q -m "Update screenshots for OpenTick ${VERSION}" -m "Taken automatically from the released web app by the Update screenshots workflow (run ${GITHUB_RUN_ID})."
+          git push --force origin "$branch"
+          title="Update screenshots for OpenTick ${VERSION}"
+          number="$(gh pr list --head "$branch" --base main --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$number" ]; then
+            gh pr edit "$number" --title "$title" --body-file .build/shots/pr-body.md
+            echo "- Updated pull request #${number}" >> "$GITHUB_STEP_SUMMARY"
+          elif url="$(gh pr create --base main --head "$branch" --title "$title" --body-file .build/shots/pr-body.md)"; then
+            echo "- Opened ${url}" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error title=Screenshots::The pictures are committed to the branch ${branch}, but GitHub did not let this workflow open the pull request. In Settings > Actions > General, turn on 'Allow GitHub Actions to create and approve pull requests' (or add a SCREENSHOTS_TOKEN secret), then run this workflow again, or open the pull request from that branch by hand."
+            exit 1
+          fi
+
+      # The pictures and what was checked, whatever happened, so a failed run can be looked at.
+      - name: Keep the pictures and the release record (artifact screenshots)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: screenshots
+          path: |
+            .build/shots/images
+            .build/shots/release.json
+            .build/shots/pr-body.md
+          if-no-files-found: ignore
+          retention-days: 14

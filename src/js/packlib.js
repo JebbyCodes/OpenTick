@@ -7,6 +7,8 @@
    What this file does, and what it never does:
    • It asks the library for index.json (once you press Browse or type a code) and for the one pack file you pick. Nothing is requested until
      you ask, nothing about you or your data is sent (only what any web request carries: your IP address), and it is never done in the background.
+     The one exception is opt-in and OFF by default: the anonymous "pack used" count (packstats.js, Settings > Sections & packs), which says which pack was used and
+     nothing else, and is also what makes a retry after a lost answer a background request.
    • A pack is data. The file goes through the same packParse / packPreview / packInstall as a file from disk: it can add sections and colours and
      cannot run anything. You see what is in it before anything is added.
    • The index is checked as hard as the pack: a row that is malformed, has a bad code or points anywhere but packs/<id>.json is dropped. The pack
@@ -49,7 +51,7 @@ function pkIndexClean(raw) {
       tags: (Array.isArray(e.tags) ? e.tags : []).map(t => pkLine(t, 24).toLowerCase()).filter(Boolean).slice(0, 6), updated: typeof e.updated === 'string' && /^\d{4}-\d\d-\d\d$/.test(e.updated) ? e.updated : '',
     });
   }
-  return { packs: out, skipped, updated: typeof raw.updated === 'string' && /^\d{4}-\d\d-\d\d/.test(raw.updated) ? raw.updated.slice(0, 10) : '' };
+  return { packs: out, skipped, updated: typeof raw.updated === 'string' && /^\d{4}-\d\d-\d\d/.test(raw.updated) ? raw.updated.slice(0, 10) : '', usage: typeof pkstUrlOk === 'function' ? pkstUrlOk(raw.usage) : '' }; // usage: where the optional, opt-in usage counts go (packstats.js); '' when the library publishes none
 }
 
 // ---------- asking the library ----------
@@ -69,7 +71,9 @@ async function pkSha(text) { try { return [...new Uint8Array(await crypto.subtle
 async function pkIndex(force) {
   if (!force && PKL.idx && Date.now() - PKL.at < PKL.ttl) return PKL.idx;
   const text = await pkGet('index.json', PKL.indexMax); let j; try { j = JSON.parse(text); } catch (e) { throw pkErr('The library sent something that is not a pack index.'); }
-  PKL.idx = pkIndexClean(j); PKL.at = Date.now(); return PKL.idx;
+  PKL.idx = pkIndexClean(j); PKL.at = Date.now();
+  if (typeof pkstLearn === 'function') pkstLearn(PKL.idx.usage); // (only does anything while the person has usage counting on)
+  return PKL.idx;
 }
 // the row for a code, or null. A pack that was published a minute ago is not in a copy that is a few minutes old, so a miss looks again once.
 async function pkFind(code) {
@@ -93,9 +97,10 @@ async function pkFetchPack(entry, retried) {
 
 // ---------- what is already here ----------
 function pkInstalled(e) {
-  const have = (S.csections || []).filter(s => s.packId === e.id), done = (S.settings.packsDone || {})[e.id];
-  if (!have.length && !done) return null;
-  const vers = [...have.map(s => s.packVer), done && done.v].filter(Boolean);
+  const have = (S.csections || []).filter(s => s.packId === e.id), done = (S.settings.packsDone || {})[e.id], rec = typeof pksRec === 'function' ? pksRec(e.id) : null;
+  if (rec && rec.state === 'removed') return null; // removed on any device: not installed (the sections it made are the person's own now)
+  if (!have.length && !done && !rec) return null;
+  const vers = [...have.map(s => s.packVer), done && done.v, rec && rec.version].filter(Boolean);
   let ver = ''; for (const v of vers) if (!ver || updNewer(v, ver)) ver = v;
   return { ver, newer: !!ver && updNewer(e.version, ver) };
 }
@@ -192,7 +197,7 @@ function packLibHtml() {
   return `<h4 class="mh">Pack library</h4><p class="hint" style="margin-top:0">Sections and colour themes made by other people. Every pack has a code, like K7QM-3XRD: type it in and OpenTick finds the pack, or browse the whole library.</p>`
     + `<div class="pkl-code"><input id="pkl-code" class="pkl-in" placeholder="Pack code, e.g. K7QM-3XRD" maxlength="14" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Pack code"><button type="button" class="btn pri" data-m="pkgo">Find</button></div>`
     + `<div class="ct-acts"><button type="button" class="btn" data-m="pklib">${ic('search', 14)} Browse the library…</button><button type="button" class="btn" data-m="pksite">${ic('external-link', 14)} Open the website</button><button type="button" class="btn" data-m="pkmake">${ic('upload', 14)} Share your own</button></div>`
-    + `<p class="hint">${ic('shield', 13)} OpenTick only contacts the library when you press one of these, and sends nothing about you or your data. A pack is only ever data (sections and colours), never code, and you look it over before anything is added.</p>`;
+    + `<p class="hint">${ic('shield', 13)} OpenTick only contacts the library when you press one of these, and sends nothing about you or your data. (The optional usage count below is off until you turn it on.) A pack is only ever data (sections and colours), never code, and you look it over before anything is added.</p>`;
 }
 function packLibAct(a, b, m, back) {
   if (a === 'pkgo') { const v = $('#pkl-code', m); const t = v ? v.value : ''; closeModal(); packCodeOpen(t, back); return true; }

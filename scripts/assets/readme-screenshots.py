@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Makes the screenshots the README shows, from the current build, with made-up demo data and a fixed date, so they can be remade any time:
+"""Makes docs/images/watch.png: the smartwatch layout on round watch screens, from the current build, with made-up demo data and a fixed date.
 
     npm run build:app && python3 scripts/assets/readme-screenshots.py
 
-Writes docs/images/{tasks,calendar,timeline,pins,sound,watch}.png. Needs Playwright with Chromium and Pillow (the browser tests use both).
-Nothing in the demo data is real: names, lists and dates are invented here."""
-import io, math, pathlib, struct, sys, wave
+This is the ONE README picture the automated screenshots cannot make: they photograph the released web app (see docs/SCREENSHOTS.md), and the watch layout
+is a separate edition of it. Needs Playwright with Chromium and Pillow (the browser tests use both). Nothing in the demo data is real."""
+import pathlib, sys
 from datetime import datetime
 from PIL import Image, ImageDraw
 from playwright.sync_api import sync_playwright
@@ -57,11 +57,6 @@ DEMO = r"""(() => {
   save();
 })()"""
 
-def wav(seconds=0.9, hz=880, rate=22050):
-    b = io.BytesIO(); w = wave.open(b, 'wb'); w.setnchannels(1); w.setsampwidth(2); w.setframerate(rate)
-    w.writeframes(b''.join(struct.pack('<h', int(9000 * math.sin(2 * math.pi * hz * i / rate) * math.exp(-3 * i / (rate * seconds)))) for i in range(int(rate * seconds)))); w.close()
-    return list(b.getvalue())
-
 def page(b, w, h, dsf):
     ctx = b.new_context(viewport={'width': w, 'height': h}, device_scale_factor=dsf, locale='en-GB', timezone_id='Europe/London', reduced_motion='reduce')   # reduced motion: scrolling text and animations stand still in the picture
     pg = ctx.new_page(); errs = []
@@ -70,41 +65,6 @@ def page(b, w, h, dsf):
     pg.goto('file://' + str(DIST) + ('?watch' if w < 600 else '')); pg.wait_for_selector('#main, #wapp', state='attached'); pg.wait_for_timeout(300)
     pg.evaluate(DEMO); pg.errs = errs
     return ctx, pg
-
-def squeeze(path):
-    im = Image.open(path).convert('RGB'); im.save(path, optimize=True)
-
-def shot(pg, name):
-    pg.mouse.move(700, 880); pg.wait_for_timeout(150)   # nothing hovered, so no tooltip is in the picture
-    pg.screenshot(path=str(OUT / name)); squeeze(OUT / name)
-
-def desktop(b):
-    ctx, pg = page(b, 1440, 900, 1.5)
-    pg.evaluate("S.settings.ui.pins = ['page:kanban']; save(); U.page = 'calendar'; render()"); pg.wait_for_timeout(500)
-    # calendar: the week, with lessons and timed tasks
-    pg.locator('.vtabs [role=tab]', has_text='Week').first.click(); pg.wait_for_timeout(700)
-    shot(pg, 'calendar.png')
-    # pinning: right-click Classes
-    tab = pg.locator('.vtabs [role=tab]', has_text='Classes').first; box = tab.bounding_box()
-    tab.click(button='right', position={'x': 40, 'y': box['height'] - 3}); pg.wait_for_timeout(900)   # low in the tab, so the menu opens below the tab strip
-    pg.screenshot(path=str(OUT / 'pins.png')); squeeze(OUT / 'pins.png')
-    pg.keyboard.press('Escape'); pg.wait_for_timeout(150)
-    # timeline
-    pg.evaluate("S.settings.ui.pins = ['page:kanban', 'school']; save(); U.page = 'gantt'; U.gList = 'work'; render()"); pg.wait_for_timeout(900)
-    tray = pg.get_by_text('Unscheduled', exact=True).locator('xpath=..').locator('button')
-    if tray.count(): tray.first.click(); pg.wait_for_timeout(400)
-    shot(pg, 'timeline.png')
-    # the reminder sound
-    pg.evaluate("openSettings('sound')"); pg.wait_for_timeout(300)
-    pg.evaluate("(async b => { await csoundSet(new File([new Uint8Array(b)], 'soft-bell.wav', { type: 'audio/wav' })); await csoundRefresh(); })", wav()); pg.wait_for_timeout(500)
-    pg.evaluate("document.activeElement && document.activeElement.blur()")
-    shot(pg, 'sound.png')
-    pg.evaluate("closeModal()"); pg.wait_for_timeout(200)
-    # tasks: Today, with a task open on the right
-    pg.evaluate("U.page = 'tasks'; U.list = 'today'; render()"); pg.wait_for_timeout(500)
-    pg.locator('#main', has_text='Finish the quarterly report').locator('text=Finish the quarterly report').first.click(); pg.wait_for_timeout(500)
-    shot(pg, 'tasks.png')
-    ctx.close()
 
 def watch(b):
     shots = []
@@ -129,5 +89,5 @@ if __name__ == '__main__':
     if not DIST.exists(): sys.exit('Build the app first: npm run build:app')
     OUT.mkdir(parents=True, exist_ok=True)
     with sync_playwright() as p:
-        b = p.chromium.launch(); desktop(b); watch(b); b.close()
-    print('wrote', ', '.join(sorted(f.name for f in OUT.glob('*.png') if not f.name.startswith('get-it') and f.name != 'banner.png')))
+        b = p.chromium.launch(); watch(b); b.close()
+    print('wrote', OUT / 'watch.png')

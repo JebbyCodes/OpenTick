@@ -26,6 +26,7 @@ name: Release
 #    5. publish ......... Only after the release exists (see the note below), each of these runs on its own and skips itself with
 #                         a warning if its secret is missing:
 #                           Docker registry (ghcr.io)    Snap Store    Microsoft Store    Chocolatey    Scoop    Winget
+#                         and, for stable releases, `screenshots`: new README pictures of the released web app, as a pull request.
 #    6. summary ......... Always runs, even after a failure: a table on the run page with the result of every stage above and
 #                         whether it was required, so "what happened, and did it matter?" is answered without opening twenty jobs.
 #
@@ -351,6 +352,20 @@ jobs:
       tag: ${{ needs.prepare.outputs.tag }}
     secrets: inherit
 
+  # Stable releases only: new README pictures, taken of the web zip that was just released, arrive as a pull request (bot/screenshots). They are
+  # called from here for the same reason as the publishers: a release made with GITHUB_TOKEN does not start a workflow that waits for it.
+  screenshots:
+    name: README screenshots
+    needs: [prepare, release]
+    if: ${{ !cancelled() && needs.release.result == 'success' && needs.prepare.outputs.stable == 'true' }}
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: ./.github/workflows/update-screenshots.yml
+    with:
+      tag: ${{ needs.prepare.outputs.tag }}
+    secrets: inherit
+
   # ===============================================================================================================================
   # 6. SUMMARY: one table of how every stage went (always runs, even when something failed)
   # ===============================================================================================================================
@@ -358,7 +373,7 @@ jobs:
   # It reports; it never changes the result of the run.
   summary:
     name: Summary
-    needs: [prepare, tests, desktop, android, ios, watch, web, docker, snap, msix-bundle, release, publish-docker, publish-snap, publish-microsoft-store, publish-chocolatey, publish-scoop, publish-winget]
+    needs: [prepare, tests, desktop, android, ios, watch, web, docker, snap, msix-bundle, release, publish-docker, publish-snap, publish-microsoft-store, publish-chocolatey, publish-scoop, publish-winget, screenshots]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5

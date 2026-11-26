@@ -254,6 +254,12 @@ function migrate(r) {
   // 0.8: contacts, and the sections (and their entries) a person or a pack made; their normalisers are function declarations in contacts.js and xsections.js
   r.contacts = Array.isArray(r.contacts) ? r.contacts.filter(x => x && x.id) : []; r.csections = Array.isArray(r.csections) ? r.csections.filter(x => x && x.id) : []; r.centries = Array.isArray(r.centries) ? r.centries.filter(x => x && x.id) : [];
   r.contacts.forEach(ctNormalise); r.csections.forEach(xsNormalise); r.centries.forEach(xeNormalise);
+  // 0.9.1: pack installs, permission decisions, pack activity, pack reminders and shortcuts (pkMigrate, when present, is a function declaration in the pack files)
+  for (const c of ['packs', 'pkperms', 'pkact', 'pkrem', 'shortcuts']) r[c] = Array.isArray(r[c]) ? r[c].filter(x => x && x.id) : [];
+  r.acts = (Array.isArray(r.acts) ? r.acts : []).filter(x => x && typeof x.id === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x.day) && x.k && typeof x.k === 'object'); r.acts.forEach(x => { x.dev = String(x.dev || '').slice(0, 60); x.k = actKeys(x.k); });
+  r.prefs = prefClean(r.prefs);
+  if (typeof pkMigrate === 'function') pkMigrate(r);
+  if (typeof skMigrate === 'function') skMigrate(r);
   r.tasks.forEach(t => { if (t.contactIds != null) t.contactIds = ctIds(t.contactIds); });
   r.notes.forEach(n => { if (n.contactIds != null) n.contactIds = ctIds(n.contactIds); });
   migrateClasses(r);
@@ -335,8 +341,39 @@ function load() {
    tombstone in S.tomb so a deletion can be told apart from "this device has never seen it". */
 // countdowns, zones (saved time zones) and boards (kanban boards) are synced collections like the rest; a task's place on a board is task.kb.
 // 0.8 adds contacts, csections (sections made by a person or a pack) and centries (what is filled in inside them); a task or note links people with task.contactIds / note.contactIds
-const COLL = ['tasks', 'lists', 'habits', 'tags', 'slots', 'notes', 'projects', 'school', 'templates', 'countdowns', 'zones', 'boards', 'contacts', 'csections', 'centries'];
-const SEEN = { tasks: new Map(), lists: new Map(), habits: new Map(), tags: new Map(), slots: new Map(), notes: new Map(), projects: new Map(), school: new Map(), templates: new Map(), countdowns: new Map(), zones: new Map(), boards: new Map(), contacts: new Map(), csections: new Map(), centries: new Map() };
+// 0.9.1: five more synced collections, all made of ordinary { id, u, … } records, so they take part in sync, encryption, backups, tombstones and the
+// Sync fingerprint exactly like the others (pack and shortcut files fill them; the rules for each are written where it is used):
+//   packs      installed packs: { id 'pk-<packId>', packId, name, version, source, state 'installed' | 'disabled' | 'removed', config, … }          (packstate.js)
+//   pkperms    permission decisions of one pack: { id 'pp-<packId>', packId, caps { <capability key>: { state, scope, at, ver, dev } } }       (packperm.js)
+//   pkact      what packs did: append-only events with a stable id, so a synced event is never replayed                                       (packperm.js)
+//   pkrem      reminders made by packs: the definition plus its done / dismissed / snoozed state                                              (packrem.js)
+//   shortcuts  custom keyboard shortcuts: { id 'sc-<action>', keys, … }                                                                       (keys.js)
+// A collection whose records must not be merged by "newest wins" registers its own rule in COLL_MERGE (see mergeData): permissions, for example, never
+// widen when two devices disagree.
+const COLL_PK = ['packs', 'pkperms', 'pkact', 'pkrem', 'shortcuts'];
+//   prefs      the user's preferences that follow them between devices: { id 'pf-<key>', key, value } (see "preferences" below; the rest of S.settings is about THIS device)
+//   acts       the Statistics tally, one record per device per day: { id 'ac-<device>-<day>', dev, day, k { 'task.done|<list id>|14': 3 } } (see "activity tally")
+const COLL = ['tasks', 'lists', 'habits', 'tags', 'slots', 'notes', 'projects', 'school', 'templates', 'countdowns', 'zones', 'boards', 'contacts', 'csections', 'centries', ...COLL_PK, 'acts', 'prefs'];
+const COLL_MERGE = {}; // collection -> (x, y, winner) => merged record, for records that need more than "newest wins"
+
+/* ---------- preferences (0.9.1) ----------
+   S.settings used to be wholly per device and never synced, so a theme, quiet hours, accessibility options or the clock format had to be set again on every
+   device. The choices that describe the PERSON now travel as records of the `prefs` collection (sealed with everything else); what describes a DEVICE stays
+   here: window layout and sizes, background services, the system bridge, update checks, the e-ink / watch layouts, sounds, the background picture, the
+   recording switch of History, vibration, and view state (calendar view, notes scope, filters, zoom). PREF_SYNC is the allow-list: a key that is not in
+   it is never uploaded, and nothing a remote record says can reach a key (or a sub-key) outside it.
+     null            the whole value of S.settings[key] is synced
+     { only: [..] }  only those sub-keys          { not: [..] }  every sub-key except those (they stay on this device)
+   One record per top-level key; two devices that change the SAME key at once keep the newer change (the other sub-keys of that key go with it). A key still at
+   its factory value has no record until somebody changes it, so a new device never overwrites what you chose elsewhere with its defaults. */
+const PREF_SYNC = {
+  theme: null, customThemes: null, sort: null, group: null, weekStart: null,
+  tasks: null, quiet: null, digest: null, tips: null, keys: null, clock: null, tz: null,
+  a11y: { not: ['tactile'] }, pomo: { not: ['faceDown'] }, gantt: { not: ['zoom', 'nameW', 'trayW'] },
+  tt: { only: ['from', 'to', 'auto', 'weekends', 'fit', 'classes'] }, notes: { only: ['group'] },
+};
+let PREF_PRISTINE = null; // the settings of a brand-new install (what "never changed" means), built once from migrate()
+const SEEN = Object.fromEntries(COLL.map(c => [c, new Map()]));
 // (due and time of a task planned in another zone are worked out per device from its anchor, so they are not part of what counts as an edit: zones.js)
 const hashOf = o => JSON.stringify(o, function (k, v) { return k === 'u' || ((k === 'due' || k === 'time') && this === o && o.tz && o.zd && o.zt) ? undefined : v; });
 // "edited just now" markers: which records this device changed in the last couple of minutes (never synced, never saved)
@@ -345,17 +382,21 @@ const editedCls = id => (EDITED.has(id) && Date.now() - EDITED.get(id) < EDIT_SH
 function initSeen() { for (const c of COLL) { SEEN[c].clear(); for (const o of S[c]) SEEN[c].set(o.id, hashOf(o)); } }
 function stamp() {
   const now = Date.now(); let changed = false; const seen = [];
+  actAdopt(); // a tally kept by an older version moves into this device's records (once)
+  prefMirror(); // a changed preference becomes a change of its record, which is what syncs
+  if (typeof pksAdopt === 'function') pksAdopt(); // sections a pack made before it had a record of its own (packstate.js)
   if (typeof tzTaskSync === 'function') for (const t of S.tasks) if (t.tz || t.zd) { try { tzTaskSync(t); } catch (e) { /* a bad zone must never stop saving */ } }
   for (const c of COLL) {
     const live = new Set();
     for (const o of S[c]) {
       live.add(o.id);
       const h = hashOf(o), prev = SEEN[c].get(o.id);
-      if (prev !== h) { o.u = Math.max(now, (o.u || 0) + 1); SEEN[c].set(o.id, h); changed = true; seen.push([c, prev, o]); if (prev && c !== 'habits') EDITED.set(o.id, now); }
+      if (prev !== h) { o.u = Math.max(now, (o.u || 0) + 1, (S.tomb[o.id] || 0) + 1); SEEN[c].set(o.id, h); changed = true; seen.push([c, prev, o]); if (prev && c !== 'habits') EDITED.set(o.id, now); }
     }
     for (const id of [...SEEN[c].keys()]) if (!live.has(id)) { seen.push([c, SEEN[c].get(id), null]); SEEN[c].delete(id); S.tomb[id] = Math.max(now, (S.tomb[id] || 0) + 1); changed = true; }
   }
   if (seen.length && histOn()) { try { histRecord(seen, now); } catch (e) { /* the log is a convenience: never let it break saving */ } }
+  if (actStamp(now)) changed = true; // the counts histRecord has just added to this device's records (they are not in `seen`: stamped here so they sync with this very save)
   return changed;
 }
 
@@ -428,17 +469,24 @@ function histNote(a, text) { if (!histOn()) return; S.history.push({ t: Date.now
 /* ---------- activity tally (what Statistics reads) ----------
    The log above keeps the last 2000 entries; Statistics wants far more than that, so each entry is also counted per day:
    S.activity.days['2026-11-17']['task.done|<list id>|14'] = 3  (kind.action | where it is filed | hour of the day, '' when unknown).
-   Only while history is on. Per device and never synced; it rides along inside the encrypted data like the log does. */
+   Only while history is on on the device that does the action.
+   0.9.1: the tally is SYNCED, as one record per device per day in S.acts: { id 'ac-<device>-<day>', dev, day, k: { <key above>: count } }. A device only ever
+   writes its own records, and two copies of one record merge by taking the larger count of every key (a counter only grows), so merging is commutative and
+   idempotent and can neither double-count nor lose a device's counts, however often or in whatever order devices sync. What Statistics shows is the sum of
+   every device's records (actDays): two devices holding the same synced data show the same numbers. Records ride in the sealed sync file like everything else.
+   What stays on the device: the History list (S.history, a log of what happened HERE) and whether this device records (settings.history.on).
+   The day and the hour are those of the device that did the action, fixed when it is counted (so they never move when someone travels or syncs).
+   Reset / delete: the records are removed, which syncs as deletions (a device that is offline and keeps counting can bring its own older counts back once). */
 const ACT_KEEP = 800, ACT_EDIT = new Map();
 const histOn = () => !!(S.settings && S.settings.history && S.settings.history.on);
-const actNew = () => ({ v: 1, on: 0, filled: 0, days: {} });
+const actNew = () => ({ v: 1, on: 0, filled: 0, days: {} }); // .days is only what an older version kept: actAdopt moves it into S.acts
+function actKeys(k) { const r = {}; if (k && typeof k === 'object') for (const [key, n] of Object.entries(k)) if (key.length <= 90 && Number.isFinite(n) && n > 0) r[key] = Math.round(n); return r; }
 function actNormalise(a) {
   const o = actNew(); if (!a || typeof a !== 'object') return o;
   o.on = +a.on || 0; o.filled = +a.filled || 0;
   if (a.days && typeof a.days === 'object') for (const [d, m] of Object.entries(a.days)) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !m || typeof m !== 'object') continue;
-    const r = {}; for (const [k, n] of Object.entries(m)) if (k.length <= 90 && Number.isFinite(n) && n > 0) r[k] = Math.round(n);
-    if (Object.keys(r).length) o.days[d] = r;
+    const r = actKeys(m); if (Object.keys(r).length) o.days[d] = r;
   }
   return o;
 }
@@ -450,11 +498,46 @@ function actScope(c, o) {
   if (c === 'projects') return 'p:' + o.id;
   return '';
 }
-function actCount(kind, act, scope, n, t, noHour) { // noHour: the time of day is not known (a habit check-in only has a date)
+// this device's id for its records (the sync configuration's; it is not part of the synced data)
+function actDev() { try { return String(Sync.cfg.device || 'local').replace(/[^\w-]/g, '').slice(0, 40) || 'local'; } catch (e) { return 'local'; } }
+// an older version's per-device tally (S.activity.days) becomes this device's records; max() makes doing it twice harmless
+function actAdopt() {
+  const A = S.activity; if (!A || !A.days) return; const ds = Object.keys(A.days); if (!ds.length) return;
+  const dev = actDev();
+  for (const day of ds) {
+    const id = 'ac-' + dev + '-' + day; let r = S.acts.find(x => x.id === id); if (!r) S.acts.push(r = { id, dev, day, k: {} });
+    for (const [key, n] of Object.entries(A.days[day])) r.k[key] = Math.max(r.k[key] || 0, n);
+  }
+  A.days = {};
+}
+// the sum of every device's counts: { 'YYYY-MM-DD': { key: count } }. Pure function of the synced records.
+function actDays() {
+  actAdopt(); const out = {};
+  for (const r of S.acts) { const day = out[r.day] || (out[r.day] = {}); for (const [k, n] of Object.entries(r.k || {})) day[k] = (day[k] || 0) + n; }
+  return out;
+}
+// two copies of one record: the larger count of every key. If that differs from the newer copy it must propagate: u above both sides.
+COLL_MERGE.acts = (x, y, w) => {
+  const k = {}; for (const key of new Set([...Object.keys(x.k || {}), ...Object.keys(y.k || {})])) k[key] = Math.max((x.k || {})[key] || 0, (y.k || {})[key] || 0);
+  const m = { ...w, k }; if (canon(k) !== canon(w.k)) m.u = Math.max(x.u || 0, y.u || 0) + 1; return m;
+};
+// stamps this device's changed or new records after histRecord has counted (see stamp); removed ones become tombstones
+function actStamp(now) {
+  let ch = false; const live = new Set();
+  for (const o of S.acts) {
+    live.add(o.id); const h = hashOf(o), prev = SEEN.acts.get(o.id);
+    if (prev !== h) { o.u = Math.max(now, (o.u || 0) + 1, (S.tomb[o.id] || 0) + 1); SEEN.acts.set(o.id, h); ch = true; }
+  }
+  for (const id of [...SEEN.acts.keys()]) if (!live.has(id)) { SEEN.acts.delete(id); S.tomb[id] = Math.max(now, (S.tomb[id] || 0) + 1); ch = true; }
+  return ch;
+}
+// dev: 'bf' for the counts made from what already existed (backfill): one shared record per day whose content depends only on the data, so two devices doing it agree
+function actCount(kind, act, scope, n, t, noHour, dev) {
   if (!S.activity || !(n > 0)) return;
-  const d = new Date(t), day = S.activity.days[ymd(d)] || (S.activity.days[ymd(d)] = {});
+  actAdopt(); const d = new Date(t), day = ymd(d), who = dev || actDev(), id = 'ac-' + who + '-' + day;
+  let r = S.acts.find(x => x.id === id); if (!r) S.acts.push(r = { id, dev: who, day, k: {} });
   const key = `${kind}.${act}|${String(scope || '').replace(/\|/g, '').slice(0, 40)}|${noHour ? '' : d.getHours()}`;
-  day[key] = (day[key] || 0) + Math.round(n);
+  r.k[key] = (r.k[key] || 0) + Math.round(n);
 }
 function actTally(e, now) {
   if (!histOn() || e.k === 'app') return;
@@ -471,18 +554,21 @@ function actFocus(min, taskId, ts) {
   const t = taskId ? getT(taskId) : null, sc = t ? t.listId || 'inbox' : '';
   actCount('focus', 'done', sc, 1, ts || Date.now()); actCount('focus', 'min', sc, Math.max(1, Math.round(min || 0)), ts || Date.now());
 }
-function actPrune() {
-  const ks = Object.keys(S.activity.days); if (ks.length <= ACT_KEEP + 30) return;
-  ks.sort(); for (const d of ks.slice(0, ks.length - ACT_KEEP)) delete S.activity.days[d];
+function actPrune() { // only this device's own records: another device prunes its own
+  actAdopt(); const dev = actDev(), days = S.acts.filter(r => r.dev === dev).map(r => r.day).sort(); if (days.length <= ACT_KEEP + 30) return;
+  const cut = new Set(days.slice(0, days.length - ACT_KEEP)); S.acts = S.acts.filter(r => !(r.dev === dev && cut.has(r.day)));
 }
+// Reset / delete the tally everywhere: the records are removed now (flush), so the removal syncs as deletions
+function actClear() { S.acts = []; S.activity.days = {}; flush(); }
 // turning history on starts Statistics from what is already stored: when each task, note and habit check-in was made (done once)
 function actBackfill() {
   const A = S.activity; if (A.filled) return 0; let n = 0;
-  const at = (kind, act, scope, t, noHour) => { if (t > 0 && t <= Date.now()) { actCount(kind, act, scope, 1, t, noHour); n++; } };
+  if (S.acts.length) { A.filled = Date.now(); return 0; } // Statistics already started on a device of yours: counting what exists again would count it twice
+  const at = (kind, act, scope, t, noHour) => { if (t > 0 && t <= Date.now()) { actCount(kind, act, scope, 1, t, noHour, 'bf'); n++; } };
   for (const t of S.tasks) { if (t.created) at('task', 'add', actScope('tasks', t), t.created); if (t.status === 'done' && t.doneAt) at('task', 'done', actScope('tasks', t), t.doneAt); }
   for (const x of S.notes) { at('note', 'add', actScope('notes', x), x.created); if (x.updated && x.updated - x.created > 120000) at('note', 'edit', actScope('notes', x), x.updated); }
   for (const h of S.habits) for (const d of Object.keys(h.log || {})) if (h.log[d]) { at('habit', 'done', '', pYmd(d).getTime(), true); }
-  for (const p of S.pomo || []) { const tk = p.task ? getT(p.task) : null, sc = tk ? tk.listId || 'inbox' : ''; actCount('focus', 'done', sc, 1, p.ts); actCount('focus', 'min', sc, Math.max(1, p.min || 1), p.ts); n++; }
+  for (const p of S.pomo || []) { const tk = p.task ? getT(p.task) : null, sc = tk ? tk.listId || 'inbox' : ''; actCount('focus', 'done', sc, 1, p.ts, false, 'bf'); actCount('focus', 'min', sc, Math.max(1, p.min || 1), p.ts, false, 'bf'); n++; }
   A.filled = Date.now(); actPrune(); return n;
 }
 
@@ -490,6 +576,52 @@ let S = load();
 initSeen();
 let saveTimer;
 const hooks = { change() {} }; // sync.js hooks in here
+/* ---- preferences: S.settings <-> S.prefs (the allow-list is PREF_SYNC, above) ---- */
+const prefCanon = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.keys(x).sort().map(i => [i, x[i]])) : x));
+const prefIn = (key, k) => { const sp = PREF_SYNC[key]; return !sp || (sp.only ? sp.only.includes(k) : !(sp.not || []).includes(k)); };
+// the part of a value that this device is allowed to sync (undefined when the key is not synced at all)
+function prefPick(src, key) {
+  if (!(key in PREF_SYNC) || !src || src[key] === undefined) return undefined;
+  const v = JSON.parse(JSON.stringify(src[key]));
+  return PREF_SYNC[key] && v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).filter(([k]) => prefIn(key, k))) : v;
+}
+const prefPristine = () => PREF_PRISTINE || (PREF_PRISTINE = migrate({ ...EMPTY_DATA(), settings: {} }).settings);
+function prefClean(list) { // (structure only: types are checked where a value is applied)
+  const seen = new Set();
+  return (Array.isArray(list) ? list : []).filter(r => r && typeof r.id === 'string' && r.key in PREF_SYNC && r.id === 'pf-' + r.key && r.value !== undefined && !seen.has(r.id) && seen.add(r.id));
+}
+// keep what another version of the app stored in a sub-key this one does not own
+const prefJoin = (key, old, mine) => (mine && typeof mine === 'object' && !Array.isArray(mine) && old && typeof old === 'object' && !Array.isArray(old) ? { ...Object.fromEntries(Object.entries(old).filter(([k]) => !prefIn(key, k))), ...mine } : mine);
+function prefMirror() {
+  if (!S.settings) return;
+  const pri = prefPristine(), byId = new Map(S.prefs.map(r => [r.id, r]));
+  for (const key of Object.keys(PREF_SYNC)) {
+    const cur = prefPick(S.settings, key); if (cur === undefined) continue;
+    const rec = byId.get('pf-' + key);
+    if (rec) { if (prefCanon(prefPick({ [key]: rec.value }, key)) !== prefCanon(cur)) rec.value = prefJoin(key, rec.value, cur); }
+    else if (prefCanon(cur) !== prefCanon(prefPick(pri, key))) S.prefs.push({ id: 'pf-' + key, key, value: cur }); // only what somebody changed has a record
+  }
+}
+// records -> S.settings (a record of the wrong shape, or reaching a sub-key outside the allow-list, is ignored); `gone`: keys whose record was deleted -> default
+function prefApply(gone = []) {
+  const pri = prefPristine(); let changed = false;
+  const put = (key, v) => {
+    if (prefCanon(prefPick(S.settings, key)) === prefCanon(v)) return;
+    const cur = S.settings[key], obj = v && typeof v === 'object' && !Array.isArray(v);
+    S.settings[key] = obj && cur && typeof cur === 'object' && !Array.isArray(cur) ? { ...cur, ...v } : v; changed = true;
+  };
+  for (const r of S.prefs) {
+    const p = prefPick(pri, r.key), v = prefPick({ [r.key]: r.value }, r.key);
+    if (p === undefined || v === undefined || typeof v !== typeof p || Array.isArray(v) !== Array.isArray(p) || (v === null) !== (p === null)) continue;
+    put(r.key, v);
+  }
+  for (const key of gone) { const p = prefPick(pri, key); if (p !== undefined) put(key, p); }
+  return changed;
+}
+function prefEffects() { // what the screen needs after preferences arrived from another device
+  try { if (typeof applyTheme === 'function') applyTheme(); if (typeof a11yApply === 'function') a11yApply(); if (typeof skHintsRefresh === 'function') skHintsRefresh(); if (typeof bgSync === 'function') bgSync(true); } catch (e) { /* the screen catches up on the next render */ }
+}
+
 function flush() {
   clearTimeout(saveTimer);
   if (Vault.locked) return; // locked: S is only a placeholder, so nothing is stamped, saved or synced
@@ -504,7 +636,7 @@ function save() { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 120); i
 const TOMB_TTL = 180 * 864e5;
 const canon = o => JSON.stringify(Object.keys(o || {}).sort().map(k => [k, o[k]]));
 const cyrb53 = s => { let a = 0xdeadbeef, b = 0x41c6ce57; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 2654435761); b = Math.imul(b ^ c, 1597334677); } a = Math.imul(a ^ (a >>> 16), 2246822507) ^ Math.imul(b ^ (b >>> 13), 3266489909); b = Math.imul(b ^ (b >>> 16), 2246822507) ^ Math.imul(a ^ (a >>> 13), 3266489909); return (4294967296 * (2097151 & b) + (a >>> 0)).toString(36); };
-const snapshot = () => ({ tasks: S.tasks, lists: S.lists, habits: S.habits, tags: S.tags, slots: S.slots, notes: S.notes, projects: S.projects, school: S.school, templates: S.templates, countdowns: S.countdowns, zones: S.zones, boards: S.boards, contacts: S.contacts, csections: S.csections, centries: S.centries, pomo: S.pomo, tomb: S.tomb });
+const snapshot = () => ({ ...Object.fromEntries(COLL.map(c => [c, S[c]])), pomo: S.pomo, tomb: S.tomb });
 function fingerprint(d) {
   const p = [];
   for (const c of COLL) for (const o of (d[c] || [])) p.push(c[0] + o.id + ':' + (o.u || 0));
@@ -537,9 +669,12 @@ function mergeData(L, R) {
   for (const c of COLL) {
     const a = new Map((L[c] || []).map(o => [o.id, o])), b = new Map((R[c] || []).map(o => [o.id, o])), res = [];
     for (const id of new Set([...a.keys(), ...b.keys()])) {
-      const x = a.get(id), y = b.get(id);
+      let x = a.get(id), y = b.get(id);
+      // a copy that was deleted at least as recently as it was last edited takes no part in a custom merge (a stale copy must not bring a reset or revoked record back)
+      if (COLL_MERGE[c] && tombs.has(id)) { const tb = tombs.get(id); if (x && tb >= (x.u || 0)) x = undefined; if (y && tb >= (y.u || 0)) y = undefined; if (!x && !y) continue; }
       let w = x && y ? pickNewer(x, y) : x || y;
       if (c === 'habits' && x && y) w = mergeHabit(x, y, w);
+      else if (COLL_MERGE[c] && x && y) w = COLL_MERGE[c](x, y, w);
       if ((tombs.get(id) || 0) >= (w.u || 0) && tombs.has(id)) continue; // deleted at least as recently as it was last edited
       tombs.delete(id); // an edit newer than the deletion resurrects the record
       res.push(w);
@@ -553,16 +688,23 @@ function mergeData(L, R) {
   return out;
 }
 function applyMerged(m) {
-  S.tasks = m.tasks; S.lists = m.lists; S.habits = m.habits; S.tags = m.tags; S.slots = m.slots; S.notes = m.notes; S.projects = m.projects; S.school = m.school; S.templates = m.templates; S.countdowns = m.countdowns; S.zones = m.zones; S.boards = m.boards; S.contacts = m.contacts; S.csections = m.csections; S.centries = m.centries; S.pomo = m.pomo; S.tomb = m.tomb;
+  const hadPrefs = S.prefs.map(r => r.key), hadPerms = S.pkperms.length > 0;
+  for (const c of COLL) S[c] = m[c] || []; S.pomo = m.pomo; S.tomb = m.tomb;
+  S.prefs = prefClean(S.prefs); // (before it is applied: only a record that really is a preference may touch the settings)
+  const prefsMoved = prefApply(hadPrefs.filter(k => !S.prefs.some(r => r.key === k))); // (a preference record that was deleted elsewhere puts that preference back to its default here too)
   migrate(S); if (typeof tzReflow === 'function') { try { tzReflow(); } catch (e) { /* later */ } } initSeen();
+  if (typeof pkpArrived === 'function') pkpArrived(hadPerms); // permissions this device never saw wait for the person's OK here
   persist(true); // if storage is full the copy in memory is still right
+  if (prefsMoved) prefEffects();
 }
 // Replace everything (import / undo) in a way that sync treats as a deliberate edit: gone records become tombstones, kept ones are re-stamped
-function replaceAll(d) {
-  const old = {}; for (const c of COLL) old[c] = S[c].map(o => o.id);
-  const tomb = { ...S.tomb }, now = Date.now(), hist = S.history, act = S.activity;
+function replaceAll(d, o = {}) {
+  const old = {}; for (const c of COLL) old[c] = S[c].map(x => x.id);
+  const tomb = { ...S.tomb }, now = Date.now(), hist = S.history, act = S.activity, acts = S.acts;
   S = migrate({ ...d, tomb: {} }); S.history = hist; S.activity = act;
+  if (!o.wipeActs) S.acts = acts; // what you did stays counted when data is restored or imported (o.wipeActs: Delete everything)
   for (const c of COLL) {
+    if (c === 'acts' && !o.wipeActs) continue;
     const ids = new Set(S[c].map(o => o.id));
     for (const id of old[c]) if (!ids.has(id)) tomb[id] = now;
     S[c].forEach(o => { o.u = now; delete tomb[o.id]; });

@@ -5,13 +5,17 @@
    variables. Everything in it is checked and cut down to size before anything is kept (packClean); nothing in a file is ever run or inserted as HTML.
    Installing only adds: it never changes or removes what is already there, and it never reads anything from the person's data.
    The format is documented for authors in docs/PACKS.md. The library itself lives in its own repository, JebbyCodes/OpenTick-Packs.
-     { opentick: 'pack', format: 1, id, name, version, author, description, license, homepage,
+     { opentick: 'pack', format: 1 | 2, id, name, version, author, description, license, homepage,
+       permissions: { sections: [{ id, reason, capabilities: [{ id, scope, required, reason }] }] }   (format 2: what the pack asks to be allowed; packperm.js)
        sections: [{ name, icon, color, title, view, checkable, sort { f, dir }, group, fields: [{ key, name, type, opts }],
-                    entries: [{ title, vals { key: value }, notes, done }] }],
+                    entries: [{ title, vals { key: value }, notes, done }],
+                    actions: [{ id, name, icon, op, map, link }], related: [{ target, fields, title }] }],   (format 2: packapi.js)
+       format 2 also: a field can have formula (type calculated), description, placeholder, default, required, min, max, minLength, maxLength, integer, format { … },
+                    group and visibleWhen; a section can have groups and templates, and the type multiselect (packfields.js)
        themes: [{ name, base, vars { '--bg': '#…' } }] } */
-const PACK_FORMAT = 1, PACK_MAX_BYTES = 2 * 1024 * 1024, PACK_LIMIT = { sections: 12, fields: 24, entries: 500, themes: 6 };
+const PACK_FORMAT = 2, PACK_MAX_BYTES = 2 * 1024 * 1024, PACK_LIMIT = { sections: 12, fields: 24, entries: 500, themes: 6 };
 const pkS = (v, n) => String(v == null ? '' : v).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '').trim().slice(0, n);
-const PK_TYPES = ['text', 'note', 'number', 'date', 'check', 'select', 'rating', 'url', 'tags'];
+const PK_TYPES = ['text', 'note', 'number', 'date', 'check', 'select', 'rating', 'url', 'tags', 'multiselect', 'calculated'];
 const pkColor = v => (/^#[0-9a-f]{3}([0-9a-f]{3})?$/i.test(String(v || '').trim()) ? String(v).trim() : '');
 const pkHttp = v => { const u = pkS(v, 300); return /^https?:\/\/[^\s<>"']+$/i.test(u) ? u : ''; };
 // a theme value is a colour or a shadow: letters, digits, # ( ) , . % / - and spaces; never anything that could load or run something
@@ -22,8 +26,9 @@ function pkThemeVal(v) {
   return depth === 0 ? x : '';
 }
 const pkSlug = s => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '').trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
-function pkValue(f, v) { // one entry value cut to its field's type; null = drop it
-  if (v == null || v === '') return null;
+function pkValue(f, v) { // one entry value cut to its field's type; null = drop it (whether it is one of the choices, in range, a web address: pkfCheck)
+  if (v == null || v === '' || f.type === 'calculated') return null;
+  if (f.type === 'multiselect') return Array.isArray(v) ? v.map(x => pkS(x, 40)).filter(Boolean).slice(0, 30) : null;
   if (f.type === 'number') { const n = typeof v === 'number' ? v : Number(v); return Number.isFinite(n) ? n : null; }
   if (f.type === 'check') return v === true || v === 'true' ? true : null;
   if (f.type === 'rating') { const n = Math.round(Number(v)); return n >= 1 && n <= 5 ? n : null; }
@@ -40,30 +45,41 @@ function packClean(raw) {
   const warn = [], arr = v => (Array.isArray(v) ? v : []);
   const pack = { id: pkSlug(raw.id || raw.name) || 'pack', name: pkS(raw.name, 60) || 'Untitled pack', version: pkS(raw.version, 20), author: pkS(raw.author, 60), description: pkS(raw.description, 300), license: pkS(raw.license, 40), homepage: pkHttp(raw.homepage), sections: [], themes: [] };
   if (arr(raw.sections).length > PACK_LIMIT.sections) warn.push(`Only the first ${PACK_LIMIT.sections} sections were read.`);
+  const perms = typeof packPermsClean === 'function' ? packPermsClean(raw.permissions, pack, warn) : null; if (perms) pack.permissions = perms;
   for (const rs of arr(raw.sections).slice(0, PACK_LIMIT.sections)) {
     if (!rs || typeof rs !== 'object') continue;
     const name = pkS(rs.name, 40); if (!name) { warn.push('A section without a name was skipped.'); continue; }
-    const keys = new Set(), fields = [];
+    const keys = new Set(), fields = [], rawFields = [];
     for (const rf of arr(rs.fields).slice(0, PACK_LIMIT.fields)) {
       if (!rf || typeof rf !== 'object') continue;
       let key = /^[\w-]{1,24}$/.test(String(rf.key || '')) ? String(rf.key) : 'f' + (fields.length + 1); while (keys.has(key)) key += 'x'; keys.add(key);
-      const type = PK_TYPES.includes(rf.type) ? rf.type : (warn.push(`A field of “${name}” had an unknown type and became text.`), 'text');
-      fields.push({ key, name: pkS(rf.name, 40) || 'Field', type, opts: type === 'select' ? [...new Set(arr(rf.opts).map(o => pkS(o, 40)).filter(Boolean))].slice(0, 30) : [] });
+      const type = PK_TYPES.includes(rf.type) ? rf.type : (warn.push(`A field of “${name}” had an unknown type and became text.`), 'text'), fname = pkS(rf.name, 40) || 'Field';
+      const opts = type === 'select' || type === 'multiselect' ? [...new Set(arr(rf.opts).map(o => pkS(o, 40)).filter(Boolean))].slice(0, 30) : [];
+      fields.push({ key, name: fname, type, opts, ...(type === 'calculated' ? { formula: xfdFormula(rf.formula) } : {}), ...pkfExtras(rf, type, opts, `“${fname}” in “${name}”`, warn) }); rawFields.push(rf);
     }
-    const sorts = rs.sort && typeof rs.sort === 'object' ? rs.sort : {}, entries = []; let dropped = 0;
+    const adv = pkfSection(rs, name, fields, rawFields, warn); // groups, templates, visibleWhen and formulas: they need every key to be known
+    const sorts = rs.sort && typeof rs.sort === 'object' ? rs.sort : {}, entries = []; let dropped = 0, calcSkipped = 0;
     if (arr(rs.entries).length > PACK_LIMIT.entries) warn.push(`Only the first ${PACK_LIMIT.entries} entries of “${name}” were read.`);
     for (const re of arr(rs.entries).slice(0, PACK_LIMIT.entries)) {
       if (!re || typeof re !== 'object') continue;
       const vals = {}, rv = re.vals && typeof re.vals === 'object' && !Array.isArray(re.vals) ? re.vals : {};
       for (const k of Object.keys(rv)) if (!keys.has(k)) dropped++;
-      for (const f of fields) { const v = pkValue(f, rv[f.key]); if (v != null) vals[f.key] = v; else if (rv[f.key] != null && rv[f.key] !== '' && rv[f.key] !== false) dropped++; }
+      for (const f of fields) {
+        const given = rv[f.key] != null && rv[f.key] !== '' && rv[f.key] !== false;
+        if (f.type === 'calculated') { if (given) calcSkipped++; continue; } // (a calculated value is worked out, not kept)
+        const v = pkValue(f, rv[f.key]); if (v != null && !xfdTypeBreak(f, v) && !xfdBreaks(f, v)) vals[f.key] = v; else if (given) dropped++;
+      }
       entries.push({ title: pkS(re.title, 200), vals, notes: pkS(re.notes, 5000), done: re.done === true });
     }
+    if (calcSkipped) warn.push(`${calcSkipped} value${calcSkipped === 1 ? '' : 's'} for calculated fields in “${name}” ${calcSkipped === 1 ? 'was' : 'were'} ignored: a calculated field works its value out.`);
+    const needs = entries.filter(en => xfdProblems({ fields: fields.map(f => ({ ...f, id: f.key })) }, en.vals).length).length;
+    if (needs) warn.push(`${needs} entr${needs === 1 ? 'y' : 'ies'} in “${name}” ${needs === 1 ? 'is' : 'are'} missing a required value and will be marked as needing attention.`);
     if (rs.group && !fields.some(f => f.key === rs.group && (f.type === 'select' || f.type === 'check'))) warn.push(`“${name}” is grouped by “${pkS(rs.group, 24)}”, which is not one of its choice or tick-box fields, so it is not grouped.`);
     if (sorts.f && sorts.f !== 'title' && sorts.f !== 'created' && !keys.has(sorts.f)) warn.push(`“${name}” is sorted by “${pkS(sorts.f, 24)}”, which is not one of its fields, so it is sorted by date added.`);
     if (dropped) warn.push(`${dropped} value${dropped === 1 ? '' : 's'} in “${name}” did not fit their field and ${dropped === 1 ? 'was' : 'were'} left out.`);
-    pack.sections.push({ name, icon: pkS(rs.icon, 16), color: pkColor(rs.color), title: pkS(rs.title, 30) || 'Name', view: ['list', 'cards', 'table'].includes(rs.view) ? rs.view : 'list', checkable: rs.checkable === true, sort: { f: keys.has(sorts.f) || sorts.f === 'title' ? sorts.f : 'created', dir: sorts.dir === 'asc' ? 'asc' : 'desc' }, group: keys.has(rs.group) && fields.find(f => f.key === rs.group && (f.type === 'select' || f.type === 'check')) ? rs.group : '', fields, entries });
+    pack.sections.push({ ...packSecExtras(rs, name, warn, perms, fields), name, icon: pkS(rs.icon, 16), color: pkColor(rs.color), title: pkS(rs.title, 30) || 'Name', view: ['list', 'cards', 'table'].includes(rs.view) ? rs.view : 'list', checkable: rs.checkable === true, sort: { f: keys.has(sorts.f) || sorts.f === 'title' ? sorts.f : 'created', dir: sorts.dir === 'asc' ? 'asc' : 'desc' }, group: keys.has(rs.group) && fields.find(f => f.key === rs.group && (f.type === 'select' || f.type === 'check')) ? rs.group : '', fields, entries, ...(adv.groups.length ? { groups: adv.groups } : {}), ...(adv.templates.length ? { templates: adv.templates } : {}) });
   }
+  if (fmt < 2 && pack.sections.some(pkfSectionAdvanced)) warn.push('This pack uses features of pack format 2 but says format 1. Older versions of OpenTick would show it wrongly.');
   const allowed = new Set(typeof THEME_VARS !== 'undefined' ? THEME_VARS.map(v => v[0]) : []);
   if (arr(raw.themes).length > PACK_LIMIT.themes) warn.push(`Only the first ${PACK_LIMIT.themes} themes were read.`);
   for (const rt of arr(raw.themes).slice(0, PACK_LIMIT.themes)) {
@@ -83,28 +99,42 @@ function packParse(text) {
   let j; try { j = JSON.parse(t); } catch (e) { throw new Error('This is not a pack file: ' + e.message); }
   return packClean(j);
 }
+// the 0.9.1 parts of a section: actions and the related panel, checked against the pack's own permission manifest
+function packSecExtras(rs, name, warn, perms, fields) {
+  const o = {}; if (typeof packActionsClean !== 'function') return o;
+  const a = packActionsClean(rs.actions, { name }, warn, perms), r = packRelatedClean(rs.related, { name }, warn, perms), rem = packRemindersClean(rs.reminders, { name }, fields || [], warn, perms); if (a.length) o.actions = a; if (r.length) o.related = r; if (rem.length) o.reminders = rem; return o;
+}
+// the lowest format that can hold everything this pack uses: 1 for a pack that uses nothing new (it keeps working in 0.9.0), 2 otherwise
+function packFormatNeeded(pack) { return pack.permissions || pack.sections.some(s => (s.actions && s.actions.length) || (s.related && s.related.length) || (s.reminders && s.reminders.length) || pkfSectionAdvanced(s)) ? 2 : 1; }
+const packTok = (t, ids) => String(t).replace(/\{([\w-]{1,24})\}/g, (m, k) => (k === 'title' ? m : ids[k] ? `{${ids[k]}}` : '')); // the pack's field keys → this section's field ids
+const packMapTok = (list, ids) => list.map(a => ({ ...a, map: Object.fromEntries(Object.entries(a.map || {}).map(([k, v]) => [k, packTok(v, ids)])) }));
 const packCounts = p => ({ sections: p.sections.length, fields: p.sections.reduce((n, s) => n + s.fields.length, 0), entries: p.sections.reduce((n, s) => n + s.entries.length, 0), themes: p.themes.length });
 // adds what the pack holds. New ids for everything, so installing the same pack twice gives two copies and never touches the first.
-function packInstall(pack) {
+function packInstall(pack, src = {}) {
   const now = Date.now(); let entries = 0; const made = [];
   for (const ps of pack.sections) {
-    const ids = {}, fields = ps.fields.map(f => ({ id: (ids[f.key] = xsFid()), name: f.name, type: f.type, ...(f.type === 'select' ? { opts: f.opts } : {}) }));
-    const s = xsNormalise({ id: 'x-' + uid(), name: ps.name, icon: ps.icon, color: ps.color || '#4772fa', title: ps.title, fields, view: ps.view, checkable: ps.checkable, group: ids[ps.group] || '', sort: ps.sort.f === 'created' || ps.sort.f === 'title' ? ps.sort : { f: ids[ps.sort.f] || 'created', dir: ps.sort.dir }, pack: pack.name, packId: pack.id, packVer: pack.version, created: now });
+    const ids = {}; for (const f of ps.fields) ids[f.key] = xsFid();
+    const fields = pkfInstallFields(ps, ids); // (a pack's field keys become this section's field ids, in conditions, formulas and templates too)
+    const s = xsNormalise({ id: 'x-' + uid(), name: ps.name, icon: ps.icon, color: ps.color || '#4772fa', title: ps.title, fields, ...pkfInstallExtras(ps, ids), view: ps.view, checkable: ps.checkable, group: ids[ps.group] || '', sort: ps.sort.f === 'created' || ps.sort.f === 'title' ? ps.sort : { f: ids[ps.sort.f] || 'created', dir: ps.sort.dir }, pack: pack.name, packId: pack.id, packVer: pack.version, created: now, ...(ps.actions ? { actions: packMapTok(ps.actions, ids) } : {}), ...(ps.related ? { related: ps.related } : {}), ...(ps.reminders ? { reminders: pkrMapDefs(ps.reminders, ids) } : {}) });
     S.csections.push(s); made.push(s);
     ps.entries.forEach((pe, i) => { const vals = {}; for (const [k, v] of Object.entries(pe.vals)) if (ids[k]) vals[ids[k]] = v; S.centries.push(xeNormalise({ id: uid(), sid: s.id, title: pe.title, vals, notes: pe.notes, done: pe.done, created: now - i })); entries++; });
   }
   let themes = 0;
   for (const t of pack.themes) { try { themeImport(JSON.stringify({ name: t.name, base: t.base, vars: t.vars }), t.name, false); themes++; } catch (e) { /* a bad theme must not stop the sections */ } }
   (S.settings.packsDone = S.settings.packsDone && typeof S.settings.packsDone === 'object' ? S.settings.packsDone : {})[pack.id] = { v: pack.version, at: now }; // this device, so "Installed" also shows for theme packs
+  pksRecordInstall(pack, made, src); // the synced record of this pack (packstate.js): other devices see it, with the person's later choices about it
   save(); return { sections: made, entries, themes };
 }
 // one or more sections as a pack
 function packFromSections(list, meta = {}, withEntries = true) {
-  return {
-    opentick: 'pack', format: PACK_FORMAT, id: pkSlug(meta.id || meta.name || (list[0] && list[0].name)) || 'pack', name: pkS(meta.name || (list.length === 1 ? list[0].name : 'My sections'), 60), version: pkS(meta.version || '1.0.0', 20), author: pkS(meta.author, 60), description: pkS(meta.description, 300), license: pkS(meta.license, 40),
-    sections: list.map(s => ({ name: s.name, icon: s.icon, color: s.color, title: s.title, view: s.view, checkable: s.checkable, sort: { ...s.sort }, group: s.group, fields: s.fields.map(f => ({ key: f.id, name: f.name, type: f.type, ...(f.type === 'select' ? { opts: f.opts } : {}) })),
+  const out = {
+    opentick: 'pack', format: 1, id: pkSlug(meta.id || meta.name || (list[0] && list[0].name)) || 'pack', name: pkS(meta.name || (list.length === 1 ? list[0].name : 'My sections'), 60), version: pkS(meta.version || '1.0.0', 20), author: pkS(meta.author, 60), description: pkS(meta.description, 300), license: pkS(meta.license, 40),
+    sections: list.map(s => ({ name: s.name, icon: s.icon, color: s.color, title: s.title, view: s.view, checkable: s.checkable, sort: { ...s.sort }, group: s.group, fields: s.fields.map(pkfFieldOut),
       entries: withEntries ? xsEntries(s).sort((a, b) => b.created - a.created).map(e => ({ title: e.title, vals: e.vals, ...(e.notes ? { notes: e.notes } : {}), ...(e.done ? { done: true } : {}) })) : [] })),
   };
+  out.sections.forEach((os, n) => { const src = list[n]; pkfSectionOut(src, os); if (src.actions && src.actions.length) os.actions = src.actions; if (src.related && src.related.length) os.related = src.related; if (src.reminders && src.reminders.length) os.reminders = src.reminders; });
+  const pm = pkaPermsFor(out.sections); if (pm) out.permissions = pm; // an exported pack asks for exactly what its own actions and panels need
+  out.format = packFormatNeeded(out); return out;
 }
 async function packsExport(list, name) {
   if (!list.length) { toast('There is no section to export'); return; }
@@ -124,11 +154,13 @@ function packPreview(pack, warnings, again, entry) { // entry: the library's row
   openModal(`<h3>${esc(pack.name)}</h3><p class="hint">${[pack.version ? 'Version ' + esc(pack.version) : '', pack.author ? 'by ' + esc(pack.author) : '', pack.license ? esc(pack.license) : '', entry ? 'Code <code class="pkl-cc">' + esc(entry.code) + '</code>' : ''].filter(Boolean).join(' · ')}</p>${pack.description ? `<p>${esc(pack.description)}</p>` : ''}`
     + `<div class="pk-list">${pack.sections.map(s => `<div class="pk-i" style="--c:${esc(s.color || 'var(--acc)')}"><span>${iconAny(s.icon, 18, 'layers')}</span><b>${esc(s.name)}</b><small>${s.fields.length} field${s.fields.length === 1 ? '' : 's'}${s.entries.length ? ` · ${s.entries.length} entr${s.entries.length === 1 ? 'y' : 'ies'}` : ''}</small></div>`).join('')}${pack.themes.map(t => `<div class="pk-i" style="--c:${esc(t.vars['--acc'])}"><span><i class="pk-sw" style="background:${esc(t.vars['--bg'])}"><u style="background:${esc(t.vars['--acc'])}"></u></i></span><b>${esc(t.name)}</b><small>Theme</small></div>`).join('')}</div>`
     + (dup ? '<p class="hint">You already have a section from this pack. Adding it again makes a second copy next to it.</p>' : '') + (warnings.length ? `<p class="hint">${warnings.map(esc).join('<br>')}</p>` : '')
-    + `<p class="hint">${ic('shield', 13)} A pack only adds ${c.sections ? 'sections' : ''}${c.sections && c.themes ? ' and ' : ''}${c.themes ? 'colours' : ''}. It cannot run anything, and it does not touch what you already have.${pack.homepage ? ` <a href="${esc(pack.homepage)}" target="_blank" rel="noopener noreferrer">${esc(pack.homepage.replace(/^https?:\/\//, '').slice(0, 50))}</a>` : ''}</p>`
+    + (pack.permissions ? pkpInstallBlock(pack) : '')
+    + `<p class="hint">${ic('shield', 13)} A pack only adds ${c.sections ? 'sections' : ''}${c.sections && c.themes ? ' and ' : ''}${c.themes ? 'colours' : ''}. It cannot run code, and it does not touch what you already have${pack.permissions ? ' beyond the permissions you allow above' : ''}.${pack.homepage ? ` <a href="${esc(pack.homepage)}" target="_blank" rel="noopener noreferrer">${esc(pack.homepage.replace(/^https?:\/\//, '').slice(0, 50))}</a>` : ''}</p>`
     + `<div class="mact"><span class="sp"></span><button type="button" data-m="no">Cancel</button><button type="button" class="pri" data-m="ok">Add to OpenTick</button></div>`, m => {
     m.onclick = e => {
       const b = e.target.closest('[data-m]'); if (!b) { if (e.target.classList.contains('mback')) { closeModal(); if (again) again(); } return; }
-      if (b.dataset.m === 'ok') { const r = packInstall(pack); closeModal(); sfx('add'); if (r.sections[0]) { U.page = r.sections[0].id; U.pinKey = null; } render(); toast(`Added ${[r.sections.length ? plural(r.sections.length, 'section') : '', r.themes ? plural(r.themes, 'theme') : ''].filter(Boolean).join(' and ')}`); if (!r.sections.length && again) again(); }
+      if (b.dataset.m === 'ok') { const dec = pkpReadDecisions(m, pack); const go = () => { pkpApplyDecisions(pack, dec); const r = packInstall(pack, entry ? { kind: 'library', code: entry.code, sha256: entry.sha, size: entry.size } : { kind: 'file' }); closeModal(); sfx('add'); if (r.sections[0]) { U.page = r.sections[0].id; U.pinKey = null; } render(); toast(`Added ${[r.sections.length ? plural(r.sections.length, 'section') : '', r.themes ? plural(r.themes, 'theme') : ''].filter(Boolean).join(' and ')}`); if (!r.sections.length && again) again(); };
+        if (pksState(pack.id) === 'removed') pksConfirmReinstall(pack).then(yes => { if (yes) go(); else if (again) again(); }); else go(); } // (a pack the person removed is added again only when they say so)
       else { closeModal(); if (again) again(); }
     };
   }, 'wide xs-modal');
@@ -151,18 +183,21 @@ function packsHandle(b) { // clicks in the New section dialog
 /* ---------- Settings: Sections & packs ---------- */
 function packsSettingsHtml() {
   const rows = S.csections.map(s => `<div class="pk-r" style="--c:${esc(s.color)}"><span class="pk-ic">${iconAny(s.icon, 18, 'layers')}</span><span class="pk-n"><b>${esc(s.name)}</b><small>${plural(xsEntries(s).length, 'entry').replace('entrys', 'entries')} · ${plural(s.fields.length, 'field')}${s.pack ? ' · from ' + esc(s.pack) : ''}</small></span><button type="button" class="btn sm" data-m="xsgo" data-id="${esc(s.id)}">Open</button><button type="button" class="btn sm" data-m="xsexp" data-id="${esc(s.id)}">Export</button></div>`).join('');
-  return `<h4 class="mh">Your sections</h4><p class="hint">Make a section for anything you keep a list of: books, recipes, spending, gift ideas. It appears in the sidebar beside Tasks and Notes, and you can order, pin or hide it in Layout like the rest.</p>`
+  return pksSettingsHtml() + `<h4 class="mh">Your sections</h4><p class="hint">Make a section for anything you keep a list of: books, recipes, spending, gift ideas. It appears in the sidebar beside Tasks and Notes, and you can order, pin or hide it in Layout like the rest.</p>`
     + (rows ? `<div class="pk-rows">${rows}</div>` : '<p class="hint">You have not made a section yet.</p>')
     + `<div class="ct-acts"><button type="button" class="btn pri" data-m="xsnew">${ic('plus', 14)} New section</button><button type="button" class="btn" data-m="packfile">${ic('upload', 14)} Add a pack…</button><button type="button" class="btn" data-m="packpaste">${ic('file-text', 14)} Paste a pack…</button>${S.csections.length ? `<button type="button" class="btn" data-m="packall">${ic('download', 14)} Export all…</button>` : ''}</div>`
-    + packLibHtml();
+    + packLibHtml() + pkstSettingsHtml();
 }
 // Settings clicks that belong here; returns true when handled
 function packsSettingsAct(a, b, m) {
   const back = () => openSettings('sections');
+  if (typeof pksAct === 'function' && pksAct(a, b, m, back)) return true;
+  if (typeof pkpAct === 'function' && pkpAct(a, b, m, back)) return true;
   if (a === 'xsnew') { closeModal(); xsNew(); return true; }
   if (a === 'packfile') { closeModal(); packFromFile(back); return true; }
   if (a === 'packpaste') { closeModal(); packPaste(back); return true; }
   if (typeof packLibAct === 'function' && packLibAct(a, b, m, back)) return true;
+  if (pkstAct(a, b, m, back)) return true;
   if (a === 'packall') { closeModal(); packsExport(S.csections.slice()).then(back); return true; }
   if (a === 'xsexp') { const s = xsById(b.dataset.id); if (s) { closeModal(); packsExport([s], s.name).then(back); } return true; }
   if (a === 'xsgo') { const s = xsById(b.dataset.id); if (s) { closeModal(); U.page = s.id; U.pinKey = null; render(); } return true; }

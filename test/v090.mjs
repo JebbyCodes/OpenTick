@@ -56,7 +56,7 @@ const D0 = '2026-10-08', HR = new Date(clock.t).getHours();
   const A = makeApp(), { S } = A, mk = (title, o = {}) => { const t = A.newTask({ title, ...o }); S.tasks.push(t); return t; };
   assert.equal(S.settings.history.on, false, 'history is off by default'); assert.equal(A.histOn(), false);
   const t0 = mk('while off'); clock.t += 1000; A.flush(); t0.title = 'while off 2'; A.toggleDone(t0); clock.t += 1000; A.flush();
-  assert.equal(S.history.length, 0, 'nothing is logged while it is off'); eq(S.activity.days, {}, 'and nothing is counted');
+  assert.equal(S.history.length, 0, 'nothing is logged while it is off'); eq(A.actDays(), {}, 'and nothing is counted');
   A.histNote('import', 'x'); assert.equal(S.history.length, 0, 'not even app notes');
 
   // turning it on starts Statistics from what is already stored
@@ -68,12 +68,12 @@ const D0 = '2026-10-08', HR = new Date(clock.t).getHours();
   assert.ok(S.activity.on > 0 && S.activity.filled > 0, 'the time it was turned on is kept');
   const f0 = { ...A.stFilter(), from: '2026-01-01', to: '2026-10-07' }, r0 = A.stCompute(f0); // (the welcome tasks and note that every new install has were made today, so they fall outside)
   assert.equal(r0.taskDone >= 1, true, 'finished tasks already stored are counted'); assert.equal(r0.habit, 2, 'so are the habit check-ins'); assert.equal(r0.noteAdd, 1); assert.equal(r0.noteEdit, 1); assert.equal(r0.focusMin, 25, 'and the focus sessions');
-  const days0 = JSON.stringify(S.activity.days); A.histToggled(); assert.equal(JSON.stringify(S.activity.days), days0, 'it is only filled in once'); S.settings.history.on = false; A.histToggled(); S.settings.history.on = true; A.histToggled(); assert.equal(JSON.stringify(S.activity.days), days0, 'not again when switched off and on');
+  const days0 = JSON.stringify(A.actDays()); A.histToggled(); assert.equal(JSON.stringify(A.actDays()), days0, 'it is only filled in once'); S.settings.history.on = false; A.histToggled(); S.settings.history.on = true; A.histToggled(); assert.equal(JSON.stringify(A.actDays()), days0, 'not again when switched off and on');
 
   // now live
-  S.history.length = 0; delete S.activity.days[D0]; clock.t += 5000; A.flush(); // (today's tally so far is the welcome tasks: start from clean)
+  S.history.length = 0; S.acts = S.acts.filter(r => r.day !== D0); clock.t += 5000; A.flush(); // (today's tally so far is the welcome tasks: start from clean)
   const a = mk('live task', { listId: 'inbox' }); clock.t += 1000; A.flush();
-  assert.equal(S.history.length, 1); const day = S.activity.days[D0]; assert.ok(day, 'today has a tally'); assert.equal(day[`task.add|inbox|${HR}`], 1, 'kind.action | filed under | hour');
+  assert.equal(S.history.length, 1); const dayOf = () => A.actDays()[D0] || {}, day = new Proxy({}, { get: (_, k) => dayOf()[k] }); assert.ok(dayOf(), 'today has a tally'); assert.equal(day[`task.add|inbox|${HR}`], 1, 'kind.action | filed under | hour');
   for (let i = 0; i < 6; i++) { a.title = 'live task ' + i; clock.t += 3000; A.flush(); } // typing the title: one edit
   assert.equal(day[`task.edit|inbox|${HR}`], 1, 'typing in one task counts as one edit, like the history list'); assert.equal(S.history.filter(e => e.a === 'edit').length, 1);
   clock.t += 120000; a.priority = 3; A.flush(); assert.equal(day[`task.edit|inbox|${HR}`], 2, 'a later edit is another one');
@@ -84,22 +84,22 @@ const D0 = '2026-10-08', HR = new Date(clock.t).getHours();
   A.actFocus(30, inL.id); assert.equal(day[`focus.done|l-a|${HR}`], 1); assert.equal(day[`focus.min|l-a|${HR}`], 30);
   const n = A.newNote({ title: 'fresh' }); S.notes.push(n); clock.t += 1000; A.flush(); assert.equal(day[`note.add||${HR}`], 1);
 
-  // never synced: the snapshot has neither; changes that arrive by sync are not counted; replacing data keeps the tally
-  assert.equal('activity' in A.snapshot(), false); assert.equal('history' in A.snapshot(), false);
-  const B = makeApp(); B.quickAdd('from B', {}); B.flush(); const before = JSON.stringify(S.activity.days);
-  A.applyMerged(A.mergeData(A.snapshot(), B.snapshot())); assert.ok(S.tasks.some(x => x.title === 'from B')); assert.equal(JSON.stringify(A.S.activity.days), before, 'a change that arrives by sync is not counted');
-  A.replaceAll(JSON.parse(JSON.stringify({ ...A.snapshot(), tasks: [], settings: { history: { on: true } } }))); assert.equal(JSON.stringify(A.S.activity.days).length > 20, true, 'replacing the data keeps this device\'s tally');
+  // the History list never syncs; the tally does (S.acts, one record per device per day: test/stats-sync.mjs); changes that arrive by sync are not counted here; replacing data keeps the tally
+  assert.equal('activity' in A.snapshot(), false); assert.equal('history' in A.snapshot(), false); assert.ok(Array.isArray(A.snapshot().acts) && A.snapshot().acts.length > 0, 'the counts are in the synced data');
+  const B = makeApp(); B.quickAdd('from B', {}); B.flush(); const before = JSON.stringify(A.actDays());
+  A.applyMerged(A.mergeData(A.snapshot(), B.snapshot())); assert.ok(S.tasks.some(x => x.title === 'from B')); assert.equal(JSON.stringify(A.actDays()), before, 'a change that arrives by sync is not counted');
+  A.replaceAll(JSON.parse(JSON.stringify({ ...A.snapshot(), tasks: [], settings: { history: { on: true } } }))); assert.equal(JSON.stringify(A.actDays()).length > 20, true, 'replacing the data keeps this device\'s tally');
   // corrupt or hostile stored data is cleaned up
   eq(A.actNormalise({ days: { 'nope': { a: 1 }, '2026-01-01': { 'task.add||1': 2, bad: -1, x: 'y', ['k'.repeat(200)]: 3 } } }).days, { '2026-01-01': { 'task.add||1': 2 } });
   eq(A.actNormalise(null), A.actNew()); eq(A.actNormalise('x').days, {});
   // old days fall off the end
-  const P = makeApp(); P.S.settings.history.on = true; for (let i = 0; i < 900; i++) P.S.activity.days[new Date(Date.UTC(2023, 0, 1 + i)).toISOString().slice(0, 10)] = { 'task.add||1': 1 };
-  P.actPrune(); assert.ok(Object.keys(P.S.activity.days).length <= 830, 'about two years are kept'); assert.ok(!P.S.activity.days['2023-01-01'], 'the oldest go first');
+  const P = makeApp(); P.S.settings.history.on = true; for (let i = 0; i < 900; i++) P.S.activity.days[new Date(Date.UTC(2023, 0, 1 + i)).toISOString().slice(0, 10)] = { 'task.add||1': 1 }; // (an older version's tally: adopted into this device's records)
+  P.actPrune(); assert.ok(Object.keys(P.actDays()).length <= 830, 'about two years are kept'); assert.ok(!P.actDays()['2023-01-01'], 'the oldest go first');
 }
 // wiping everything also removes the log and the tally
 (async () => {
-  const A = makeApp(), { S } = A; S.settings.history.on = true; A.quickAdd('x', {}); A.flush(); assert.ok(Object.keys(S.activity.days).length > 0);
-  await A.wipeAll({ files: false }); assert.equal(Object.keys(A.S.activity.days).length, 0, 'Delete everything also deletes the tally'); assert.equal(A.S.history.length, 1, 'except the note that it happened');
+  const A = makeApp(), { S } = A; S.settings.history.on = true; A.quickAdd('x', {}); A.flush(); assert.ok(Object.keys(A.actDays()).length > 0);
+  await A.wipeAll({ files: false }); assert.equal(Object.keys(A.actDays()).length, 0, 'Delete everything also deletes the tally'); assert.equal(A.S.history.length, 1, 'except the note that it happened');
   assert.equal(A.S.settings.history.on, true, 'the choice to keep history is a setting, kept unless settings are reset');
 
   /* ============ 5. Statistics ============ */

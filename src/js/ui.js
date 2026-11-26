@@ -364,11 +364,7 @@ function openPalette() {
   }, 'pal');
 }
 // openShortcuts lives in keys.js
-document.addEventListener('keydown', e => {
-  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'p') { e.preventDefault(); if (!$('#modal.on')) openPalette(); return; }
-  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target || {}).tagName || '');
-  if (e.key === '?' && !typing && !$('#modal.on')) { e.preventDefault(); openShortcuts(); }
-});
+// the command palette (Ctrl/Cmd+Shift+P) and the shortcut list (?) are shortcut-registry actions (keys.js)
 
 // the clock is a button: Enter or Space opens Time zones from the keyboard
 document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target && e.target.id === 'clock') { e.preventDefault(); e.target.click(); } });

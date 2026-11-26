@@ -19,7 +19,7 @@ assert.equal(readmeVersion(rd1), '0.7.0'); assert.ok(!rd1.includes('Old thing') 
 assert.ok(rd1.includes('**App**\n- One **bold** `thing`.') && rd1.includes(EARLIER + '\n\n## E-ink\n'), 'the CHANGELOG section is copied as it is, with its headings, and the rest of the README follows');
 assert.equal(readmeSection('# no notes here\n'), null); assert.equal(readmeSection('## What\'s new in 1.0.0\n\n- x\n'), null, 'without the "Earlier releases" line the section is not recognised, so nothing is overwritten');
 const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
-assert.ok(readme.indexOf('<img src="docs/images/tasks.png"') < readme.indexOf('## Download') && readme.indexOf('## Download') < readme.indexOf("## What's new in"), 'screenshots, then the downloads, then the latest notes');
+assert.ok(readme.indexOf('<!-- screenshots:start -->') > 0 && readme.indexOf('<!-- screenshots:start -->') < readme.indexOf('<!-- screenshots:end -->') && readme.indexOf('<!-- screenshots:end -->') < readme.indexOf('## Download') && readme.indexOf('## Download') < readme.indexOf("## What's new in"), 'screenshots (the block the screenshots workflow keeps up to date), then the downloads, then the latest notes');
 assert.ok(!/## What was new in/.test(readme), 'the README holds only the latest release notes');
 for (const m of readme.matchAll(/(?:src|href)="(docs\/images\/[^"]+)"|\]\((docs\/[^)#]+)\)/g)) assert.ok(existsSync(new URL('../' + (m[1] || m[2]), import.meta.url)), 'README file exists: ' + (m[1] || m[2]));
 build();

@@ -83,6 +83,8 @@ function remEntries(from, to) {
       add(`c|${c.id}|${L.date}|${r}`, at, at + 864e5, { kind: 'countdown', id: c.id, title: c.name || 'Countdown', body: r === 0 ? 'It is time. ' + body : (r >= 1440 ? Math.round(r / 1440) + (r === 1440 ? ' day' : ' days') : r >= 60 ? Math.round(r / 60) + ' hour' : r + ' min') + ' to go. ' + body });
     }
   }
+  // reminders a pack declared for its entries, and the ones the person added to them (packrem.js)
+  if (typeof pkrEntries === 'function') pkrEntries(from, to, add, day0, days);
   // morning digest
   const dg = (S.settings && S.settings.digest) || {};
   if (dg.on && validHM(dg.at)) for (let i = 0; i <= days; i++) {
@@ -108,12 +110,14 @@ function checkReminders() {
   for (const e of remEntries(now, now)) {
     if (S.fired[e.key] || now > e.exp) continue;
     S.fired[e.key] = now; changed = true; notify(e.title, e.body); sfx('chime');
+    if (e.kind === 'pack' && typeof pkrFired === 'function') pkrFired(e); // (tells the other devices; offers to open the entry)
   }
   // forget what fired long ago (the keys only exist to stop a reminder repeating)
   const old = now - 45 * 864e5, oldDay = ymd(addDays(new Date(), -2));
   for (const [k, v] of Object.entries(S.fired)) {
     if ((typeof v === 'number' && v > 1 && v < old) || (k.startsWith('s|') && k.split('|')[2] < oldDay) || (k.startsWith('d|') && k.slice(2) < oldDay) || (/^[^|]+\|\d{4}-\d\d-\d\d\|/.test(k) && k.split('|')[1] < ymd(new Date(old)))) { delete S.fired[k]; changed = true; }
   }
+  if (typeof pkrGc === 'function' && pkrGc()) changed = true;
   if (changed) save();
 }
 // kept for older callers: lessons are part of checkReminders now

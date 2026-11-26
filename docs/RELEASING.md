@@ -54,7 +54,7 @@ Required: desktop, Android, web, Docker, Snap, the MSIX bundle and the tests. Op
 
 ## The workflows
 
-Seventeen files in `.github/workflows/`, grouped by the first word of their name. Everything starts from `ci.yml`, `release.yml`, `prepare-release.yml` or `deploy-pages.yml`;
+Eighteen files in `.github/workflows/`, grouped by the first word of their name. Everything starts from `ci.yml`, `release.yml`, `prepare-release.yml`, `deploy-pages.yml` or `update-screenshots.yml`;
 the `build-*` and `publish-*` files are building blocks that Release calls (each can also be run by hand to try one piece or retry a failed one).
 
 | File | What it does | Runs on |
@@ -76,12 +76,13 @@ the `build-*` and `publish-*` files are building blocks that Release calls (each
 | `publish-scoop.yml` | opens a pull request on the Scoop bucket | called by Release (stable only) |
 | `publish-winget.yml` | opens a pull request on `microsoft/winget-pkgs` (off until configured) | called by Release (stable only) |
 | `deploy-pages.yml` | website (and `/eink/`, `/watch/` and the privacy policy) on GitHub Pages | pushes to `main` |
+| `update-screenshots.yml` | photographs the **released** web zip (verified against `SHA256SUMS.txt` and its attestation) with invented data and opens a pull request with new README pictures. Fails rather than falling back to the source; does nothing when the pictures already show that release. See [SCREENSHOTS.md](SCREENSHOTS.md). **Optional**: a failure never stops a release | called by Release (stable only), a published release, every Monday, or by hand |
 
 Besides the workflows: `.github/release.yml` (the release-notes categories, see below), `.github/dependabot.yml` (daily pull requests for npm, Cargo and GitHub Actions version updates) and the two local actions in `.github/actions/`.
 The helper scripts the workflows call live in `scripts/release/` (`bump-version`, `collect-assets`, `release-notes`, `run-summary`), `scripts/ci/lint-workflows.py` and `scripts/packs/validate-packs.mjs`; `test/release.mjs` keeps all of them honest.
 
 Every `publish-*` workflow skips itself with a warning when its secret is missing, and can be re-run by hand: Actions → the workflow → Run workflow → tag.
-Releases made with the built-in `GITHUB_TOKEN` do not send a `release` event, which is why the publishers are *called* by Release instead of waiting for one.
+Releases made with the built-in `GITHUB_TOKEN` do not send a `release` event, which is why the publishers are *called* by Release instead of waiting for one. (`update-screenshots.yml` is called the same way, and also listens for the event, which only a release made by hand or with a personal token sends.)
 Required files missing from a release fail it; optional ones (32-bit, ARM, x86 phones, iOS, 32-bit Docker images, the Wear OS and Tizen packages) show as warnings.
 
 ## Release notes

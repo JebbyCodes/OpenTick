@@ -81,6 +81,7 @@ const EXPECTED_WORKFLOWS = [
   'publish-snap-store.yml',
   'publish-winget.yml',
   'release.yml',
+  'update-screenshots.yml',
 ];
 
 assert.deepEqual(
@@ -126,9 +127,12 @@ assert.ok(
   'Release runs the tests first',
 );
 
-assert.ok(
-  !/release:\s*\n\s+types:/.test(WF.map(wf).join('\n')),
-  'nothing waits for a release: published event',
+// A release made with GITHUB_TOKEN sends no `release` event, so no publisher may wait for one. The screenshots workflow is the one deliberate listener (it is wanted for a
+// release made by hand or with a personal token), and it does not depend on it: Release calls it too (asserted below), and a weekly check backs both up.
+assert.deepEqual(
+  WF.filter(f => /release:\s*\n\s+types:/.test(wf(f))),
+  ['update-screenshots.yml'],
+  'only the screenshots workflow listens for a release: published event; no publisher waits for one',
 );
 
 assert.ok(
@@ -285,6 +289,30 @@ assert.ok(!/\$\{\{\s*inputs\.version\s*\}\}/.test(prep.split('\n').filter(l => !
 assert.match(prep, /release\/v/, 'it works on a release/vX.Y.Z branch');
 assert.match(prep, /pull-requests: write/); assert.match(prep, /ls-remote --exit-code --tags/, 'it refuses a version whose tag already exists');
 assert.ok(!/gh release|git tag |git push [^\n]*--tags|git push origin "?v/.test(prep.replace(/^\s*(#|echo ).*$/gm, '')), 'it prepares a release; it never tags or publishes one');
+
+/* ---- the screenshots of the released app ---- */
+const shots = wf('update-screenshots.yml'), shotsCode = shots.replace(/^\s*#.*$/gm, ''), shotsOn = '\n' + ((/^on:\n((?:[ \t].*\n|\n)*)/m.exec(shots) || [])[1] || '');
+for (const t of ['release:', 'workflow_call:', 'workflow_dispatch:', 'schedule:']) assert.ok(shotsOn.includes('\n  ' + t), 'screenshots start: ' + t);
+assert.ok(!/\n  (push|pull_request|pull_request_target|workflow_run|create|delete):/.test(shotsOn), 'no trigger it could start itself from (it writes a branch and a pull request)');
+assert.match(shotsOn, /types: \[published\]/, 'a published release');
+assert.match(shots, /\npermissions:\n  contents: read\n/, 'read-only by default; only the job may write');
+assert.match(shots, /concurrency:\n  group: update-screenshots\n  cancel-in-progress: false/, 'one run at a time, never cancelled halfway');
+assert.match(shots, /github\.event\.release\.prerelease == false && github\.event\.release\.draft == false/, 'a pre-release or a draft does nothing');
+const at = t => { const i = shotsCode.indexOf(t); assert.ok(i >= 0, 'the workflow runs ' + t); return i; };
+const steps = ['python3 -I scripts/screenshots/fetch-release.py "${args[@]}"', 'gh attestation verify ".build/shots/OpenTick_${VERSION}_web.zip"', 'python3 -I scripts/screenshots/publish.py "${args[@]}" | tee .build/shots/check.txt',
+  'python -m playwright install --with-deps chromium', 'python3 -I scripts/screenshots/capture.py --site .build/shots/site', 'python3 -I scripts/screenshots/publish.py "${args[@]}" | tee .build/shots/apply.txt'].map(at);
+assert.deepEqual(steps, [...steps].sort((a, b) => a - b), 'download and check, verify the attestation, ask whether anything is new, only then install a browser, photograph, publish');
+assert.deepEqual(shotsCode.split('\n').filter(l => /git push/.test(l)).map(l => l.trim()), ['git push --force origin "$branch"'], 'it pushes one thing: the bot branch');
+assert.match(shotsCode, /branch=bot\/screenshots\n/, 'the bot branch');
+assert.ok(/gh pr create/.test(shotsCode) && /gh pr edit/.test(shotsCode) && /gh pr list --head/.test(shotsCode), 'one pull request, opened or updated');
+assert.deepEqual(shots.split('\n').filter(l => /\$\{\{\s*(inputs|github\.event)\./.test(l) && !/^\s*(#|if:|TAG:|FORCE:|description:)/.test(l)), [], 'inputs and event text reach the shell only through environment variables');
+assert.ok(/uses: actions\/upload-artifact@/.test(shotsCode) && /name: screenshots\n/.test(shotsCode), 'the pictures are kept as an artifact so a failed run can be looked at');
+assert.ok(!/--from-zip/.test(shotsCode) && !/(^|\s)(node|npm) /m.test(shotsCode), 'it photographs the downloaded release, never a local zip and never a build of the source');
+// Release calls it for stable releases only, optional, with the tag, after the GitHub Release exists
+assert.match(rel, /\n  screenshots:\n[\s\S]*?needs: \[prepare, release\]\n[\s\S]*?needs\.release\.result == 'success' && needs\.prepare\.outputs\.stable == 'true'[\s\S]*?contents: write\n      pull-requests: write\n    uses: \.\/\.github\/workflows\/update-screenshots\.yml\n    with:\n      tag: \$\{\{ needs\.prepare\.outputs\.tag \}\}\n    secrets: inherit/, 'Release calls the screenshots workflow after the release exists, for stable releases, with the tag');
+assert.ok(!/needs: \[[^\]]*screenshots/.test(rel.slice(0, rel.indexOf('\n  summary:'))), 'nothing waits for the screenshots');
+assert.equal(STAGES.find(s => s[0] === 'screenshots')[3], 'optional', 'a failed screenshots run is reported as optional');
+assert.ok(rd('docs/RELEASING.md').includes('update-screenshots.yml') && rd('docs/SCREENSHOTS.md').includes('.github/workflows/update-screenshots.yml'), 'documented');
 
 /* ---- the release run's status table ---- */
 const relJobs = [...rel.slice(rel.indexOf('\njobs:')).matchAll(/^  ([a-z][a-z-]*):\s*$/gm)].map(x => x[1]);

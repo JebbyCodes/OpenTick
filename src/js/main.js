@@ -335,7 +335,7 @@ ${privacySettingsHtml()}`)
       const mvb = e.target.closest('[data-pgmv]');
       if (mvb) { uiMovePage(mvb.dataset.pgmv, +mvb.dataset.d); const b = $('#sbv', m); if (b) b.innerHTML = uiSidebarSettings(); return; }
       const th = e.target.closest('[data-th]');
-      if (th) { S.settings.theme = th.dataset.th; applyTheme(); save(); const sec = $('#thsec', m); if (sec) sec.innerHTML = themeSectionHtml(); return; }
+      if (th) { S.settings.theme = th.dataset.th; applyTheme(); save(); pkstTheme(th.dataset.th); const sec = $('#thsec', m); if (sec) sec.innerHTML = themeSectionHtml(); return; }
       const b = e.target.closest('[data-m]');
       if (!b) { if (e.target.classList.contains('mback')) { closeModal(); render(); } return; }
       const a = b.dataset.m;
@@ -1051,13 +1051,7 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Tab') { mdTab(el, e); return; }
   }
   if (e.key === 'Escape') { if (U.nFull && !$('#modal.on') && !$('.bed-pop')) { noteFull(false); return; } if ($('#modal.on')) { const b = $('.mback'); if (b) b.click(); } else if (U.sel) closeDetail(); else document.body.classList.remove('drawer'); return; }
-  if ((e.key === 'k' && (e.ctrlKey || e.metaKey)) || (e.key === '/' && !typing)) { e.preventDefault(); const sq = $('#modal.on #setq'); if (sq) { sq.focus(); return; } if (!$('#modal.on')) openSearch(''); return; }
-  if (!typing && !e.ctrlKey && !e.metaKey && !e.altKey && !($('#modal.on'))) {
-    if (e.key === '[') { e.preventDefault(); uiToggle('side'); return; }
-    if (e.key === ']') { e.preventDefault(); uiToggle('detail'); return; }
-    if (e.key === '\\') { e.preventDefault(); uiFocus(); return; }
-  }
-  if (e.key === 'n' && !typing && !e.ctrlKey && !e.metaKey) { const a = $('#add'); if (a) { e.preventDefault(); a.focus(); } }
+  // Search, the side panels, New task, the palette and the shortcut list are in the shortcut registry now (keys.js), so the person can choose their keys
 });
 
 /* ---------- notes editing helpers ---------- */

@@ -74,7 +74,7 @@ function srchGroups(q, scope) {
   }
   if (typeof csecEntries === 'function') {
     const ents = [];
-    for (const s of S.csections) for (const e of xsEntries(s)) if (srchHas((e.title + ' ' + (e.notes || '') + ' ' + s.fields.map(f => xsPlain(f, e.vals[f.id])).join(' ')).toLowerCase(), words)) ents.push([s, e]);
+    for (const s of S.csections.filter(x => !pksHidden(x))) for (const e of xsEntries(s)) if (srchHas((e.title + ' ' + (e.notes || '') + ' ' + xfdSearchText(s, e)).toLowerCase(), words)) ents.push([s, e]);
     ents.sort((a, b) => srchRank(a[1].title, words) - srchRank(b[1].title, words));
     add('entries', 'items', 'Section entries', 'layers', ents.map(([s, e]) => ({ label: e.title || 'Untitled', html: srchHl(e.title || 'Untitled', words), icon: s.icon || 'layers', hint: s.name, sub: srchSnip(e.notes, words, 80), run: () => { closeModal(); document.body.classList.remove('drawer'); U.page = s.id; U.sel = null; render(); xsEditEntry(s, e); } })), ents.length);
   }

@@ -74,7 +74,8 @@ const J = JSON.stringify;
   const ids = app.SK.map(s => s.id); assert.equal(new Set(ids).size, ids.length, 'every shortcut has its own id');
   // no two working (non-legacy) shortcuts share a key, and none of them steals a key the editor needs
   const seen = new Map(); for (const sh of app.SK.filter(x => x.run)) for (const k of sh.keys) { assert.ok(!seen.has(k), 'key used twice: ' + k); seen.set(k, sh.id); }
-  for (const sh of app.SK.filter(x => x.run)) for (const k of sh.keys) assert.ok(!['Mod+B', 'Mod+I', 'Mod+K', 'Tab', 'Escape'].includes(k), sh.id + ' must not take ' + k);
+  // (Mod+K is Search; inside a note the editor's own Link takes it first, see skKey, so it is allowed here and nowhere else)
+  for (const sh of app.SK.filter(x => x.run)) for (const k of sh.keys) assert.ok(!['Mod+B', 'Mod+I', 'Tab', 'Escape'].includes(k) && (k !== 'Mod+K' || sh.id === 'search'), sh.id + ' must not take ' + k);
   assert.match(app.skRowsHtml(''), /Command palette/); assert.ok(!/Command palette/.test(app.skRowsHtml('timer')), 'searching narrows the list'); assert.match(app.skRowsHtml('timer'), /Start or pause the timer/); assert.match(app.skRowsHtml('zzzz'), /No shortcut matches/);
   assert.equal(app.skOn(), true, 'a desktop browser has the keys');
   const t = app.newTask({ title: 'k' }); S.tasks.push(t); U.page = 'tasks'; U.sel = t.id;

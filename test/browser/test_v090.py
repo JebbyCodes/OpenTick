@@ -49,7 +49,7 @@ with sync_playwright() as p:
     pg.evaluate("openSettings('data')"); pg.wait_for_timeout(150)
     assert pg.locator('#histset input[data-pf="history.on"]').is_checked(); pg.locator('#histset input[data-pf="history.on"]').uncheck(); pg.wait_for_timeout(150)
     assert pg.evaluate("S.settings.history.on") is False
-    pg.keyboard.press('Escape'); pg.evaluate("closeModal(); U.page='stats'; render()"); assert 'needs History' in pg.inner_text('#main'), 'off again: nothing shown'
+    pg.keyboard.press('Escape'); pg.evaluate("closeModal(); U.page='stats'; render()"); assert 'History is off on this device' in pg.inner_text('#main') and pg.locator('#main .stcards').count() == 1, 'off again: this device stops recording, the counts it (and your other devices) made stay shown, with a notice'
     # ---- number keys follow the sidebar, pins included ----
     pg.evaluate("S.settings.history.on = false; pinToggle('page:kanban'); U.page='tasks'; render()"); pg.wait_for_timeout(200)
     order = pg.evaluate("navShown()"); i = order.index('pin:page:kanban')

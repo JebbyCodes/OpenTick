@@ -106,8 +106,8 @@ try {
   edit(B, () => { B.S.habits[0].log['2026-10-06'] = 1; B.S.habits[0].logU = { '2026-10-06': clock.t }; });
   await sync(A, B, A); assert.equal(Object.keys(A.S.habits[0].log).length, 2); assert.equal(Object.keys(B.S.habits[0].log).length, 2); assertConverged(srv, A, B);
   edit(A, () => { A.S.pomo.push({ ts: clock.t, min: 25, task: null }); }); await sync(A, B); assert.equal(B.S.pomo.length, 1);
-  // settings stay per device
-  edit(B, () => { B.S.settings.theme = 'dark'; }); await sync(B, A); assert.notEqual(A.S.settings.theme, 'dark');
+  // 0.9.1: the person's preferences follow them (test/prefs-sync.mjs has the full rules), the device's own settings do not
+  edit(B, () => { B.S.settings.theme = 'dark'; B.S.settings.ui.sideW = 377; }); await sync(B, A); assert.equal(A.S.settings.theme, 'dark'); assert.notEqual(A.S.settings.ui.sideW, 377);
 
   // import-style replace propagates removals as well
   const keep = J(B.S); keep.tasks = keep.tasks.slice(0, 2);

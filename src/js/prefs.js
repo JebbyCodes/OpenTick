@@ -1,6 +1,6 @@
 /* OpenTick preferences added in 0.5: the settings tabs' content for new tasks, notifications, accessibility, keyboard and privacy, and
-   the accessibility options themselves (applied as attributes on <html>, styled in styles.css). Every value is per device (S.settings),
-   never synced. A field is bound with data-pf="group.key" (checkbox -> true/false, number inputs and data-pfn -> number, else text). */
+   the accessibility options themselves (applied as attributes on <html>, styled in styles.css). The values live in S.settings; the ones that describe the person
+   (theme, quiet hours, accessibility, clock...) also travel as the synced `prefs` records, the ones that describe the device do not (PREF_SYNC in core.js). A field is bound with data-pf="group.key" (checkbox -> true/false, number inputs and data-pfn -> number, else text). */
 
 const prefGet = path => path.split('.').reduce((o, k) => (o == null ? o : o[k]), S.settings);
 function prefSet(path, v) {
@@ -97,6 +97,7 @@ function keysSettingsHtml() {
   return `<p class="hint">${skOn() ? 'Keyboard shortcuts work on computers. They are not used on phones and tablets.' : 'Keyboard shortcuts are for computers; they are switched off on phones and tablets.'}</p>
 <label class="a11y-r tg"><span><b>Show the keys on buttons</b><small>A small key cap on the pages in the sidebar, the search box and buttons with words on them. An icon button names its shortcut in its tooltip.</small></span><input type="checkbox" data-pf="keys.hints"${S.settings.keys.hints !== false ? ' checked' : ''}></label>
 <div class="dgrid"><button data-pfa="shortcuts">${ic('code', 18)}<span><b>See every shortcut</b><small>Searchable · or press ? anywhere</small></span></button></div>
+${typeof skSettingsHtml === 'function' ? skSettingsHtml() : ''}
 <p class="hint">Right-click a task, list, note, template, calendar day or timetable block for the same choices as its ⋯ button. Press Shift while right-clicking to get the browser’s own menu.</p>`;
 }
 function privacySettingsHtml() {

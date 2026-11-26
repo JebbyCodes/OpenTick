@@ -264,7 +264,7 @@ const base0 = () => ({ tasks: [], lists: [], tags: [], habits: [], slots: [], no
   for (const v of ['#fff', 'rgba(0, 0, 0, .3)', 'hsl(200 50% 40%)', '0 10px 30px rgba(0,0,0,.4)']) assert.notEqual(A.pkThemeVal(v), '', v);
   // refusals say what is wrong
   const no = (x, re, m) => assert.throws(() => (typeof x === 'string' ? A.packParse(x) : A.packClean(x)), re, m);
-  no('', /empty/i); no('{nope', /not a pack file/i); no('[]', /not an OpenTick pack/); no({ format: 1 }, /not an OpenTick pack/); no({ opentick: 'pack' }, /format/); no({ opentick: 'pack', format: 2, sections: [{ name: 'x' }] }, /newer OpenTick/);
+  no('', /empty/i); no('{nope', /not a pack file/i); no('[]', /not an OpenTick pack/); no({ format: 1 }, /not an OpenTick pack/); no({ opentick: 'pack' }, /format/); no({ opentick: 'pack', format: 3, sections: [{ name: 'x' }] }, /newer OpenTick/);
   no({ opentick: 'pack', format: 1 }, /nothing|no sections/i); no({ opentick: 'pack', format: 1, sections: [{ fields: [] }] }, /no sections or themes/); no({ opentick: 'pack', format: 1, themes: [{ name: 'T', vars: { '--bg': '#000' } }] }, /no sections or themes/, 'a theme needs --bg, --text and --acc');
   no('x'.repeat(2 * 1024 * 1024 + 5), /too large/);
   // limits
@@ -295,7 +295,7 @@ const base0 = () => ({ tasks: [], lists: [], tags: [], habits: [], slots: [], no
   assert.equal(A.packsSettingsAct('nothing', { dataset: {} }), false);
   // none of it is device-local state that leaks: the packs themselves are ordinary synced sections
   const snap = A.snapshot(); assert.ok(snap.csections.length >= 2 && snap.centries.length >= 4 && Array.isArray(snap.contacts));
-  const pl = JSON.parse(A.buildPayload().text); assert.equal(pl.schema, 7); for (const k of ['contacts', 'csections', 'centries']) assert.ok(Array.isArray(pl[k]), k + ' is in the sync file');
+  const pl = JSON.parse(A.buildPayload().text); assert.equal(pl.schema, 8); for (const k of ['contacts', 'csections', 'centries']) assert.ok(Array.isArray(pl[k]), k + ' is in the sync file');
   // an older app (schema 6) sends no new collections: they stay as they are here
   const merged = A.mergeData(A.snapshot(), { ...base0() }); assert.ok(Array.isArray(merged.csections));
 }

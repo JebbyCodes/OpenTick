@@ -1,6 +1,7 @@
 /* OpenTick Statistics (0.9).
    What you did and when, read from the per-day tally core.js keeps in S.activity (see "activity tally" there). Nothing is counted, and
-   nothing is shown, unless History is on (Settings → Data & sync → History & statistics). The tally is per device and never synced.
+   nothing is shown, unless History is on (Settings → Data & sync → History & statistics) or other devices of yours have counted. Since 0.9.1 the tally is a synced collection (S.acts) and
+   the page is a pure function of it, so every device shows the same numbers; the History LIST stays on the device that made the changes.
    A tally key is `kind.action|where it is filed|hour`; a filter is (range, kinds, actions, scope), and every number, chart and the
    heatmap on the page and in the shared image is worked out from the same filtered rows (stEach), so they always agree.
    The shared image is an SVG drawn from the same numbers (stSvg), turned into a PNG with a canvas. */
@@ -18,7 +19,7 @@ const stDays = (a, b) => Math.round((pYmd(b) - pYmd(a)) / 864e5);
 function stFilter() {
   const st = S.settings.stats, today = todayStr(); let from, to = today;
   if (st.range === 'custom') { from = ST_DATE.test(st.from) ? st.from : today; to = ST_DATE.test(st.to) ? st.to : today; if (from > to) [from, to] = [to, from]; }
-  else if (st.range === 'all') { from = Object.keys(S.activity.days).sort()[0] || today; }
+  else if (st.range === 'all') { from = Object.keys(actDays()).sort()[0] || today; }
   else { const n = Math.max(1, Math.min(800, +st.range || 90)); from = ymd(addDays(new Date(), 1 - n)); }
   return { from, to, kinds: new Set(st.kinds || []), acts: new Set(st.acts || []), scope: st.scope || '', sub: st.sub !== false, hide: new Set(st.hide || []) };
 }
@@ -36,7 +37,7 @@ function stScopeName(scope) {
 const stKindsOn = f => !f.kinds.size ? null : f.kinds;
 // every counted row inside the filter: fn(day, kind, action, scope, hour (-1 = unknown), count, isFocusMinutes)
 function stEach(f, fn) {
-  const sc = f.scope ? stScopeSet(f.scope, f.sub) : null, days = S.activity.days;
+  const sc = f.scope ? stScopeSet(f.scope, f.sub) : null, days = actDays();
   for (const day of Object.keys(days)) {
     if (day < f.from || day > f.to) continue;
     for (const [key, n] of Object.entries(days[day])) {
@@ -122,7 +123,7 @@ const stBarRows = (obj, names, order) => Object.entries(obj).filter(([, n]) => n
 
 /* ---------- the page ---------- */
 function stOffHtml(what) {
-  return `<div class="stoff">${ic('history', 44)}<h2>${what} needs History</h2><p>${what === 'Statistics' ? 'Statistics are worked out from the history OpenTick keeps on this device, and History is off, so there is nothing to show.' : 'History is off, so OpenTick is not keeping a list of what you change.'} Turn it on to start. It stays on this device (it is not synced), you can switch it off again, and you can clear it at any time.</p><button class="btn pri" data-act="histon">Turn on history</button></div>`;
+  return `<div class="stoff">${ic('history', 44)}<h2>${what} needs History</h2><p>${what === 'Statistics' ? 'Statistics are counted while History is on, and it is off on every device of yours, so there is nothing to show yet.' : 'History is off, so OpenTick is not keeping a list of what you change.'} Turn it on to start. The list of changes stays on this device; the counts are shared, sealed, with your other devices. You can switch it off again and clear it at any time.</p><button class="btn pri" data-act="histon">Turn on history</button></div>`;
 }
 const stBars = (rows, cls = '') => { const mx = Math.max(1, ...rows.map(x => x[1])); return `<div class="stbars ${cls}">${rows.map(([l, n]) => `<div class="stbar"><span class="stl" title="${esc(l)}">${esc(l)}</span><span class="stbw"><span class="stfill" style="width:${Math.max(2, Math.round(n / mx * 100))}%"></span></span><b>${stNum(n)}</b></div>`).join('') || '<p class="hint">Nothing here for these filters.</p>'}</div>`; };
 function stCols(vals, labels, titles) {
@@ -152,9 +153,9 @@ function stFilterSummary(f, names = true) {
   return bits.join(' · ');
 }
 function renderStats() {
-  if (!histOn()) { $('#main').innerHTML = topHtml('Statistics') + `<div class="body stpage">${stOffHtml('Statistics')}</div>`; return; }
-  const f = stFilter(), r = stCompute(f), st = S.settings.stats, has = Object.keys(S.activity.days).length > 0;
-  const kindsPresent = ST_KINDS.filter(([k]) => Object.keys(S.activity.days).some(d => Object.keys(S.activity.days[d]).some(key => key.startsWith(k + '.')))), kinds = kindsPresent.length ? kindsPresent : ST_KINDS.slice(0, 4);
+  if (!histOn() && !S.acts.length) { $('#main').innerHTML = topHtml('Statistics') + `<div class="body stpage">${stOffHtml('Statistics')}</div>`; return; } // counts made on another device are shown even where this one does not record
+  const AD = actDays(), f = stFilter(), r = stCompute(f), st = S.settings.stats, has = Object.keys(AD).length > 0;
+  const kindsPresent = ST_KINDS.filter(([k]) => Object.keys(AD).some(d => Object.keys(AD[d]).some(key => key.startsWith(k + '.')))), kinds = kindsPresent.length ? kindsPresent : ST_KINDS.slice(0, 4);
   const chip = (act, attr, on, label) => `<button class="tfc${on ? ' on' : ''}" data-act="${act}" ${attr} aria-pressed="${on}">${esc(label)}</button>`;
   const names = { ...Object.fromEntries(ST_KINDS), ...HIST_ACT };
   const wdn = stWdNames(), tr = stTrend(f, r);
@@ -173,14 +174,14 @@ function renderStats() {
     + `<div class="hchips"><span class="stlab">Type</span>${kinds.map(([k, n]) => chip('stkind', `data-k="${k}"`, f.kinds.has(k), n)).join('')}</div>`
     + `<div class="hchips"><span class="stlab">Action</span>${ST_ACTS.map(a => chip('stact', `data-a="${a}"`, f.acts.has(a), HIST_ACT[a])).join('')}</div>`
     + `<div class="hchips"><span class="stlab">Show</span>${ST_PANELS.map(([k, n]) => chip('stpanel', `data-p="${k}"`, !f.hide.has(k), n)).join('')}${f.kinds.size || f.acts.size || f.scope ? '<button class="btn sm" data-act="stclear">Clear filters</button>' : ''}</div></div>`
-    + `<div class="body stpage">${has ? '' : `<p class="hint pad">Nothing counted yet. Add, edit and finish things and they will appear here.</p>`}${body}<p class="hint pad">Counted on this device since ${S.activity.on ? esc(new Date(S.activity.on).toLocaleDateString()) : 'you turned history on'}${S.activity.filled ? ', starting from when your existing tasks, notes and habit check-ins were made' : ''}. Quick edits to one item are counted once. Nothing is counted while history is off. <button class="lnk" data-act="strst">Reset statistics</button></p></div>`;
+    + `<div class="body stpage">${histOn() ? '' : `<p class="hint pad">History is off on this device, so it is not recording. These are the counts from your other devices and from before it was turned off.</p>`}${has ? '' : `<p class="hint pad">Nothing counted yet. Add, edit and finish things and they will appear here.</p>`}${body}<p class="hint pad">Counted on every device of yours that has history on, and shared between them (encrypted with the rest when you use encryption), so each shows the same numbers${S.activity.on ? '; this device since ' + esc(new Date(S.activity.on).toLocaleDateString()) : ''}${S.activity.filled ? ', starting from when your existing tasks, notes and habit check-ins were made' : ''}. Quick edits to one item are counted once. Nothing is counted on a device while its history is off. <button class="lnk" data-act="strst">Reset statistics</button></p></div>`;
 }
 const stSet = (k, v) => { S.settings.stats[k] = v; save(); renderMain(); };
 const stToggle = (k, v) => { const a = new Set(S.settings.stats[k] || []); if (a.has(v)) a.delete(v); else a.add(v); stSet(k, [...a]); };
 const ST_ACT = {
   stkind: el => stToggle('kinds', el.dataset.k), stact: el => stToggle('acts', el.dataset.a), stpanel: el => stToggle('hide', el.dataset.p),
   stclear: () => { Object.assign(S.settings.stats, { kinds: [], acts: [], scope: '' }); save(); renderMain(); },
-  strst: async () => { if (await askConfirm('Reset Statistics? The counts kept on this device are removed. Your tasks, notes and the History list are not touched.', 'Reset')) { S.activity = actNew(); S.activity.on = Date.now(); S.activity.filled = Date.now(); save(); renderMain(); toast('Statistics reset'); } },
+  strst: async () => { if (await askConfirm('Reset Statistics? The counts are removed on all your devices once they sync. Your tasks, notes and the History list are not touched.', 'Reset')) { actClear(); S.activity = actNew(); S.activity.on = Date.now(); S.activity.filled = Date.now(); save(); renderMain(); toast('Statistics reset'); } },
   histon: () => { prefSet('history.on', true); },
   stshare: () => stShareOpen(),
 };
@@ -198,8 +199,8 @@ function histToggled() {
   const d = typeof $ === 'function' ? $('#histset') : null; if (d) d.innerHTML = historySettingsInner();
 }
 function historySettingsInner() {
-  const days = Object.keys(S.activity.days).length;
-  return `<label class="a11y-r tg"><span><b>Keep a history of changes</b><small>Lists what you add, edit, finish and delete on the History page, and counts it for Statistics. Off by default. It stays on this device: it is not synced, and it is encrypted along with the rest when you use encryption.</small></span><input type="checkbox" data-pf="history.on"${histOn() ? ' checked' : ''}></label>
+  const days = Object.keys(actDays()).length;
+  return `<label class="a11y-r tg"><span><b>Keep a history of changes</b><small>Lists what you add, edit, finish and delete on the History page, and counts it for Statistics. Off by default, and set per device. The History list stays on this device. The Statistics counts are shared between your devices so every one shows the same numbers; they are encrypted along with the rest when you use encryption.</small></span><input type="checkbox" data-pf="history.on"${histOn() ? ' checked' : ''}></label>
 <p class="hint">${histOn() ? 'On' : 'Off'} · ${stNum(S.history.length)} ${S.history.length === 1 ? 'entry' : 'entries'} in the history · ${stNum(days)} ${days === 1 ? 'day' : 'days'} of statistics</p>
 <div class="dgrid"><button data-m="statsopen">${ic('activity', 18)}<span><b>Open Statistics</b><small>Heatmap, charts and filters</small></span></button><button class="dz" data-m="histwipe">${ic('trash', 18)}<span><b>Delete history and statistics…</b><small>Only these two · your tasks and notes stay</small></span></button></div>`;
 }
@@ -207,8 +208,8 @@ const historySettingsHtml = () => `<h4 class="mh">History &amp; statistics</h4><
 function statsSettingsAct(a) {
   if (a === 'statsopen') { closeModal(); U.page = 'stats'; U.sel = null; render(); return true; }
   if (a === 'histwipe') {
-    askConfirm('Delete the history list and the Statistics counts from this device? Your tasks, notes and everything else stay.', 'Delete').then(ok => {
-      if (ok) { S.history = []; S.activity = actNew(); S.activity.on = histOn() ? Date.now() : 0; S.activity.filled = Date.now(); save(); toast('History and statistics deleted'); }
+    askConfirm('Delete the history list from this device and the Statistics counts from all your devices (once they sync)? Your tasks, notes and everything else stay.', 'Delete').then(ok => {
+      if (ok) { S.history = []; actClear(); S.activity = actNew(); S.activity.on = histOn() ? Date.now() : 0; S.activity.filled = Date.now(); save(); toast('History and statistics deleted'); }
       openSettings('data');
     });
     return true;

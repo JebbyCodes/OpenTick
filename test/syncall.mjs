@@ -26,6 +26,16 @@ const mk = {
   contacts: () => A.ctNormalise({ id: 'ct-sa', name: W('contact'), org: W('org'), emails: [{ l: 'Work', v: 'sa@example.com' }], tags: ['sa'], avail: { days: { 1: [['09:00', '12:00']] }, note: W('availnote') } }),
   csections: () => A.xsNormalise({ id: 'x-sa', name: W('section'), icon: 'book-open', fields: [{ id: 'f1', name: W('field'), type: 'text' }, { id: 'f2', name: 'Status', type: 'select', opts: ['A', 'B'] }] }),
   centries: () => A.xeNormalise({ id: 'xe-sa', sid: 'x-sa', title: W('entry'), vals: { f1: W('value'), f2: 'B' }, contactIds: ['ct-sa'] }),
+  // 0.9.1: what packs and shortcuts keep (the rules for each live in packstate.js, packperm.js, packrem.js and keys.js; here only that every one of them travels, sealed)
+  packs: () => ({ id: 'pk-sa-pack', packId: 'sa-pack', name: W('pack'), version: '1.0.0', state: 'installed', config: { mine: W('packcfg') } }),
+  pkperms: () => ({ id: 'pp-sa-pack', packId: 'sa-pack', caps: { 'tasks.search_records': { rv: 0, rk: '', gr: 5, e: 0, scope: { fields: ['title'] }, ver: W('perm'), dev: 'd1' } } }),
+  pkact: () => ({ id: 'pa-sa-act1', packId: 'sa-pack', op: 'create', target: 'tasks', rec: W('act'), ts: 1, ok: true, cap: 'tasks.create_record' }),
+  pkrem: () => JSON.parse(JSON.stringify(A.__run(`pkrNormalise(${JSON.stringify({ packId: 'sa-pack', eid: 'xe-sa', rid: '', once: { sa1: { at: '2030-01-01T09:00', t: W('reminder'), by: 'user', x: false, u: 5 } }, ack: { 'sa1': { s: 'd', t: 4, z: 0, dev: 'd1' } }, u: 1 })})`))),
+  // (an action this version does not know is kept as it is, so the word can ride along in its name; the record is made by the normaliser, as the app makes it)
+  shortcuts: () => JSON.parse(JSON.stringify(A.__run(`skNormalise(${JSON.stringify({ action: 'sec.go.' + W('shortcut'), keys: ['Shift+Q', 'g t'], ku: 7, pf: { mac: { k: ['Alt+Q'], u: 6 } }, u: 8 })})`))),
+  // (a preference record mirrors S.settings, so the matching setting is set too: the sealed value is the custom theme's name)
+  prefs: () => { const v = [{ id: 'th-sa', name: W('theme'), css: ':root{--acc:#123456}' }]; A.S.settings.customThemes = v; return { id: 'pf-customThemes', key: 'customThemes', value: JSON.parse(JSON.stringify(v)) }; },
+  acts: () => ({ id: 'ac-devA-2026-11-17', dev: 'devA', day: '2026-11-17', k: { 'task.done|inbox|9': 2 }, note: W('statistics') }),
 };
 assert.deepEqual(Object.keys(mk).sort(), [...A.COLL].sort(), 'every synced collection is covered by this test');
 for (const c of A.COLL) { const o = mk[c](); A.S[c].push(o); }

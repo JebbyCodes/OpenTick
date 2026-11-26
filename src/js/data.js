@@ -24,7 +24,7 @@ async function filesWipe() {
     if (typeof FILE_URL !== 'undefined') { for (const u of FILE_URL.values()) { try { URL.revokeObjectURL(u); } catch (e) { /* ignore */ } } FILE_URL.clear(); }
   } catch (e) { /* storage is optional */ }
 }
-const EMPTY_DATA = () => ({ v: 1, tasks: [], lists: [], habits: [], tags: [], slots: [], notes: [], projects: [], school: [], pomo: [], templates: [], countdowns: [], zones: [], boards: [], contacts: [], csections: [], centries: [] });
+const EMPTY_DATA = () => ({ v: 1, pomo: [], ...Object.fromEntries(COLL.map(c => [c, []])) });
 // Delete everything: tasks, lists, projects, notes, habits, timetable, tags, focus log and history. Sync sees it as a deliberate deletion.
 //   o.settings  also reset the settings (theme, layout, sounds)       o.files  also delete the attachments' bytes (default yes)
 // Resolves to the key of the restore point (or '' when none could be written).
@@ -32,7 +32,7 @@ async function wipeAll(o = {}) {
   let key = ''; try { key = (await snapSave(true, 'before-delete')) || ''; } catch (e) { key = ''; }
   const d = EMPTY_DATA(); if (!o.settings) d.settings = S.settings;
   S.history = []; S.activity = actNew(); // the log and the Statistics tally go with the data
-  replaceAll(d);
+  replaceAll(d, { wipeActs: true });
   if (o.files !== false) await filesWipe();
   if (o.settings && typeof csoundWipe === 'function') await csoundWipe(); // the settings go back to their defaults, and so does the sound
   S.fired = {}; histNote('delete', 'Everything was deleted'); save(); flush();

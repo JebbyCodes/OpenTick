@@ -27,6 +27,7 @@ export const STAGES = [
   ['publish-chocolatey', 'Chocolatey', 'Publish', 'optional'],
   ['publish-scoop', 'Scoop', 'Publish', 'optional'],
   ['publish-winget', 'Winget', 'Publish', 'optional'],
+  ['screenshots', 'README screenshots (a pull request)', 'Publish', 'optional'],
 ];
 
 const ICON = { success: '✅', failure: '❌', cancelled: '🚫', skipped: '⏭️' };
@@ -59,8 +60,8 @@ export function summarise(needs, { repo = '', runUrl = '' } = {}) {
   for (const [id, what, g, level] of STAGES) {
     const r = res(id);
     // a stable-only publisher that was skipped on a pre-release is expected, not a gap
-    const note = r === 'skipped' && !stable && /^publish-(microsoft-store|chocolatey|scoop|winget)$/.test(id) ? ' (stable releases only)'
-      : r === 'skipped' && id.startsWith('publish-') && !released ? ' (waits for the release)' : '';
+    const note = r === 'skipped' && !stable && /^(publish-(microsoft-store|chocolatey|scoop|winget)|screenshots)$/.test(id) ? ' (stable releases only)'
+      : r === 'skipped' && (id.startsWith('publish-') || id === 'screenshots') && !released ? ' (waits for the release)' : '';
     const label = (g !== group ? `**${g}** · ` : '') + '`' + id + '`' + (level === 'optional' ? ' *(optional)*' : '');
     group = g;
     lines.push(`| ${label} | ${icon(r)} ${WORD[r] || r} | ${what}${note} |`);
