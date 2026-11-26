@@ -40,6 +40,17 @@ class Quiet(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *a): pass
     extensions_map = {**http.server.SimpleHTTPRequestHandler.extensions_map, '.webmanifest': 'application/manifest+json', '.js': 'text/javascript'}
 
+def settled_screenshot(pg, path, tries=8):
+    """Takes frames until two in a row are byte-identical (layout, fonts and scroll positions have stopped moving), so the picture does not depend on how fast a machine is."""
+    last = pg.screenshot()
+    for _ in range(tries):
+        pg.wait_for_timeout(250); cur = pg.screenshot()
+        if cur == last: break
+        last = cur
+    else:
+        raise SystemExit(f'{path.name}: the page never stopped changing in {tries} tries')
+    path.write_bytes(last)
+
 def serve(folder):
     srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Quiet, directory=str(folder)))
     threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -105,7 +116,7 @@ def main():
                     if vp == 'desktop' and name == 'tasks': pg.locator('#main', has_text='Finish the quarterly report').locator('text=Finish the quarterly report').first.click(); pg.wait_for_timeout(500)
                     if must and not pg.get_by_text(must).first.is_visible(): sys.exit(f'ERROR: {vp}-{name}: the text {must!r} is not on screen, so the page is not the one expected.')
                     pg.evaluate("document.activeElement && document.activeElement.blur && document.activeElement.blur()"); pg.mouse.move(2, 2); pg.wait_for_timeout(150)   # nothing focused or hovered: no ring, no tooltip
-                    path = out / f'{vp}-{name}.png'; pg.screenshot(path=str(path)); check_not_blank(path, path.name)
+                    path = out / f'{vp}-{name}.png'; settled_screenshot(pg, path); check_not_blank(path, path.name)
                     im = Image.open(path).convert('RGB'); im.save(path, optimize=True)
                     manifest['images'][path.name] = {'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'size': list(im.size)}
                     ctx.close()
