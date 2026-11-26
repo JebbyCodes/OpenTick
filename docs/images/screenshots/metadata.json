@@ -1,0 +1,122 @@
+{
+  "capture": {
+    "frozenAt": "2026-11-18T10:24:00",
+    "viewports": {
+      "desktop": {
+        "height": 900,
+        "scale": 1,
+        "width": 1440
+      },
+      "mobile": {
+        "height": 844,
+        "scale": 2,
+        "width": 390
+      }
+    }
+  },
+  "format": 1,
+  "images": {
+    "desktop-boards.png": {
+      "height": 900,
+      "sha256": "cf08c0816214cd7e5dc1bdeb6345e96b985830f607707c953988cd871ebafac1",
+      "width": 1440
+    },
+    "desktop-calendar.png": {
+      "height": 900,
+      "sha256": "96df82809ca1e6c472ed2ec141e13fb7d9b224204d58878ae5d0928717f8f957",
+      "width": 1440
+    },
+    "desktop-dashboard.png": {
+      "height": 900,
+      "sha256": "8a06b92dab0e2bb751f8c3b77fa011ad43210fed6ef6ec10e418860da4e656cf",
+      "width": 1440
+    },
+    "desktop-habits.png": {
+      "height": 900,
+      "sha256": "0880ffd0b00d0e33111856f4aa40aea44c7cbb7298a40c8bf441f6b26123dc44",
+      "width": 1440
+    },
+    "desktop-integrations.png": {
+      "height": 900,
+      "sha256": "9f0a1ae2edccdcdd06d9b76d2d27209526b64e59953f3d3303ecce427894918f",
+      "width": 1440
+    },
+    "desktop-notes.png": {
+      "height": 900,
+      "sha256": "9d67c9c7fb319622c267257421ae9faff95ad912156c5b3d4c5333e1fe916777",
+      "width": 1440
+    },
+    "desktop-packs.png": {
+      "height": 900,
+      "sha256": "9f27ca7f3cf5cff41f244a7b6f8fc4f6a82cc96c720e1f4d78c39e02b24e5278",
+      "width": 1440
+    },
+    "desktop-sections.png": {
+      "height": 900,
+      "sha256": "af657bb48ed3a3819c7eddc9ed7bcd5050925210ca2e53838d3c146cfd6192a1",
+      "width": 1440
+    },
+    "desktop-tasks.png": {
+      "height": 900,
+      "sha256": "573cc41f8ce1f22dbc6572f0e2c9d7894cdb616c42e2075dd0c9482263aea2a8",
+      "width": 1440
+    },
+    "mobile-boards.png": {
+      "height": 1688,
+      "sha256": "2487ce765c0e7b295151f827abeaded4c1d5f76eee78bf6a0083741dd05c9d89",
+      "width": 780
+    },
+    "mobile-calendar.png": {
+      "height": 1688,
+      "sha256": "b561040076863d7a1b79c1f34885b5924ccc8df95c3f6aa336732e6fd0fcb9e7",
+      "width": 780
+    },
+    "mobile-dashboard.png": {
+      "height": 1688,
+      "sha256": "4cb926c2734662887841d507809e7dae86dce1b5a71f21b4fbc5143c3105c37c",
+      "width": 780
+    },
+    "mobile-habits.png": {
+      "height": 1688,
+      "sha256": "8f3c38e8c26a29368b297ed86cd2d06634fff03d6ddcbbfd29714bd0722065ae",
+      "width": 780
+    },
+    "mobile-integrations.png": {
+      "height": 1688,
+      "sha256": "02c107b8b021ba2ffa91b06639e8e72e8146e63979aff19f38e68fb0a110be02",
+      "width": 780
+    },
+    "mobile-notes.png": {
+      "height": 1688,
+      "sha256": "b4c360d4e7b7cd56d2351b7d96ffce492e73ca41377accdc7e9e786b546bc6a6",
+      "width": 780
+    },
+    "mobile-packs.png": {
+      "height": 1688,
+      "sha256": "7ba15a2678ba7d56784a38e850af70aed78e7ce06a7a44a0a95e7287503147ef",
+      "width": 780
+    },
+    "mobile-sections.png": {
+      "height": 1688,
+      "sha256": "292b1b28092fabf8d737f2f97bc5c699b6ba88cd835e9922c6f84e9b934bd40a",
+      "width": 780
+    },
+    "mobile-tasks.png": {
+      "height": 1688,
+      "sha256": "9a8f122a34f99857728aa0d114dad07ac02044fa7a36fc968cd034fa2bd46bf5",
+      "width": 780
+    }
+  },
+  "opentick": "screenshots",
+  "release": {
+    "asset": {
+      "name": "OpenTick_0.9.1_web.zip",
+      "sha256": "454567d2edb297e3b48b8ce16a315be2bc185bacb2dc56e1f7381c13e9e10a7d",
+      "size": 765834
+    },
+    "publishedAt": "2026-11-26T22:50:06Z",
+    "tag": "v0.9.1",
+    "url": "https://github.com/JebbyCodes/OpenTick/releases/tag/v0.9.1",
+    "version": "0.9.1"
+  }
+}
