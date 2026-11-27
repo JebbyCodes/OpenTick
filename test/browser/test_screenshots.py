@@ -265,9 +265,14 @@ assert len({v['sha256'] for v in man['images'].values()}) == len(pub.EXPECTED), 
 for n, v in man['images'].items():
     im = Image.open(out / 'images' / n); assert list(im.size) == v['size'] == list(pub.SIZES[n.split('-')[0]]), n
 # the pictures go into a copy of the REAL README and docs page (their markers are exercised), then a second identical run changes nothing
-real = W / 'real'; shutil.copytree(ROOT / 'docs' / 'images', real / 'docs' / 'images')
-for rel_path in ['README.md', 'docs/SCREENSHOTS.md']: shutil.copy(ROOT / rel_path, real / rel_path)
-assert (real / 'docs' / 'images' / 'tasks.png').is_file() and not (real / 'docs' / 'images' / 'screenshots').exists(), 'the copy starts as the repository is today: the hand-made pictures, no release pictures'
+# The starting state is BUILT HERE, never read from the repository: once the first screenshot pull request is merged the repository no longer has the hand-made pictures and does
+# have docs/images/screenshots/, so a test that copied the real tree would fail from then on. What is read from the repository is only its generated-block MARKERS (both states have them).
+real = mk_repo(W / 'real')
+for rel_path, pairs in [('README.md', [('screenshots:start', 'screenshots:end')]), ('docs/SCREENSHOTS.md', [('screenshots:list:start', 'screenshots:list:end')])]:
+    t = (ROOT / rel_path).read_text(encoding='utf-8')
+    for st, en in pairs: assert t.count(f'<!-- {st} -->') == 1 and t.count(f'<!-- {en} -->') == 1 and t.index(f'<!-- {st} -->') < t.index(f'<!-- {en} -->'), f'{rel_path} keeps its generated-block markers'
+assert (ROOT / 'README.md').read_text(encoding='utf-8').index('<!-- screenshots:start -->') < (ROOT / 'README.md').read_text(encoding='utf-8').index('## Download')
+assert (real / 'docs' / 'images' / 'tasks.png').is_file() and not (real / 'docs' / 'images' / 'screenshots').exists(), 'the fixture starts as the repository was before the first run: the hand-made pictures, no release pictures'
 rr = out / 'release.json'
 r, o = publish('check', real, rr); assert o['needed'] == 'true', r.stdout
 r, o = publish('apply', real, rr, out / 'images', '--pr-body', out / 'pr.md'); assert r.returncode == 0 and o['changed'] == 'true', r.stderr + r.stdout
